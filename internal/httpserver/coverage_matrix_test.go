@@ -16,11 +16,13 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/principal"
 )
 
-// The coverage matrix: one entry per tenant-scoped operation in
-// api/openapi.yaml. TestEveryOperationIsInTheCoverageTable fails when the
-// spec gains an operation that is in neither tenantOps nor otherCoveredOps,
-// so new endpoints cannot ship without a cross-tenant, role, idempotency and
-// credential-kind test.
+// The coverage matrix: one entry per operation in api/openapi.yaml, grouped
+// by the principal it serves. tenantOps are dashboard operations on a
+// tenant's resources; memberOps act on the signed-in MINI App member;
+// serverOps are the API-key routes. TestEveryOperationIsInTheCoverageTable
+// fails when the spec gains an operation that is in none of the tables nor
+// otherCoveredOps, so new endpoints cannot ship without a cross-tenant,
+// role, idempotency and credential-kind test.
 
 // matrixFixtures are tenant A's resources the table operates on.
 type matrixFixtures struct {
@@ -30,8 +32,16 @@ type matrixFixtures struct {
 	staff      api.StaffCreated
 	key        api.ApiKeyCreated
 	invitation api.InvitationCreated
-	channel    string // environment of the fixture channel
+	member     api.MemberSession // a LINE member of app A, signed in
+	channel    string            // environment of the fixture channel
 }
+
+// Fixture channel and LINE user of tenant A's app.
+const (
+	fixtureChannelID = "2007000001"
+	fixtureLineUser  = "Ufixturea0000000000000000000001"
+	fixtureLineName  = "Hsiao-Ling"
+)
 
 // opCase describes one spec operation.
 type opCase struct {
@@ -125,23 +135,63 @@ var tenantOps = []opCase{
 	{id: "createApiKey", method: http.MethodPost, path: func(f *matrixFixtures) string { return appPath(f) + "/api-keys" },
 		body: obj("name", "k2", "scopes", []string{"members:read"}), alt: obj("name", "k2", "scopes", []string{"members:write"}), idem: true, min: principal.RoleAdmin, created: 201, creates: "api_keys"},
 	{id: "revokeApiKey", method: http.MethodDelete, path: func(f *matrixFixtures) string { return "/v1/dashboard/api-keys/" + f.key.Id.String() }, min: principal.RoleAdmin},
+	// members (dashboard)
+	{id: "listMembers", method: http.MethodGet, path: func(f *matrixFixtures) string { return appPath(f) + "/members" }, min: principal.RoleStaff},
+	{id: "getMember", method: http.MethodGet, path: memberPath, min: principal.RoleStaff},
+	// Export is a read that staff may not perform: data-rights requests are
+	// handled by owners and admins and audited.
+	{id: "exportMember", method: http.MethodGet, path: func(f *matrixFixtures) string { return memberPath(f) + "/export" }, min: principal.RoleAdmin},
+	{id: "eraseMember", method: http.MethodDelete, path: memberPath, min: principal.RoleAdmin},
 }
 
-// otherCoveredOps are operations without a tenant in their path. They are
-// covered by auth_handlers_test.go, server_test.go, coverage_auth_test.go
-// and coverage_cookie_test.go.
+func memberPath(f *matrixFixtures) string {
+	return "/v1/dashboard/members/" + f.member.Member.Id.String()
+}
+
+// memberOps act on the caller's own member row through a member session.
+// The matrix in coverage_member_matrix_test.go proves a member sees only
+// their own data and that no other credential kind is accepted.
+var memberOps = []opCase{
+	{id: "getMe", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/me" }},
+	{id: "updateMe", method: http.MethodPatch, path: func(*matrixFixtures) string { return "/v1/me" },
+		body: obj("display_name", "Renamed Member"), alt: obj("display_name", "Other Member"), idem: true, created: 200},
+	{id: "recordConsent", method: http.MethodPost, path: func(*matrixFixtures) string { return "/v1/me/consent" },
+		body: obj("version", "2026-11"), alt: obj("version", "2026-12"), idem: true, created: 200, creates: "member_consents"},
+	{id: "exportMe", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/me/export" }},
+	// deleteMe ends the session, so it is always exercised last.
+	{id: "deleteMe", method: http.MethodDelete, path: func(*matrixFixtures) string { return "/v1/me" }},
+}
+
+// serverOps are the API-key routes that read members. getCurrentApp needs
+// no scope and is covered by TestCredentialKindMatrix.
+var serverOps = []opCase{
+	{id: "serverListMembers", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/members" }},
+	{id: "serverGetMember", method: http.MethodGet, path: func(f *matrixFixtures) string { return "/v1/members/" + f.member.Member.Id.String() }},
+}
+
+// otherCoveredOps are operations that act on no tenant resource: health,
+// sign-in and the caller's own dashboard account. They are covered by
+// auth_handlers_test.go, server_test.go, coverage_auth_test.go,
+// coverage_cookie_test.go, member_handlers_test.go (loginWithLine),
+// webhook_handler_test.go and invitation_handlers_test.go.
 var otherCoveredOps = []string{
 	"getHealthz", "getReadyz",
 	"dashboardRegister", "dashboardLogin", "dashboardMfa", "dashboardRefresh", "dashboardLogout",
 	"getDashboardMe", "changeDashboardPassword", "dashboardLogoutAll", "enrollTotp", "confirmTotp", "disableTotp",
 	"listTenants", "getCurrentApp",
-	// Phase 2 operations: covered by their own suites as the features land.
-	"loginWithLine", "getMe", "updateMe", "deleteMe", "recordConsent", "exportMe",
-	"receiveLineWebhook",
-	"listMembers", "getMember", "eraseMember", "exportMember",
-	"serverListMembers", "serverGetMember",
-	// invitation_handlers_test.go
+	"loginWithLine", "receiveLineWebhook",
 	"acceptInvitation", "listSecurityEvents",
+}
+
+// matrixTables maps each operation table to the security scheme the spec
+// must declare for its operations.
+var matrixTables = []struct {
+	ops    []opCase
+	scheme string
+}{
+	{tenantOps, "dashboardSession"},
+	{memberOps, "memberSession"},
+	{serverOps, "apiKey"},
 }
 
 // deletesWithoutIdempotencyKey lists the write operations the spec exempts
@@ -154,24 +204,32 @@ func TestEveryOperationIsInTheCoverageTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	byID := map[string]opCase{}
-	for _, op := range tenantOps {
-		if _, dup := byID[op.id]; dup {
-			t.Errorf("duplicate table entry %s", op.id)
+	type entry struct {
+		op     opCase
+		scheme string
+	}
+	byID := map[string]entry{}
+	for _, tbl := range matrixTables {
+		for _, op := range tbl.ops {
+			if _, dup := byID[op.id]; dup {
+				t.Errorf("duplicate table entry %s", op.id)
+			}
+			byID[op.id] = entry{op: op, scheme: tbl.scheme}
 		}
-		byID[op.id] = op
+	}
+	for _, id := range otherCoveredOps {
+		if _, dup := byID[id]; dup {
+			t.Errorf("%s is in a matrix table and in otherCoveredOps", id)
+		}
 	}
 	inSpec := map[string]bool{}
 	for path, item := range spec.Paths.Map() {
 		for method, op := range item.Operations() {
 			id := opKey(op.OperationID)
 			inSpec[id] = true
-			covered := slices.Contains(otherCoveredOps, id)
-			if _, ok := byID[id]; ok {
-				covered = true
-			}
-			if !covered {
-				t.Errorf("%s %s (%s) is not in tenantOps or otherCoveredOps: add cross-tenant, role, idempotency and credential tests", method, path, id)
+			tc, tabled := byID[id]
+			if !tabled && !slices.Contains(otherCoveredOps, id) {
+				t.Errorf("%s %s (%s) is not in tenantOps, memberOps, serverOps or otherCoveredOps: add cross-tenant, role, idempotency and credential tests", method, path, id)
 				continue
 			}
 			hasIdem := false
@@ -180,18 +238,17 @@ func TestEveryOperationIsInTheCoverageTable(t *testing.T) {
 					hasIdem = true
 				}
 			}
-			tc, tenantScoped := byID[id]
-			if tenantScoped {
-				if tc.method != method {
-					t.Errorf("%s: table says %s, spec says %s", id, tc.method, method)
+			if tabled {
+				if tc.op.method != method {
+					t.Errorf("%s: table says %s, spec says %s", id, tc.op.method, method)
 				}
-				if tc.idem != hasIdem {
-					t.Errorf("%s: table idem=%v, spec declares Idempotency-Key=%v", id, tc.idem, hasIdem)
+				if tc.op.idem != hasIdem {
+					t.Errorf("%s: table idem=%v, spec declares Idempotency-Key=%v", id, tc.op.idem, hasIdem)
 				}
 				if op.Security == nil || len(*op.Security) != 1 || len((*op.Security)[0]) != 1 {
-					t.Errorf("%s: tenant-scoped operations must require exactly one scheme (dashboardSession), got %v", id, op.Security)
-				} else if _, ok := (*op.Security)[0]["dashboardSession"]; !ok {
-					t.Errorf("%s: tenant-scoped operations must require dashboardSession, got %v", id, op.Security)
+					t.Errorf("%s: must require exactly one scheme (%s), got %v", id, tc.scheme, op.Security)
+				} else if _, ok := (*op.Security)[0][tc.scheme]; !ok {
+					t.Errorf("%s: must require %s, got %v", id, tc.scheme, op.Security)
 				}
 			}
 			// Sign-in endpoints and the LINE webhook are retried by their callers
@@ -236,8 +293,9 @@ func newMatrixFixtures(t *testing.T, w *world) *matrixFixtures {
 	want(t, r, http.StatusCreated)
 	r.into(t, &f.key)
 
-	r = owner.put(base+"/channels/"+f.channel, uuid.NewString(), map[string]any{"channel_id": "2007000001", "liff_id": "2007000001-dev", "channel_secret": "dev-secret"})
+	r = owner.put(base+"/channels/"+f.channel, uuid.NewString(), map[string]any{"channel_id": fixtureChannelID, "liff_id": fixtureChannelID + "-dev", "channel_secret": "dev-secret"})
 	want(t, r, http.StatusOK)
+	f.member = w.lineLogin(f.app, fixtureChannelID, fixtureLineUser, fixtureLineName)
 
 	r = owner.post(tenantPath(f)+"/invitations", uuid.NewString(), map[string]any{"email": "pending@example.com", "role": "staff"})
 	want(t, r, http.StatusCreated)
@@ -248,7 +306,8 @@ func newMatrixFixtures(t *testing.T, w *world) *matrixFixtures {
 // fixtureMarkers are strings from tenant A's data that must never appear in
 // a response to an outsider.
 func (f *matrixFixtures) markers() []string {
-	return []string{"Cafe", "Main", "TPE01", "Mei", f.key.Key, f.key.Prefix, "2007000001", "dev-secret", f.app.Slug, "pending@example.com", f.invitation.InviteUrl}
+	return []string{"Cafe", "Main", "TPE01", "Mei", f.key.Key, f.key.Prefix, fixtureChannelID, "dev-secret", f.app.Slug, "pending@example.com", f.invitation.InviteUrl,
+		fixtureLineName, fixtureLineUser, f.member.Member.Id.String(), f.member.SessionToken}
 }
 
 // tenantTables are every table that carries tenant data, with the column
@@ -264,6 +323,9 @@ var tenantTables = []struct{ name, col string }{
 	{"audit_log", "tenant_id"},
 	{"idempotency_keys", "tenant_id"},
 	{"invitations", "tenant_id"},
+	{"members", "tenant_id"},
+	{"member_consents", "tenant_id"},
+	{"webhook_inbound_events", "tenant_id"},
 }
 
 // snapshot fingerprints every row of tenantID in every tenant table.
@@ -298,7 +360,18 @@ func (w *world) counts(tenantID uuid.UUID) map[string]int {
 
 func assertUnchanged(t *testing.T, before, after map[string]string, context string) {
 	t.Helper()
+	assertUnchangedExcept(t, before, after, context)
+}
+
+// assertUnchangedExcept is assertUnchanged for flows that legitimately touch
+// a few tables, such as api_keys.last_used_at, which a successful key
+// authentication updates asynchronously.
+func assertUnchangedExcept(t *testing.T, before, after map[string]string, context string, except ...string) {
+	t.Helper()
 	for _, tbl := range tenantTables {
+		if slices.Contains(except, tbl.name) {
+			continue
+		}
 		if before[tbl.name] != after[tbl.name] {
 			t.Errorf("%s: table %s changed", context, tbl.name)
 		}
@@ -361,8 +434,9 @@ func TestCrossTenantMatrix(t *testing.T) {
 	}
 }
 
-// Invariant: staff can read everything and write nothing; admins cannot
-// grant, change or remove owner roles. Refused writes change nothing.
+// Invariant: staff can read everything except data-rights exports and write
+// nothing; admins cannot grant, change or remove owner roles. Refused
+// requests change nothing.
 func TestRoleMatrix(t *testing.T) {
 	w := newWorld(t)
 	f := newMatrixFixtures(t, w)
@@ -371,21 +445,21 @@ func TestRoleMatrix(t *testing.T) {
 	for _, op := range tenantOps {
 		t.Run(op.id+"/staff", func(t *testing.T) {
 			r := f.send(op, "staff-a", op.body, uuid.NewString())
-			if !op.write() {
+			if !op.write() && principal.RoleStaff.AtLeast(op.min) {
 				if r.code != http.StatusOK {
 					t.Fatalf("staff read: status = %d, want 200; body %s", r.code, r.body)
 				}
 				return
 			}
 			if r.code != http.StatusForbidden {
-				t.Fatalf("staff write: status = %d, want 403; body %s", r.code, r.body)
+				t.Fatalf("staff %s: status = %d, want 403; body %s", strings.ToLower(op.method), r.code, r.body)
 			}
 			if code := r.errCode(t); code != "forbidden" {
 				t.Errorf("code = %s, want forbidden", code)
 			}
 		})
 	}
-	assertUnchanged(t, before, w.snapshot(w.tenantA), "after staff writes")
+	assertUnchanged(t, before, w.snapshot(w.tenantA), "after staff requests")
 
 	team := tenantPath(f) + "/team"
 	admin := w.as("admin-a")

@@ -25,6 +25,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 	"github.com/amangeldievkuu/miniloyal/internal/testutil"
+	"github.com/amangeldievkuu/miniloyal/internal/webhook"
 )
 
 // memberEnv wires auth, tenant, lineauth and member services behind the
@@ -73,6 +74,7 @@ func newMemberEnv(t *testing.T) *memberEnv {
 		Tenants:   tenants,
 		LineAuth:  lineAuth,
 		MemberSvc: members,
+		Webhooks:  webhook.New(d.App, tenants, logger),
 	}).Handler()
 	return e
 }
@@ -92,6 +94,23 @@ func (e *memberEnv) do(method, path string, body any, headers map[string]string)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	rec := httptest.NewRecorder()
+	e.handler.ServeHTTP(rec, req)
+	res := rec.Result()
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	return resp{status: res.StatusCode, body: b, headers: res.Header, cookies: res.Cookies()}
+}
+
+// raw serves one request with a pre-encoded body, for webhook deliveries
+// whose signature covers the exact bytes.
+func (e *memberEnv) raw(method, path string, body []byte, headers map[string]string) resp {
+	e.t.Helper()
+	req := httptest.NewRequest(method, path, bytes.NewReader(body))
+	req.RemoteAddr = "203.0.113.7:51000"
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/amangeldievkuu/miniloyal/internal/api"
 	"github.com/amangeldievkuu/miniloyal/internal/line"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
@@ -86,4 +87,59 @@ func TestReceiveLineWebhookOverHTTP(t *testing.T) {
 	if res := post(appID, padded, line.Sign(secret, padded)); res.StatusCode != http.StatusOK {
 		t.Errorf("100 KiB webhook: %d", res.StatusCode)
 	}
+}
+
+// Invariant: the webhook body limit is exact. 1 MiB is accepted and applied,
+// one more byte is 413 before the signature is even checked, and a body
+// that is not JSON is 400 even when its signature is valid.
+func TestWebhookBodyLimitBoundary(t *testing.T) {
+	e := newMemberEnv(t)
+	ownerTok := e.owner("owner@example.com")
+	app := e.app(ownerTok)
+	e.linkOA(ownerTok, app, "2001000002")
+
+	// Pad the destination so the whole body is exactly webhookMaxBody bytes.
+	frame := `{"destination":"","events":[{"type":"follow","webhookEventId":"limit-1","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active","source":{"type":"user","userId":"Ulimit"}}]}`
+	pad := strings.Repeat("d", webhookMaxBody-len(frame))
+	exact := []byte(strings.Replace(frame, `"destination":""`, `"destination":"`+pad+`"`, 1))
+	if len(exact) != webhookMaxBody {
+		t.Fatalf("body is %d bytes, want %d", len(exact), webhookMaxBody)
+	}
+	if r := e.webhookBody(app, exact); r.status != http.StatusOK {
+		t.Errorf("exactly 1 MiB: %d %s", r.status, r.body)
+	}
+	if _, friend, _ := e.memberRow(memberIDByLineUser(t, e, app, "Ulimit")); !friend {
+		t.Error("the 1 MiB delivery was not applied")
+	}
+	over := append(bytes.Clone(exact), ' ')
+	r := e.webhookBody(app, over)
+	if r.status != http.StatusRequestEntityTooLarge {
+		t.Errorf("1 MiB + 1: %d %s", r.status, r.body)
+	}
+	var ae api.Error
+	r.into(t, &ae)
+	if ae.Code != "payload_too_large" {
+		t.Errorf("code = %s", ae.Code)
+	}
+	// An oversized body with a bad signature is also 413: the size check
+	// comes first and reveals nothing about the secret.
+	if r := e.raw(http.MethodPost, "/webhooks/line/"+app.Id.String(), over, map[string]string{line.SignatureHeader: "bad"}); r.status != http.StatusRequestEntityTooLarge {
+		t.Errorf("oversized with a bad signature: %d", r.status)
+	}
+	if r := e.webhookBody(app, []byte("not json")); r.status != http.StatusBadRequest {
+		t.Errorf("non-JSON with a valid signature: %d %s", r.status, r.body)
+	}
+	// Headers alone, no body: 400, not a panic.
+	if r := e.raw(http.MethodPost, "/webhooks/line/"+app.Id.String(), nil, map[string]string{line.SignatureHeader: line.Sign(erasureOASecret, nil)}); r.status != http.StatusBadRequest {
+		t.Errorf("empty body: %d %s", r.status, r.body)
+	}
+}
+
+func memberIDByLineUser(t *testing.T, e *memberEnv, app api.App, lineUserID string) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	if err := e.db.Admin.QueryRow(context.Background(), "SELECT id FROM members WHERE app_id = $1 AND line_user_id = $2", uuid.UUID(app.Id), lineUserID).Scan(&id); err != nil {
+		t.Fatalf("member %s: %v", lineUserID, err)
+	}
+	return id
 }
