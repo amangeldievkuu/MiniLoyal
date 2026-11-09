@@ -12,6 +12,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const consumeMfaChallengeAttempt = `-- name: ConsumeMfaChallengeAttempt :one
+UPDATE mfa_challenges SET attempts = attempts + 1
+WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND expires_at > now()
+RETURNING attempts
+`
+
+type ConsumeMfaChallengeAttemptParams struct {
+	ID     uuid.UUID `json:"id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) ConsumeMfaChallengeAttempt(ctx context.Context, arg ConsumeMfaChallengeAttemptParams) (int32, error) {
+	row := q.db.QueryRow(ctx, consumeMfaChallengeAttempt, arg.ID, arg.UserID)
+	var attempts int32
+	err := row.Scan(&attempts)
+	return attempts, err
+}
+
 const countUnusedRecoveryCodes = `-- name: CountUnusedRecoveryCodes :one
 SELECT count(*) FROM totp_recovery_codes WHERE user_id = $1 AND used_at IS NULL
 `
@@ -23,10 +41,25 @@ func (q *Queries) CountUnusedRecoveryCodes(ctx context.Context, userID uuid.UUID
 	return count, err
 }
 
+const createMfaChallenge = `-- name: CreateMfaChallenge :exec
+INSERT INTO mfa_challenges (id, user_id, expires_at) VALUES ($1, $2, $3)
+`
+
+type CreateMfaChallengeParams struct {
+	ID        uuid.UUID          `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) CreateMfaChallenge(ctx context.Context, arg CreateMfaChallengeParams) error {
+	_, err := q.db.Exec(ctx, createMfaChallenge, arg.ID, arg.UserID, arg.ExpiresAt)
+	return err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, email, password_hash, display_name)
 VALUES ($1, $2, $3, $4)
-RETURNING id, email, password_hash, display_name, totp_secret_enc, totp_enabled_at, sessions_valid_from, last_login_at, created_at, updated_at
+RETURNING id, email, password_hash, display_name, totp_secret_enc, totp_enabled_at, sessions_valid_from, last_login_at, created_at, updated_at, totp_last_step
 `
 
 type CreateUserParams struct {
@@ -55,8 +88,21 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TotpLastStep,
 	)
 	return i, err
+}
+
+const deleteExpiredMfaChallenges = `-- name: DeleteExpiredMfaChallenges :execrows
+DELETE FROM mfa_challenges WHERE expires_at < now() - interval '1 hour'
+`
+
+func (q *Queries) DeleteExpiredMfaChallenges(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredMfaChallenges)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteRecoveryCodes = `-- name: DeleteRecoveryCodes :exec
@@ -91,7 +137,7 @@ func (q *Queries) EnableTotp(ctx context.Context, id uuid.UUID) (int64, error) {
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, email, password_hash, display_name, totp_secret_enc, totp_enabled_at, sessions_valid_from, last_login_at, created_at, updated_at FROM users WHERE id = $1
+SELECT id, email, password_hash, display_name, totp_secret_enc, totp_enabled_at, sessions_valid_from, last_login_at, created_at, updated_at, totp_last_step FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
@@ -108,12 +154,13 @@ func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TotpLastStep,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, display_name, totp_secret_enc, totp_enabled_at, sessions_valid_from, last_login_at, created_at, updated_at FROM users WHERE email = $1
+SELECT id, email, password_hash, display_name, totp_secret_enc, totp_enabled_at, sessions_valid_from, last_login_at, created_at, updated_at, totp_last_step FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -130,6 +177,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TotpLastStep,
 	)
 	return i, err
 }
@@ -171,6 +219,18 @@ func (q *Queries) InvalidateUserSessionsAt(ctx context.Context, arg InvalidateUs
 	return err
 }
 
+const markMfaChallengeUsed = `-- name: MarkMfaChallengeUsed :execrows
+UPDATE mfa_challenges SET used_at = now() WHERE id = $1 AND used_at IS NULL
+`
+
+func (q *Queries) MarkMfaChallengeUsed(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, markMfaChallengeUsed, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setPendingTotp = `-- name: SetPendingTotp :execrows
 UPDATE users SET totp_secret_enc = $2, updated_at = now()
 WHERE id = $1 AND totp_enabled_at IS NULL
@@ -183,6 +243,25 @@ type SetPendingTotpParams struct {
 
 func (q *Queries) SetPendingTotp(ctx context.Context, arg SetPendingTotpParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setPendingTotp, arg.ID, arg.TotpSecretEnc)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setTotpLastStep = `-- name: SetTotpLastStep :execrows
+UPDATE users SET totp_last_step = $2
+WHERE id = $1 AND (totp_last_step IS NULL OR totp_last_step < $2)
+`
+
+type SetTotpLastStepParams struct {
+	ID           uuid.UUID `json:"id"`
+	TotpLastStep *int64    `json:"totp_last_step"`
+}
+
+// Advances the last accepted TOTP step; zero rows means the code was replayed.
+func (q *Queries) SetTotpLastStep(ctx context.Context, arg SetTotpLastStepParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setTotpLastStep, arg.ID, arg.TotpLastStep)
 	if err != nil {
 		return 0, err
 	}

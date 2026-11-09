@@ -65,9 +65,11 @@ gen-sql:
 gen-ts:
 	@if [ -d node_modules ]; then npm run gen:api; else echo "gen-ts: skipped (run npm install)"; fi
 
-## gen-check: fail when generated code is out of date
-gen-check: gen
-	@git diff --exit-code -- internal/api internal/db sdk/js/src/api/schema.d.ts web/dashboard/src/api/schema.d.ts web/staff/src/api/schema.d.ts || (echo "generated code is stale: run make gen and commit"; exit 1)
+## gen-check: fail when regenerating would change the generated code
+GENERATED   := internal/api/api.gen.go $(wildcard internal/db/sqlc/*.go) sdk/js/src/api/schema.d.ts web/dashboard/src/api/schema.d.ts web/staff/src/api/schema.d.ts
+gen-check:
+	@before="$$(git hash-object $(GENERATED))"; $(MAKE) -s gen >/dev/null; after="$$(git hash-object $(GENERATED))"; \
+	test "$$before" = "$$after" || (echo "generated code is stale: run make gen and commit the result"; exit 1)
 
 ## migrate: apply pending migrations to DATABASE_URL
 migrate:

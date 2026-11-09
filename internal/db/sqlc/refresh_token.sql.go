@@ -101,12 +101,13 @@ func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (
 }
 
 const listRefreshTokenChildren = `-- name: ListRefreshTokenChildren :many
-SELECT id, revoked_at FROM refresh_tokens WHERE parent_id = $1
+SELECT id, revoked_at, created_at FROM refresh_tokens WHERE parent_id = $1
 `
 
 type ListRefreshTokenChildrenRow struct {
 	ID        uuid.UUID          `json:"id"`
 	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 func (q *Queries) ListRefreshTokenChildren(ctx context.Context, parentID uuid.NullUUID) ([]ListRefreshTokenChildrenRow, error) {
@@ -118,7 +119,7 @@ func (q *Queries) ListRefreshTokenChildren(ctx context.Context, parentID uuid.Nu
 	var items []ListRefreshTokenChildrenRow
 	for rows.Next() {
 		var i ListRefreshTokenChildrenRow
-		if err := rows.Scan(&i.ID, &i.RevokedAt); err != nil {
+		if err := rows.Scan(&i.ID, &i.RevokedAt, &i.CreatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -130,11 +131,17 @@ func (q *Queries) ListRefreshTokenChildren(ctx context.Context, parentID uuid.Nu
 }
 
 const revokeRefreshToken = `-- name: RevokeRefreshToken :execrows
-UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL
+UPDATE refresh_tokens SET revoked_at = $2 WHERE id = $1 AND revoked_at IS NULL
 `
 
-func (q *Queries) RevokeRefreshToken(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, revokeRefreshToken, id)
+type RevokeRefreshTokenParams struct {
+	ID        uuid.UUID          `json:"id"`
+	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
+}
+
+// revoked_at comes from the service clock so the lost-response window compares like with like.
+func (q *Queries) RevokeRefreshToken(ctx context.Context, arg RevokeRefreshTokenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeRefreshToken, arg.ID, arg.RevokedAt)
 	if err != nil {
 		return 0, err
 	}

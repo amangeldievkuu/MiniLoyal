@@ -106,6 +106,23 @@ func (q *Queries) DeleteIdempotencyKey(ctx context.Context, arg DeleteIdempotenc
 	return err
 }
 
+const expireIdempotencyKey = `-- name: ExpireIdempotencyKey :exec
+DELETE FROM idempotency_keys
+WHERE tenant_id = $1 AND scope = $2 AND key = $3 AND expires_at <= now()
+`
+
+type ExpireIdempotencyKeyParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Scope    string    `json:"scope"`
+	Key      string    `json:"key"`
+}
+
+// Drops a stale outcome so the claim that follows starts fresh.
+func (q *Queries) ExpireIdempotencyKey(ctx context.Context, arg ExpireIdempotencyKeyParams) error {
+	_, err := q.db.Exec(ctx, expireIdempotencyKey, arg.TenantID, arg.Scope, arg.Key)
+	return err
+}
+
 const getIdempotencyKey = `-- name: GetIdempotencyKey :one
 SELECT tenant_id, scope, key, request_hash, status_code, response_body, created_at, expires_at FROM idempotency_keys WHERE tenant_id = $1 AND scope = $2 AND key = $3
 `

@@ -116,16 +116,20 @@ func (s *Service) read(ctx context.Context, p principal.Principal, tenantID uuid
 func write[T any](ctx context.Context, s *Service, p principal.Principal, tenantID uuid.UUID, min principal.Role, idem Idem, fn func(ctx context.Context, tx pgx.Tx, role principal.Role) (T, error)) (T, error) {
 	var fresh T
 	var zero T
+	var role principal.Role
 	res, err := s.idem.Run(ctx, idempotency.Request{
 		TenantID: tenantID,
 		Scope:    scopeOf(p),
 		Key:      idem.Key,
 		Hash:     idem.Hash,
+		// Authorization runs before the claim, so a replay by a caller who
+		// has since been removed or demoted is refused too.
+		Before: func(ctx context.Context, tx pgx.Tx) error {
+			r, err := s.authorize(ctx, tx, p, tenantID, min)
+			role = r
+			return err
+		},
 	}, func(ctx context.Context, tx pgx.Tx) (int, any, error) {
-		role, err := s.authorize(ctx, tx, p, tenantID, min)
-		if err != nil {
-			return 0, nil, err
-		}
 		v, err := fn(ctx, tx, role)
 		if err != nil {
 			return 0, nil, err

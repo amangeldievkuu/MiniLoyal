@@ -59,6 +59,11 @@ func VerifyPassword(encoded, password string) (bool, error) {
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &iterations, &threads); err != nil {
 		return false, errBadHash
 	}
+	// Parameters come from the stored hash; refuse values that would exhaust
+	// memory or panic if a row were ever tampered with.
+	if memory < 8*1024 || memory > 1<<20 || iterations < 1 || iterations > 16 || threads < 1 || threads > 16 {
+		return false, errBadHash
+	}
 	enc := base64.RawStdEncoding
 	salt, err := enc.DecodeString(parts[4])
 	if err != nil {

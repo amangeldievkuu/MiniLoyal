@@ -55,8 +55,13 @@ const (
 
 	defaultIPPerMinute    = 10
 	defaultEmailPerMinute = 5
-	minSigningKeyLen      = 32
-	tenantPlanFree        = "free"
+	// defaultUserPerMinute caps credential checks per account: MFA codes,
+	// current-password checks when changing the password or disabling TOTP.
+	defaultUserPerMinute = 10
+	// mfaMaxAttempts is how many codes one MFA challenge accepts before it dies.
+	mfaMaxAttempts   = 5
+	minSigningKeyLen = 32
+	tenantPlanFree   = "free"
 )
 
 // Config tunes the service. Zero values take the defaults above.
@@ -68,6 +73,7 @@ type Config struct {
 	RefreshTTL     time.Duration
 	IPPerMinute    int
 	EmailPerMinute int
+	UserPerMinute  int
 }
 
 // Deps are the service's collaborators.
@@ -93,6 +99,7 @@ type Service struct {
 	dummyHash  string
 	ipLimit    *Limiter
 	emailLimit *Limiter
+	userLimit  *Limiter
 }
 
 // New builds a Service. The dummy hash is derived once so sign-in attempts
@@ -129,6 +136,9 @@ func New(d Deps) (*Service, error) {
 	if cfg.EmailPerMinute == 0 {
 		cfg.EmailPerMinute = defaultEmailPerMinute
 	}
+	if cfg.UserPerMinute == 0 {
+		cfg.UserPerMinute = defaultUserPerMinute
+	}
 	dummy, err := HashPassword(randomToken(16))
 	if err != nil {
 		return nil, err
@@ -146,6 +156,7 @@ func New(d Deps) (*Service, error) {
 		dummyHash:  dummy,
 		ipLimit:    NewLimiter(d.Clock, cfg.IPPerMinute, cfg.IPPerMinute),
 		emailLimit: NewLimiter(d.Clock, cfg.EmailPerMinute, cfg.EmailPerMinute),
+		userLimit:  NewLimiter(d.Clock, cfg.UserPerMinute, cfg.UserPerMinute),
 	}, nil
 }
 
@@ -214,7 +225,10 @@ type RegisterInput struct {
 	TenantType  string
 }
 
-var errUnauthorized = apierr.Unauthorized("wrong email or password")
+var (
+	errUnauthorized = apierr.Unauthorized("wrong email or password")
+	errBadChallenge = apierr.Unauthorized("invalid or expired challenge")
+)
 
 // Register creates the user, a tenant on the free plan and the owner
 // membership, then signs the user in.
@@ -301,9 +315,17 @@ func (s *Service) Login(ctx context.Context, email, password string, c Client) (
 	}
 
 	if user.TotpEnabledAt.Valid {
-		token, _, err := s.signer.issue(user.ID, typMFA, s.mfaTTL)
+		// The challenge is recorded so the token can be used once and dies
+		// after mfaMaxAttempts wrong codes.
+		jti := newID()
+		token, err := s.signer.issueMFA(user.ID, s.mfaTTL, jti.String())
 		if err != nil {
 			return nil, err
+		}
+		if err := s.q.CreateMfaChallenge(ctx, sqlc.CreateMfaChallengeParams{
+			ID: jti, UserID: user.ID, ExpiresAt: ts(s.clock.Now().Add(s.mfaTTL)),
+		}); err != nil {
+			return nil, fmt.Errorf("auth: store mfa challenge: %w", err)
 		}
 		return &LoginResult{MFA: &MFAChallenge{Token: token, ExpiresIn: int(s.mfaTTL.Seconds())}}, nil
 	}
@@ -321,26 +343,51 @@ func (s *Service) CompleteMFA(ctx context.Context, mfaToken, code string, c Clie
 		return nil, err
 	}
 	cl, err := s.signer.verify(mfaToken, typMFA)
+	if err != nil || cl.ID == "" {
+		return nil, errBadChallenge
+	}
+	jti, err := uuid.Parse(cl.ID)
 	if err != nil {
-		return nil, apierr.Unauthorized("invalid or expired challenge")
+		return nil, errBadChallenge
+	}
+	if wait, ok := s.userLimit.Allow("mfa:" + cl.Subject.String()); !ok {
+		return nil, apierr.RateLimited(wait)
+	}
+	// Every attempt counts against the challenge, used or not, so a token
+	// cannot be hammered and cannot be reused after it succeeded.
+	attempts, err := s.q.ConsumeMfaChallengeAttempt(ctx, sqlc.ConsumeMfaChallengeAttemptParams{ID: jti, UserID: cl.Subject})
+	if err != nil {
+		if db.IsNotFound(err) {
+			return nil, errBadChallenge
+		}
+		return nil, fmt.Errorf("auth: mfa attempt: %w", err)
+	}
+	if attempts > mfaMaxAttempts {
+		s.log.WarnContext(ctx, "mfa challenge exhausted", "user_id", cl.Subject)
+		return nil, apierr.Unauthorized("too many attempts, sign in again")
 	}
 	user, err := s.q.GetUser(ctx, cl.Subject)
 	if err != nil {
 		if db.IsNotFound(err) {
-			return nil, apierr.Unauthorized("invalid or expired challenge")
+			return nil, errBadChallenge
 		}
 		return nil, fmt.Errorf("auth: load user: %w", err)
 	}
 	if !user.TotpEnabledAt.Valid {
-		return nil, apierr.Unauthorized("invalid or expired challenge")
+		return nil, errBadChallenge
 	}
 	ok, err := s.checkSecondFactor(ctx, user, code)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
-		s.log.InfoContext(ctx, "mfa code rejected", "user_id", user.ID)
+		s.log.InfoContext(ctx, "mfa code rejected", "user_id", user.ID, "attempt", attempts)
 		return nil, apierr.Unauthorized("invalid code")
+	}
+	if n, err := s.q.MarkMfaChallengeUsed(ctx, jti); err != nil {
+		return nil, fmt.Errorf("auth: mark mfa challenge used: %w", err)
+	} else if n != 1 {
+		return nil, errBadChallenge
 	}
 	return s.signInUser(ctx, user, c)
 }
@@ -377,7 +424,9 @@ func (s *Service) Logout(ctx context.Context, rawRefresh string) error {
 // LogoutAll ends every session of the account on every device, including
 // access tokens already issued.
 func (s *Service) LogoutAll(ctx context.Context, userID uuid.UUID) error {
-	now := s.clock.Now()
+	// Truncated to the millisecond so a token issued in the same instant
+	// (iat_ms) is never older than sessions_valid_from.
+	now := s.clock.Now().Truncate(time.Millisecond)
 	err := s.inTx(ctx, func(q *sqlc.Queries) error {
 		if err := q.InvalidateUserSessionsAt(ctx, sqlc.InvalidateUserSessionsAtParams{ID: userID, SessionsValidFrom: ts(now)}); err != nil {
 			return fmt.Errorf("auth: invalidate sessions: %w", err)
@@ -397,6 +446,9 @@ func (s *Service) LogoutAll(ctx context.Context, userID uuid.UUID) error {
 // device gets a new one. A wrong current password is 403, not 401, which
 // clients take to mean the session itself is gone.
 func (s *Service) ChangePassword(ctx context.Context, userID uuid.UUID, current, next string, c Client) (*Session, error) {
+	if wait, ok := s.userLimit.Allow("pw:" + userID.String()); !ok {
+		return nil, apierr.RateLimited(wait)
+	}
 	user, err := s.q.GetUser(ctx, userID)
 	if err != nil {
 		if db.IsNotFound(err) {
@@ -415,7 +467,7 @@ func (s *Service) ChangePassword(ctx context.Context, userID uuid.UUID, current,
 	if err != nil {
 		return nil, err
 	}
-	now := s.clock.Now()
+	now := s.clock.Now().Truncate(time.Millisecond)
 	var sess *Session
 	err = s.inTx(ctx, func(q *sqlc.Queries) error {
 		if err := q.UpdateUserPasswordAt(ctx, sqlc.UpdateUserPasswordAtParams{ID: userID, PasswordHash: hash, SessionsValidFrom: ts(now)}); err != nil {

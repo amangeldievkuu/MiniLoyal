@@ -14,6 +14,11 @@ import (
 
 var errSessionExpired = apierr.Unauthorized("session expired")
 
+// lostResponseWindow bounds how long after a rotation the previous token may
+// still be presented. A genuine lost response or two tabs refreshing together
+// happen within seconds; a stolen token replayed later must not.
+const lostResponseWindow = time.Minute
+
 // Refresh exchanges a refresh token for a new session, rotating the token.
 //
 // A token that was already rotated is normally a replay: the whole family is
@@ -52,13 +57,24 @@ func (s *Service) Refresh(ctx context.Context, rawRefresh string, c Client) (*Se
 		// same cookie waits on the row, then finds it revoked and its
 		// successor already stored.
 		var sess *Session
+		var theft bool
 		err := s.inTx(ctx, func(q *sqlc.Queries) error {
-			n, err := q.RevokeRefreshToken(ctx, stored.ID)
+			n, err := q.RevokeRefreshToken(ctx, sqlc.RevokeRefreshTokenParams{ID: stored.ID, RevokedAt: ts(s.clock.Now())})
 			if err != nil {
 				return fmt.Errorf("auth: revoke refresh token: %w", err)
 			}
 			if n != 1 {
 				return nil
+			}
+			// Two branches of one family both moving forward means a copy of
+			// an earlier token was replayed within the allowance: a sibling of
+			// this token that was itself rotated proves it. Two tabs leave the
+			// unused branch unused forever, so they are not caught here.
+			if stored.ParentID.Valid {
+				theft, err = s.siblingUsed(ctx, q, stored.ParentID.UUID, stored.ID)
+				if err != nil || theft {
+					return err
+				}
 			}
 			sess, err = s.issueSession(ctx, q, user, stored.Family, parent, c)
 			return err
@@ -66,9 +82,25 @@ func (s *Service) Refresh(ctx context.Context, rawRefresh string, c Client) (*Se
 		if err != nil {
 			return nil, err
 		}
+		if theft {
+			if err := s.q.RevokeRefreshTokenFamily(ctx, stored.Family); err != nil {
+				return nil, fmt.Errorf("auth: revoke family: %w", err)
+			}
+			s.log.WarnContext(ctx, "refresh token family forked: family revoked", "user_id", user.ID)
+			return nil, errSessionExpired
+		}
 		if sess != nil {
 			return sess, nil
 		}
+	}
+
+	// Already rotated. Outside the allowance window this can only be a replay.
+	if !stored.RevokedAt.Valid || s.clock.Now().Sub(stored.RevokedAt.Time) > lostResponseWindow {
+		if err := s.q.RevokeRefreshTokenFamily(ctx, stored.Family); err != nil {
+			return nil, fmt.Errorf("auth: revoke family: %w", err)
+		}
+		s.log.WarnContext(ctx, "refresh token replay outside the allowance window: family revoked", "user_id", user.ID)
+		return nil, errSessionExpired
 	}
 
 	// Already rotated: a replacement the client never got (or another tab),
@@ -115,6 +147,21 @@ func (s *Service) replacementUnused(ctx context.Context, id uuid.UUID) (bool, er
 		}
 	}
 	return true, nil
+}
+
+// siblingUsed reports whether parent has a child other than self that was
+// already rotated or revoked, meaning two branches of the family are live.
+func (s *Service) siblingUsed(ctx context.Context, q *sqlc.Queries, parent, self uuid.UUID) (bool, error) {
+	children, err := q.ListRefreshTokenChildren(ctx, uuid.NullUUID{UUID: parent, Valid: true})
+	if err != nil {
+		return false, fmt.Errorf("auth: list siblings: %w", err)
+	}
+	for _, child := range children {
+		if child.ID != self && child.RevokedAt.Valid {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // sweepAsync drops the account's spent tokens; nothing waits on it.

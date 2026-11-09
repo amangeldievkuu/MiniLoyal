@@ -26,6 +26,9 @@ func newService(t *testing.T, d *testutil.DB, clk clock.Clock, cfg auth.Config) 
 	if cfg.EmailPerMinute == 0 {
 		cfg.EmailPerMinute = 10000
 	}
+	if cfg.UserPerMinute == 0 {
+		cfg.UserPerMinute = 10000
+	}
 	svc, err := auth.New(auth.Deps{Pool: d.App, Clock: clk, Encryptor: authtest.PlainEncryptor{}, Config: cfg})
 	if err != nil {
 		t.Fatal(err)

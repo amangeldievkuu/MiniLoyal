@@ -36,7 +36,8 @@ Read first when relevant: `docs/plan/implementation-plan.md` (what we build and 
 ## Invariants
 
 - Tenant isolation: every table carries `tenant_id` (and `app_id` for member-scoped data); RLS enabled and forced; the app connects as `miniloyal_app`, never the table owner; every query filters by tenant or app; every endpoint has a cross-tenant test.
-- Idempotency: every write requires `Idempotency-Key`; same key and payload replays the stored response; same key with a different payload returns 422.
+- Idempotency: every POST, PUT and PATCH requires `Idempotency-Key`; same key and payload replays the stored response; same key with a different payload returns 422. DELETE is the documented exception (a repeat is a 404). Authorization runs before a replay.
+- Security review findings and their status live in `docs/security/`; read the latest before touching auth, RLS or crypto.
 - Points and stamps are append-only ledgers. A balance changes inside one transaction after `SELECT ... FOR UPDATE` on the account row; points lots are consumed FIFO; corrections are new rows.
 - LINE user IDs are per provider. Members are unique on `(app_id, line_user_id)`. A MINI App channel and the brand's OA channel must share one provider.
 - A MINI App has three internal channels (Developing, Review, Published) with different LIFF IDs; accept each configured channel ID as a valid `aud`.

@@ -6,9 +6,17 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"runtime/debug"
 	"time"
 )
+
+// maxBodyBytes caps request bodies. Phase 1 payloads are small JSON documents.
+const maxBodyBytes = 64 << 10
+
+// validRequestID is what a client-supplied X-Request-ID must look like to be
+// echoed into logs, responses and the audit log.
+var validRequestID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 type ctxKey int
 
@@ -35,7 +43,7 @@ func chain(h http.Handler, mws ...middleware) http.Handler {
 func requestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("X-Request-ID")
-		if id == "" || len(id) > 64 {
+		if !validRequestID.MatchString(id) {
 			var b [12]byte
 			_, _ = rand.Read(b[:])
 			id = hex.EncodeToString(b[:])
@@ -43,6 +51,19 @@ func requestID(next http.Handler) http.Handler {
 		w.Header().Set("X-Request-ID", id)
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), requestIDKey, id)))
 	})
+}
+
+// limitBody rejects request bodies larger than n bytes; the JSON decoder
+// then fails with *http.MaxBytesError, which requestError maps to 413.
+func limitBody(n int64) middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body != nil {
+				r.Body = http.MaxBytesReader(w, r.Body, n)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // securityHeaders sets headers appropriate for a JSON API.

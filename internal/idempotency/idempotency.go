@@ -62,6 +62,9 @@ type Request struct {
 	Key string
 	// Hash is Hash(method, path, body) of the request.
 	Hash []byte
+	// Before runs inside the tenant transaction before the key is claimed or
+	// replayed, so authorization applies to replays too.
+	Before func(ctx context.Context, tx pgx.Tx) error
 }
 
 // Result is the outcome of Run.
@@ -93,6 +96,15 @@ func (s *Store) Run(ctx context.Context, req Request, fn Fn) (Result, error) {
 	var res Result
 	err := db.WithTenant(ctx, s.pool, req.TenantID, func(ctx context.Context, tx pgx.Tx) error {
 		q := sqlc.New(tx)
+		if req.Before != nil {
+			if err := req.Before(ctx, tx); err != nil {
+				return err
+			}
+		}
+		// A stale outcome past its TTL is treated as absent.
+		if err := q.ExpireIdempotencyKey(ctx, sqlc.ExpireIdempotencyKeyParams{TenantID: req.TenantID, Scope: req.Scope, Key: req.Key}); err != nil {
+			return fmt.Errorf("idempotency: expire: %w", err)
+		}
 		claim, err := q.ClaimIdempotencyKey(ctx, sqlc.ClaimIdempotencyKeyParams{
 			TenantID:    req.TenantID,
 			Scope:       req.Scope,

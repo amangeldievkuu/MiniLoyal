@@ -77,6 +77,15 @@ type IdempotencyKey struct {
 	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
 }
 
+type MfaChallenge struct {
+	ID        uuid.UUID          `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	Attempts  int32              `json:"attempts"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type RefreshToken struct {
 	ID        uuid.UUID          `json:"id"`
 	UserID    uuid.UUID          `json:"user_id"`
@@ -152,4 +161,5 @@ type User struct {
 	LastLoginAt       pgtype.Timestamptz `json:"last_login_at"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	TotpLastStep      *int64             `json:"totp_last_step"`
 }

@@ -7,7 +7,8 @@ RETURNING *;
 SELECT * FROM refresh_tokens WHERE token_hash = $1;
 
 -- name: RevokeRefreshToken :execrows
-UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL;
+-- revoked_at comes from the service clock so the lost-response window compares like with like.
+UPDATE refresh_tokens SET revoked_at = $2 WHERE id = $1 AND revoked_at IS NULL;
 
 -- name: RevokeRefreshTokenByHash :execrows
 UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL;
@@ -19,7 +20,7 @@ UPDATE refresh_tokens SET revoked_at = now() WHERE family = $1 AND revoked_at IS
 UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL;
 
 -- name: ListRefreshTokenChildren :many
-SELECT id, revoked_at FROM refresh_tokens WHERE parent_id = $1;
+SELECT id, revoked_at, created_at FROM refresh_tokens WHERE parent_id = $1;
 
 -- name: DeleteSpentRefreshTokens :execrows
 DELETE FROM refresh_tokens

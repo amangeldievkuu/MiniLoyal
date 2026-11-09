@@ -92,12 +92,14 @@ func requireAPIKey(ctx context.Context, scope string) (principal.Principal, erro
 }
 
 // clientIP returns the caller's address. Behind the trusted reverse proxy it
-// reads the first X-Forwarded-For entry; otherwise the TCP peer.
+// reads the LAST X-Forwarded-For entry: nginx appends the peer it saw, so
+// that entry is the only one the client cannot choose. Without a trusted
+// proxy the header is ignored and the TCP peer is used.
 func (s *Server) clientIP(r *http.Request) string {
 	if s.cfg.TrustProxy {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			first, _, _ := strings.Cut(xff, ",")
-			if ip := net.ParseIP(strings.TrimSpace(first)); ip != nil {
+			parts := strings.Split(xff, ",")
+			if ip := net.ParseIP(strings.TrimSpace(parts[len(parts)-1])); ip != nil {
 				return ip.String()
 			}
 		}

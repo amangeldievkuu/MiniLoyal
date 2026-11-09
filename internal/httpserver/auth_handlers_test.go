@@ -24,6 +24,8 @@ import (
 type authEnv struct {
 	t   *testing.T
 	srv *httptest.Server
+	// clk drives the auth service; tests advance it between TOTP codes.
+	clk *clock.Fixed
 }
 
 func newAuthEnv(t *testing.T, cfg auth.Config) *authEnv {
@@ -36,7 +38,11 @@ func newAuthEnv(t *testing.T, cfg auth.Config) *authEnv {
 	if cfg.EmailPerMinute == 0 {
 		cfg.EmailPerMinute = 10000
 	}
-	svc, err := auth.New(auth.Deps{Pool: d.App, Clock: clock.Real{}, Encryptor: authtest.PlainEncryptor{}, Config: cfg})
+	if cfg.UserPerMinute == 0 {
+		cfg.UserPerMinute = 10000
+	}
+	clk := clock.At(time.Now())
+	svc, err := auth.New(auth.Deps{Pool: d.App, Clock: clk, Encryptor: authtest.PlainEncryptor{}, Config: cfg})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +55,7 @@ func newAuthEnv(t *testing.T, cfg auth.Config) *authEnv {
 	})
 	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(srv.Close)
-	return &authEnv{t: t, srv: srv}
+	return &authEnv{t: t, srv: srv, clk: clk}
 }
 
 type resp struct {
@@ -61,6 +67,9 @@ type resp struct {
 
 func (e *authEnv) do(method, path string, body any, headers map[string]string) resp {
 	e.t.Helper()
+	// Time passes between requests, as it does for real clients; tokens
+	// issued before an invalidation must then be older than it.
+	e.clk.Advance(time.Millisecond)
 	var buf io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -300,8 +309,11 @@ func TestTOTPOverHTTP(t *testing.T) {
 	if !strings.HasPrefix(enrollment.OtpauthUrl, "otpauth://totp/MiniLoyal:") {
 		t.Errorf("otpauth url = %s", enrollment.OtpauthUrl)
 	}
+	// Each code is for a fresh 30-second step: an accepted code cannot be
+	// reused, so the clock moves on before every one.
 	code := func() string {
-		c, err := totp.GenerateCode(enrollment.Secret, time.Now())
+		e.clk.Advance(31 * time.Second)
+		c, err := totp.GenerateCode(enrollment.Secret, e.clk.Now())
 		if err != nil {
 			t.Fatal(err)
 		}

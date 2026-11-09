@@ -40,6 +40,8 @@ type claims struct {
 	Subject  uuid.UUID
 	IssuedAt time.Time
 	Typ      string
+	// ID is the jti claim, set on MFA challenge tokens so each can be used once.
+	ID string
 }
 
 // issue signs a token for sub of the given kind. IssuedAt carries millisecond
@@ -62,6 +64,28 @@ func (s *signer) issue(sub uuid.UUID, typ string, ttl time.Duration) (string, ti
 		return "", time.Time{}, fmt.Errorf("auth: sign token: %w", err)
 	}
 	return string(signed), now, nil
+}
+
+// issueMFA signs a single-use MFA challenge token identified by jti.
+func (s *signer) issueMFA(sub uuid.UUID, ttl time.Duration, jti string) (string, error) {
+	now := s.clock.Now()
+	tok, err := jwt.NewBuilder().
+		Issuer(s.issuer).
+		Subject(sub.String()).
+		JwtID(jti).
+		IssuedAt(now).
+		Expiration(now.Add(ttl)).
+		Claim(claimTyp, typMFA).
+		Claim(claimIatMs, now.UnixMilli()).
+		Build()
+	if err != nil {
+		return "", fmt.Errorf("auth: build mfa token: %w", err)
+	}
+	signed, err := jwt.Sign(tok, jwt.WithKey(jwa.HS256(), s.key))
+	if err != nil {
+		return "", fmt.Errorf("auth: sign mfa token: %w", err)
+	}
+	return string(signed), nil
 }
 
 // verify checks signature, issuer, expiry and kind, and returns the claims.
@@ -93,7 +117,8 @@ func (s *signer) verify(raw, typ string) (claims, error) {
 			return claims{}, errInvalidToken
 		}
 	}
-	return claims{Subject: id, IssuedAt: issued, Typ: gotTyp}, nil
+	jti, _ := tok.JwtID()
+	return claims{Subject: id, IssuedAt: issued, Typ: gotTyp, ID: jti}, nil
 }
 
 // issuedAtMs reads iat_ms whatever numeric type the JSON decoder produced.

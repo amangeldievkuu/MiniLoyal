@@ -88,7 +88,18 @@ func (s *Server) Handler() http.Handler {
 		BaseRouter:       mux,
 		ErrorHandlerFunc: s.requestError,
 	})
-	return chain(mux, recoverer(s.log), requestID, securityHeaders, logRequests(s.log), s.authenticate)
+	// Cookie-authenticated routes (refresh, logout) must not be reachable by
+	// cross-site form posts; browsers announce those with Sec-Fetch-Site.
+	cop := http.NewCrossOriginProtection()
+	if origin := s.cfg.DashboardOrigin; origin != "" {
+		if err := cop.AddTrustedOrigin(origin); err != nil {
+			s.log.Warn("DASHBOARD_ORIGIN is not a valid origin; cross-origin requests from it are refused", "origin", origin, "err", err)
+		}
+	}
+	cop.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, r, http.StatusForbidden, "cross_origin", "cross-origin request refused")
+	}))
+	return chain(cop.Handler(mux), recoverer(s.log), requestID, securityHeaders, logRequests(s.log), limitBody(maxBodyBytes), s.authenticate)
 }
 
 // GetHealthz reports liveness: the process is up and serving.

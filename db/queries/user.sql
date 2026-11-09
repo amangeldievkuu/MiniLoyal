@@ -47,3 +47,22 @@ UPDATE users SET password_hash = $2, sessions_valid_from = $3, updated_at = now(
 
 -- name: InvalidateUserSessionsAt :exec
 UPDATE users SET sessions_valid_from = $2, updated_at = now() WHERE id = $1;
+
+-- name: SetTotpLastStep :execrows
+-- Advances the last accepted TOTP step; zero rows means the code was replayed.
+UPDATE users SET totp_last_step = $2
+WHERE id = $1 AND (totp_last_step IS NULL OR totp_last_step < $2);
+
+-- name: CreateMfaChallenge :exec
+INSERT INTO mfa_challenges (id, user_id, expires_at) VALUES ($1, $2, $3);
+
+-- name: ConsumeMfaChallengeAttempt :one
+UPDATE mfa_challenges SET attempts = attempts + 1
+WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND expires_at > now()
+RETURNING attempts;
+
+-- name: MarkMfaChallengeUsed :execrows
+UPDATE mfa_challenges SET used_at = now() WHERE id = $1 AND used_at IS NULL;
+
+-- name: DeleteExpiredMfaChallenges :execrows
+DELETE FROM mfa_challenges WHERE expires_at < now() - interval '1 hour';

@@ -16,6 +16,11 @@ var errNotImplemented = errors.New("not implemented")
 // requestError answers malformed requests (bad path or query parameters,
 // unreadable bodies) with the API's error envelope.
 func (s *Server) requestError(w http.ResponseWriter, r *http.Request, err error) {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		writeError(w, r, http.StatusRequestEntityTooLarge, "payload_too_large", "request body is too large")
+		return
+	}
 	writeError(w, r, http.StatusBadRequest, "bad_request", err.Error())
 }
 

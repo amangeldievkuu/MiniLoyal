@@ -24,3 +24,8 @@ INSERT INTO idempotency_keys (tenant_id, scope, key, request_hash, expires_at)
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (tenant_id, scope, key) DO UPDATE SET key = EXCLUDED.key
 RETURNING (created_at = now())::boolean AS inserted, request_hash, status_code, response_body;
+
+-- name: ExpireIdempotencyKey :exec
+-- Drops a stale outcome so the claim that follows starts fresh.
+DELETE FROM idempotency_keys
+WHERE tenant_id = $1 AND scope = $2 AND key = $3 AND expires_at <= now();

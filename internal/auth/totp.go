@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pquerna/otp"
@@ -73,8 +75,11 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID uuid.UUID, code string
 	if err != nil {
 		return nil, fmt.Errorf("auth: decrypt totp secret: %w", err)
 	}
-	ok, err := totp.ValidateCustom(code, string(secret), s.clock.Now(), totpOpts)
-	if err != nil || !ok {
+	ok, err := s.validateTOTP(ctx, userID, string(secret), code)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
 		return nil, apierr.BadRequest("invalid code")
 	}
 
@@ -106,6 +111,9 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID uuid.UUID, code string
 // DisableTOTP turns TOTP off after the password and a valid code (TOTP or
 // recovery) are presented.
 func (s *Service) DisableTOTP(ctx context.Context, userID uuid.UUID, password, code string) error {
+	if wait, ok := s.userLimit.Allow("pw:" + userID.String()); !ok {
+		return apierr.RateLimited(wait)
+	}
 	user, err := s.loadUser(ctx, userID)
 	if err != nil {
 		return err
@@ -149,12 +157,40 @@ func (s *Service) checkSecondFactor(ctx context.Context, user sqlc.User, code st
 		if err != nil {
 			return false, fmt.Errorf("auth: decrypt totp secret: %w", err)
 		}
-		ok, err := totp.ValidateCustom(code, string(secret), s.clock.Now(), totpOpts)
-		return err == nil && ok, nil
+		return s.validateTOTP(ctx, user.ID, string(secret), code)
 	}
 	n, err := s.q.UseRecoveryCode(ctx, sqlc.UseRecoveryCodeParams{UserID: user.ID, CodeHash: hashRecoveryCode(code)})
 	if err != nil {
 		return false, fmt.Errorf("auth: use recovery code: %w", err)
+	}
+	return n == 1, nil
+}
+
+// validateTOTP accepts code for the current 30-second step or one step either
+// side, and only when that step is newer than the last accepted one, so a code
+// observed in transit cannot be replayed inside its validity window. The
+// step advance is a conditional UPDATE, so concurrent attempts cannot both win.
+func (s *Service) validateTOTP(ctx context.Context, userID uuid.UUID, secret, code string) (bool, error) {
+	period := int64(totpOpts.Period)
+	base := s.clock.Now().Unix() / period
+	matched := int64(-1)
+	for _, d := range []int64{0, -1, 1} {
+		step := base + d
+		want, err := totp.GenerateCodeCustom(secret, time.Unix(step*period, 0), totpOpts)
+		if err != nil {
+			return false, fmt.Errorf("auth: totp: %w", err)
+		}
+		if subtle.ConstantTimeCompare([]byte(want), []byte(code)) == 1 {
+			matched = step
+			break
+		}
+	}
+	if matched < 0 {
+		return false, nil
+	}
+	n, err := s.q.SetTotpLastStep(ctx, sqlc.SetTotpLastStepParams{ID: userID, TotpLastStep: &matched})
+	if err != nil {
+		return false, fmt.Errorf("auth: record totp step: %w", err)
 	}
 	return n == 1, nil
 }
