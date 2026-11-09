@@ -23,12 +23,13 @@ import (
 
 // matrixFixtures are tenant A's resources the table operates on.
 type matrixFixtures struct {
-	w       *world
-	app     api.App
-	store   api.Store
-	staff   api.StaffCreated
-	key     api.ApiKeyCreated
-	channel string // environment of the fixture channel
+	w          *world
+	app        api.App
+	store      api.Store
+	staff      api.StaffCreated
+	key        api.ApiKeyCreated
+	invitation api.InvitationCreated
+	channel    string // environment of the fixture channel
 }
 
 // opCase describes one spec operation.
@@ -86,8 +87,10 @@ var tenantOps = []opCase{
 	{id: "getTenant", method: http.MethodGet, path: tenantPath, min: principal.RoleStaff},
 	{id: "updateTenant", method: http.MethodPatch, path: tenantPath, body: obj("name", "Renamed"), alt: obj("name", "Other"), idem: true, min: principal.RoleAdmin, created: 200},
 	{id: "listTeam", method: http.MethodGet, path: func(f *matrixFixtures) string { return tenantPath(f) + "/team" }, min: principal.RoleStaff},
-	{id: "addTeamMember", method: http.MethodPost, path: func(f *matrixFixtures) string { return tenantPath(f) + "/team" },
-		body: obj("email", "loner@example.com", "role", "staff"), alt: obj("email", "loner@example.com", "role", "admin"), idem: true, min: principal.RoleAdmin, created: 201, creates: "tenant_users"},
+	{id: "listInvitations", method: http.MethodGet, path: func(f *matrixFixtures) string { return tenantPath(f) + "/invitations" }, min: principal.RoleStaff},
+	{id: "createInvitation", method: http.MethodPost, path: func(f *matrixFixtures) string { return tenantPath(f) + "/invitations" },
+		body: obj("email", "newcomer@example.com", "role", "staff"), alt: obj("email", "newcomer@example.com", "role", "admin"), idem: true, min: principal.RoleAdmin, created: 201, creates: "invitations"},
+	{id: "revokeInvitation", method: http.MethodDelete, path: func(f *matrixFixtures) string { return "/v1/dashboard/invitations/" + f.invitation.Id.String() }, min: principal.RoleAdmin},
 	{id: "updateTeamMember", method: http.MethodPatch, path: func(f *matrixFixtures) string { return tenantPath(f) + "/team/" + f.w.staffA.String() },
 		body: obj("role", "admin"), alt: obj("role", "staff"), idem: true, min: principal.RoleOwner, created: 200},
 	{id: "removeTeamMember", method: http.MethodDelete, path: func(f *matrixFixtures) string { return tenantPath(f) + "/team/" + f.w.staffA.String() }, min: principal.RoleAdmin},
@@ -136,7 +139,8 @@ var otherCoveredOps = []string{
 	"receiveLineWebhook",
 	"listMembers", "getMember", "eraseMember", "exportMember",
 	"serverListMembers", "serverGetMember",
-	"listInvitations", "createInvitation", "revokeInvitation", "acceptInvitation", "listSecurityEvents",
+	// invitation_handlers_test.go
+	"acceptInvitation", "listSecurityEvents",
 }
 
 // deletesWithoutIdempotencyKey lists the write operations the spec exempts
@@ -233,13 +237,17 @@ func newMatrixFixtures(t *testing.T, w *world) *matrixFixtures {
 
 	r = owner.put(base+"/channels/"+f.channel, uuid.NewString(), map[string]any{"channel_id": "2007000001", "liff_id": "2007000001-dev", "channel_secret": "dev-secret"})
 	want(t, r, http.StatusOK)
+
+	r = owner.post(tenantPath(f)+"/invitations", uuid.NewString(), map[string]any{"email": "pending@example.com", "role": "staff"})
+	want(t, r, http.StatusCreated)
+	r.into(t, &f.invitation)
 	return f
 }
 
 // fixtureMarkers are strings from tenant A's data that must never appear in
 // a response to an outsider.
 func (f *matrixFixtures) markers() []string {
-	return []string{"Cafe", "Main", "TPE01", "Mei", f.key.Key, f.key.Prefix, "2007000001", "dev-secret", f.app.Slug}
+	return []string{"Cafe", "Main", "TPE01", "Mei", f.key.Key, f.key.Prefix, "2007000001", "dev-secret", f.app.Slug, "pending@example.com", f.invitation.InviteUrl}
 }
 
 // tenantTables are every table that carries tenant data, with the column
@@ -254,6 +262,7 @@ var tenantTables = []struct{ name, col string }{
 	{"api_keys", "tenant_id"},
 	{"audit_log", "tenant_id"},
 	{"idempotency_keys", "tenant_id"},
+	{"invitations", "tenant_id"},
 }
 
 // snapshot fingerprints every row of tenantID in every tenant table.
@@ -382,7 +391,7 @@ func TestRoleMatrix(t *testing.T) {
 		r    func() tresp
 	}{
 		{"admin grants owner", func() tresp {
-			return admin.post(team, uuid.NewString(), map[string]any{"email": "loner@example.com", "role": "owner"})
+			return admin.post(tenantPath(f)+"/invitations", uuid.NewString(), map[string]any{"email": "loner@example.com", "role": "owner"})
 		}},
 		{"admin promotes to owner", func() tresp {
 			return admin.patch(team+"/"+w.staffA.String(), uuid.NewString(), map[string]any{"role": "owner"})

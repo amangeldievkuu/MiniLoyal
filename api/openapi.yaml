@@ -434,52 +434,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-    post:
-      tags: [tenants]
-      operationId: addTeamMember
-      deprecated: true
-      summary: Add an existing dashboard user to the tenant (deprecated, use invitations)
-      description: |
-        The user must already have a dashboard account. Owners can grant any
-        role; admins can grant admin or staff. Email invitations arrive in a
-        later phase.
-      security:
-        - dashboardSession: []
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TeamMemberAdd'
-      responses:
-        '201':
-          description: Added
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TeamMember'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          description: Tenant or user not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Already a member
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '422':
-          $ref: '#/components/responses/IdempotencyMismatch'
   /v1/dashboard/tenants/{tenantId}/team/{userId}:
     parameters:
       - $ref: '#/components/parameters/TenantId'
@@ -1924,15 +1878,6 @@ components:
         created_at:
           type: string
           format: date-time
-    TeamMemberAdd:
-      type: object
-      required: [email, role]
-      properties:
-        email:
-          type: string
-          format: email
-        role:
-          $ref: '#/components/schemas/Role'
     TeamMemberUpdate:
       type: object
       required: [role]

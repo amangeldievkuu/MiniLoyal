@@ -87,6 +87,7 @@ func (s *Service) Refresh(ctx context.Context, rawRefresh string, c Client) (*Se
 				return nil, fmt.Errorf("auth: revoke family: %w", err)
 			}
 			s.log.WarnContext(ctx, "refresh token family forked: family revoked", "user_id", user.ID)
+			s.noteEvent(ctx, user.ID, EventRefreshReplayed, c, map[string]any{"reason": "forked_family"})
 			return nil, errSessionExpired
 		}
 		if sess != nil {
@@ -110,6 +111,7 @@ func (s *Service) Refresh(ctx context.Context, rawRefresh string, c Client) (*Se
 			return nil, fmt.Errorf("auth: revoke family: %w", err)
 		}
 		s.log.WarnContext(ctx, "refresh token replay outside the allowance window: family revoked", "user_id", user.ID)
+		s.noteEvent(ctx, user.ID, EventRefreshReplayed, c, map[string]any{"reason": "late_replay"})
 		return nil, errSessionExpired
 	}
 
@@ -142,6 +144,7 @@ func (s *Service) Refresh(ctx context.Context, rawRefresh string, c Client) (*Se
 		return nil, fmt.Errorf("auth: revoke family: %w", err)
 	}
 	s.log.WarnContext(ctx, "refresh token replay: family revoked", "user_id", user.ID)
+	s.noteEvent(ctx, user.ID, EventRefreshReplayed, c, map[string]any{"reason": "replay"})
 	return nil, errSessionExpired
 }
 

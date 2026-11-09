@@ -13,17 +13,18 @@ import (
 )
 
 const acceptInvitation = `-- name: AcceptInvitation :execrows
-UPDATE invitations SET accepted_at = now(), accepted_by_user_id = $2
-WHERE id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+UPDATE invitations SET accepted_at = $3, accepted_by_user_id = $2
+WHERE id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > $3
 `
 
 type AcceptInvitationParams struct {
-	ID               uuid.UUID     `json:"id"`
-	AcceptedByUserID uuid.NullUUID `json:"accepted_by_user_id"`
+	ID               uuid.UUID          `json:"id"`
+	AcceptedByUserID uuid.NullUUID      `json:"accepted_by_user_id"`
+	Now              pgtype.Timestamptz `json:"now"`
 }
 
 func (q *Queries) AcceptInvitation(ctx context.Context, arg AcceptInvitationParams) (int64, error) {
-	result, err := q.db.Exec(ctx, acceptInvitation, arg.ID, arg.AcceptedByUserID)
+	result, err := q.db.Exec(ctx, acceptInvitation, arg.ID, arg.AcceptedByUserID, arg.Now)
 	if err != nil {
 		return 0, err
 	}
@@ -31,6 +32,7 @@ func (q *Queries) AcceptInvitation(ctx context.Context, arg AcceptInvitationPara
 }
 
 const createInvitation = `-- name: CreateInvitation :one
+
 INSERT INTO invitations (id, tenant_id, email, role, token_hash, invited_by_user_id, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id, tenant_id, email, role, token_hash, invited_by_user_id, expires_at, accepted_at, accepted_by_user_id, revoked_at, created_at
@@ -46,6 +48,8 @@ type CreateInvitationParams struct {
 	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
 }
 
+// Expiry comparisons take "now" from the service clock so tests with a frozen
+// clock stay deterministic.
 func (q *Queries) CreateInvitation(ctx context.Context, arg CreateInvitationParams) (Invitation, error) {
 	row := q.db.QueryRow(ctx, createInvitation,
 		arg.ID,
@@ -73,6 +77,24 @@ func (q *Queries) CreateInvitation(ctx context.Context, arg CreateInvitationPara
 	return i, err
 }
 
+const expirePendingInvitation = `-- name: ExpirePendingInvitation :exec
+UPDATE invitations SET revoked_at = $3
+WHERE tenant_id = $1 AND email = $2 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at <= $3
+`
+
+type ExpirePendingInvitationParams struct {
+	TenantID uuid.UUID          `json:"tenant_id"`
+	Email    string             `json:"email"`
+	Now      pgtype.Timestamptz `json:"now"`
+}
+
+// Marks an expired pending invitation for the email revoked so a new one can
+// be created (the pending uniqueness index ignores revoked rows).
+func (q *Queries) ExpirePendingInvitation(ctx context.Context, arg ExpirePendingInvitationParams) error {
+	_, err := q.db.Exec(ctx, expirePendingInvitation, arg.TenantID, arg.Email, arg.Now)
+	return err
+}
+
 const getInvitation = `-- name: GetInvitation :one
 SELECT id, tenant_id, email, role, token_hash, invited_by_user_id, expires_at, accepted_at, accepted_by_user_id, revoked_at, created_at FROM invitations WHERE id = $1
 `
@@ -98,11 +120,16 @@ func (q *Queries) GetInvitation(ctx context.Context, id uuid.UUID) (Invitation, 
 
 const getInvitationByTokenHash = `-- name: GetInvitationByTokenHash :one
 SELECT id, tenant_id, email, role, token_hash, invited_by_user_id, expires_at, accepted_at, accepted_by_user_id, revoked_at, created_at FROM invitations
-WHERE token_hash = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+WHERE token_hash = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > $2
 `
 
-func (q *Queries) GetInvitationByTokenHash(ctx context.Context, tokenHash string) (Invitation, error) {
-	row := q.db.QueryRow(ctx, getInvitationByTokenHash, tokenHash)
+type GetInvitationByTokenHashParams struct {
+	TokenHash string             `json:"token_hash"`
+	Now       pgtype.Timestamptz `json:"now"`
+}
+
+func (q *Queries) GetInvitationByTokenHash(ctx context.Context, arg GetInvitationByTokenHashParams) (Invitation, error) {
+	row := q.db.QueryRow(ctx, getInvitationByTokenHash, arg.TokenHash, arg.Now)
 	var i Invitation
 	err := row.Scan(
 		&i.ID,
@@ -133,12 +160,17 @@ func (q *Queries) GetInvitationTenant(ctx context.Context, id uuid.UUID) (uuid.U
 
 const listPendingInvitations = `-- name: ListPendingInvitations :many
 SELECT id, tenant_id, email, role, token_hash, invited_by_user_id, expires_at, accepted_at, accepted_by_user_id, revoked_at, created_at FROM invitations
-WHERE tenant_id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+WHERE tenant_id = $1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > $2
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListPendingInvitations(ctx context.Context, tenantID uuid.UUID) ([]Invitation, error) {
-	rows, err := q.db.Query(ctx, listPendingInvitations, tenantID)
+type ListPendingInvitationsParams struct {
+	TenantID uuid.UUID          `json:"tenant_id"`
+	Now      pgtype.Timestamptz `json:"now"`
+}
+
+func (q *Queries) ListPendingInvitations(ctx context.Context, arg ListPendingInvitationsParams) ([]Invitation, error) {
+	rows, err := q.db.Query(ctx, listPendingInvitations, arg.TenantID, arg.Now)
 	if err != nil {
 		return nil, err
 	}
@@ -170,12 +202,17 @@ func (q *Queries) ListPendingInvitations(ctx context.Context, tenantID uuid.UUID
 }
 
 const revokeInvitation = `-- name: RevokeInvitation :execrows
-UPDATE invitations SET revoked_at = now()
+UPDATE invitations SET revoked_at = $2
 WHERE id = $1 AND accepted_at IS NULL AND revoked_at IS NULL
 `
 
-func (q *Queries) RevokeInvitation(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, revokeInvitation, id)
+type RevokeInvitationParams struct {
+	ID  uuid.UUID          `json:"id"`
+	Now pgtype.Timestamptz `json:"now"`
+}
+
+func (q *Queries) RevokeInvitation(ctx context.Context, arg RevokeInvitationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeInvitation, arg.ID, arg.Now)
 	if err != nil {
 		return 0, err
 	}

@@ -169,7 +169,7 @@ func (s *Server) DashboardLogoutAll(ctx context.Context, _ api.DashboardLogoutAl
 	if err != nil {
 		return nil, err
 	}
-	if err := svc.LogoutAll(ctx, p.UserID); err != nil {
+	if err := svc.LogoutAll(s.withDevice(ctx), p.UserID); err != nil {
 		return nil, err
 	}
 	s.clearRefreshCookie(ctx)
@@ -204,7 +204,7 @@ func (s *Server) ConfirmTotp(ctx context.Context, req api.ConfirmTotpRequestObje
 	if req.Body == nil {
 		return nil, apierr.BadRequest("request body is required")
 	}
-	codes, err := svc.ConfirmTOTP(ctx, p.UserID, req.Body.Code)
+	codes, err := svc.ConfirmTOTP(s.withDevice(ctx), p.UserID, req.Body.Code)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func (s *Server) DisableTotp(ctx context.Context, req api.DisableTotpRequestObje
 	if req.Body == nil {
 		return nil, apierr.BadRequest("request body is required")
 	}
-	if err := svc.DisableTOTP(ctx, p.UserID, req.Body.Password, req.Body.Code); err != nil {
+	if err := svc.DisableTOTP(s.withDevice(ctx), p.UserID, req.Body.Password, req.Body.Code); err != nil {
 		return nil, err
 	}
 	return api.DisableTotp204Response{}, nil
