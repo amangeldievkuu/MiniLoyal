@@ -1,0 +1,248 @@
+{
+  "brand": "MiniLoyal",
+  "common": {
+    "save": "儲存",
+    "cancel": "取消",
+    "create": "建立",
+    "delete": "刪除",
+    "remove": "移除",
+    "edit": "編輯",
+    "close": "關閉",
+    "copy": "複製",
+    "copied": "已複製",
+    "confirm": "確認",
+    "actions": "操作",
+    "status": "狀態",
+    "name": "名稱",
+    "createdAt": "建立時間",
+    "none": "尚無資料",
+    "optional": "選填",
+    "readOnly": "您的角色只能檢視這個頁面。",
+    "saved": "已儲存。",
+    "next": "下一頁",
+    "previous": "上一頁",
+    "filter": "篩選",
+    "all": "全部",
+    "set": "已設定",
+    "notSet": "未設定",
+    "requestId": "請求編號",
+    "loading": "載入中…",
+    "signOut": "登出",
+    "working": "處理中…",
+    "showOnceHelp": "這個值只會顯示一次，請立即複製並妥善保存。",
+    "done": "完成"
+  },
+  "statuses": { "active": "啟用", "disabled": "停用" },
+  "roles": { "owner": "擁有者", "admin": "管理員", "staff": "一般成員" },
+  "nav": {
+    "apps": "應用程式",
+    "team": "團隊",
+    "audit": "稽核紀錄",
+    "account": "帳號",
+    "tenant": "租戶",
+    "language": "語言",
+    "backToTenant": "返回租戶",
+    "notFound": "找不到頁面",
+    "notFoundHelp": "這個網址不存在，或您沒有權限檢視。",
+    "goHome": "回首頁",
+    "noTenant": "您尚未加入任何租戶",
+    "noTenantHelp": "請聯絡團隊擁有者將您加入，或重新註冊建立新租戶。"
+  },
+  "errors": {
+    "generic": "發生錯誤，請稍後再試。",
+    "network": "無法連線到伺服器。",
+    "rateLimited": "嘗試次數過多，請在 {{seconds}} 秒後再試。"
+  },
+  "auth": {
+    "login": {
+      "title": "登入 MiniLoyal",
+      "email": "電子郵件",
+      "password": "密碼",
+      "submit": "登入",
+      "noAccount": "還沒有帳號？",
+      "register": "建立帳號"
+    },
+    "mfa": {
+      "title": "兩步驟驗證",
+      "help": "請輸入驗證器 App 顯示的 6 位數代碼，或一組備用碼。",
+      "code": "驗證碼",
+      "submit": "確認",
+      "back": "返回登入"
+    },
+    "register": {
+      "title": "建立 MiniLoyal 帳號",
+      "displayName": "顯示名稱",
+      "tenantName": "公司或品牌名稱",
+      "tenantType": "帳號類型",
+      "brand": "品牌（自家會員）",
+      "agency": "代理商（替客戶建置）",
+      "passwordHint": "至少 10 個字元。",
+      "submit": "建立帳號",
+      "haveAccount": "已經有帳號？",
+      "login": "登入"
+    }
+  },
+  "tenant": {
+    "plan": "方案：{{plan}}",
+    "rename": "重新命名租戶",
+    "apps": {
+      "title": "應用程式",
+      "help": "一個應用程式對應一個 LINE MINI App。",
+      "empty": "尚未建立任何應用程式。",
+      "create": "建立應用程式",
+      "name": "名稱",
+      "slug": "識別碼",
+      "slugHint": "網址用的小寫英數字，留空則自動產生。",
+      "locale": "預設語言",
+      "open": "開啟"
+    }
+  },
+  "team": {
+    "title": "團隊",
+    "help": "可以登入後台的使用者。被加入的人必須已經有 MiniLoyal 帳號。",
+    "add": "新增成員",
+    "email": "電子郵件",
+    "role": "角色",
+    "remove": "移除成員",
+    "removeConfirm": "確定要將 {{email}} 移出團隊嗎？",
+    "empty": "尚無團隊成員。",
+    "you": "（您）"
+  },
+  "audit": {
+    "title": "稽核紀錄",
+    "help": "後台與門市人員的每一個操作，最新的在最上面。",
+    "time": "時間",
+    "actor": "操作者",
+    "action": "動作",
+    "target": "對象",
+    "app": "應用程式",
+    "allApps": "所有應用程式",
+    "empty": "沒有紀錄。"
+  },
+  "appPage": {
+    "tabs": {
+      "settings": "設定",
+      "channels": "LINE 頻道",
+      "stores": "門市",
+      "staff": "門市人員",
+      "apiKeys": "API 金鑰"
+    },
+    "settings": {
+      "title": "應用程式設定",
+      "name": "名稱",
+      "locale": "預設語言",
+      "status": "狀態",
+      "oaTitle": "LINE 官方帳號",
+      "oaHelp": "品牌官方帳號的 Messaging API 頻道。官方帳號與 MINI App 頻道必須屬於同一個 Provider，否則使用者 ID 無法對應。",
+      "oaChannelId": "Messaging API Channel ID",
+      "oaBasicId": "官方帳號 ID（例如 @123abcd）",
+      "oaSecret": "Channel secret",
+      "oaSecretHint": "僅在輸入時更新，儲存後只會顯示是否已設定。",
+      "oaSecretSet": "已設定 channel secret",
+      "oaSecretNotSet": "尚未設定 channel secret",
+      "clearSecret": "清除已儲存的 channel secret"
+    }
+  },
+  "channels": {
+    "title": "LINE MINI App 頻道",
+    "help": "一個 MINI App 頻道有三個內部頻道（開發中、審核中、已發布），各自有不同的 LIFF ID。請分別填寫，系統會接受每一個已設定的 Channel ID 作為 ID token 的 audience。",
+    "environment": "環境",
+    "channelId": "Channel ID",
+    "liffId": "LIFF ID",
+    "secret": "Channel secret",
+    "secretHint": "選填；只有 HS256 token 與 webhook 簽章驗證需要。",
+    "secretSet": "已設定 secret",
+    "notConfigured": "尚未設定",
+    "remove": "移除此環境",
+    "removeConfirm": "確定要移除 {{environment}} 環境的頻道設定嗎？",
+    "env": { "developing": "開發中", "review": "審核中", "published": "已發布" }
+  },
+  "stores": {
+    "title": "門市",
+    "help": "門市人員替會員加點、蓋章與核銷時所屬的據點。",
+    "create": "新增門市",
+    "edit": "編輯門市",
+    "name": "門市名稱",
+    "code": "門市代碼",
+    "address": "地址",
+    "empty": "尚未建立門市。",
+    "deleteConfirm": "確定要刪除門市「{{name}}」嗎？仍有人員指派時無法刪除。"
+  },
+  "staff": {
+    "title": "門市人員",
+    "help": "人員用 LINE 登入門市 App，第一次登入時輸入邀請碼綁定帳號。",
+    "create": "新增人員",
+    "edit": "編輯人員",
+    "displayName": "顯示名稱",
+    "store": "門市",
+    "noStore": "未指定門市",
+    "role": "職務",
+    "roles": { "cashier": "收銀", "manager": "店長" },
+    "line": "LINE 綁定",
+    "linked": "已綁定",
+    "notLinked": "尚未綁定",
+    "inviteTitle": "人員邀請碼",
+    "inviteHelp": "請將此邀請碼交給人員，在門市 App 首次登入時輸入。",
+    "empty": "尚未新增人員。",
+    "deleteConfirm": "確定要移除人員「{{name}}」嗎？"
+  },
+  "apiKeys": {
+    "title": "API 金鑰",
+    "help": "給品牌後端或 POS 系統使用的伺服器金鑰。金鑰只會在建立時顯示一次。",
+    "create": "建立金鑰",
+    "name": "名稱",
+    "scopes": "權限範圍",
+    "prefix": "前綴",
+    "lastUsed": "最後使用",
+    "never": "從未使用",
+    "revoke": "撤銷",
+    "revokeConfirm": "確定要撤銷金鑰「{{name}}」嗎？使用它的系統將立即失去存取權。",
+    "keyTitle": "新的 API 金鑰",
+    "keyHelp": "請在 X-API-Key 標頭中傳送這把金鑰。",
+    "empty": "尚未建立金鑰。",
+    "scopeLabels": {
+      "members:read": "讀取會員",
+      "members:write": "建立與更新會員",
+      "points:write": "點數增減",
+      "coupons:write": "發放與核銷優惠券",
+      "messages:send": "推播訊息",
+      "webhooks:manage": "管理 Webhook",
+      "config:read": "讀取設定"
+    }
+  },
+  "me": {
+    "title": "帳號",
+    "email": "電子郵件",
+    "displayName": "顯示名稱",
+    "password": {
+      "title": "變更密碼",
+      "current": "目前密碼",
+      "new": "新密碼",
+      "hint": "至少 10 個字元。變更後其他裝置都會被登出。",
+      "submit": "變更密碼",
+      "done": "密碼已更新。"
+    },
+    "totp": {
+      "title": "兩步驟驗證（TOTP）",
+      "enabled": "已啟用",
+      "disabled": "未啟用",
+      "enroll": "開始設定",
+      "scan": "用驗證器 App 掃描這個 QR code，或手動輸入密鑰：",
+      "confirmCode": "輸入 App 顯示的 6 位數代碼",
+      "confirm": "啟用",
+      "recoveryTitle": "備用碼",
+      "recoveryHelp": "每組備用碼只能使用一次。請列印或存放在密碼管理器中；之後無法再次顯示。",
+      "copyAll": "複製全部",
+      "disable": "停用兩步驟驗證",
+      "disablePassword": "目前密碼",
+      "disableCode": "驗證碼或備用碼",
+      "disableSubmit": "停用",
+      "disabledDone": "兩步驟驗證已停用。"
+    },
+    "sessions": {
+      "title": "登入裝置",
+      "logoutAll": "登出所有裝置",
+      "logoutAllHelp": "會使所有裝置上的登入失效，包含這一台。"
+    }
+  }
+}
