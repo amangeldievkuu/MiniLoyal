@@ -20,6 +20,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/log"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/otel"
+	"github.com/amangeldievkuu/miniloyal/internal/webhook"
 )
 
 var version = "dev"
@@ -98,5 +99,9 @@ func maintain(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger) {
 	if err != nil {
 		logger.Error("maintenance: mfa challenge cleanup failed", "err", err)
 	}
-	logger.Info("maintenance run", "idempotency_keys", idem, "refresh_tokens", tokens, "mfa_challenges", challenges)
+	events, err := webhook.DeleteOldInboundEvents(ctx, pool)
+	if err != nil {
+		logger.Error("maintenance: webhook event cleanup failed", "err", err)
+	}
+	logger.Info("maintenance run", "idempotency_keys", idem, "refresh_tokens", tokens, "mfa_challenges", challenges, "webhook_events", events)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
+	"github.com/amangeldievkuu/miniloyal/internal/webhook"
 )
 
 // Deps are the collaborators the server needs. Phase packages add their
@@ -38,6 +39,8 @@ type Deps struct {
 	// Tenants serves tenants, team, apps, channels, stores, staff, API keys
 	// and the audit log.
 	Tenants *tenant.Service
+	// Webhooks processes inbound LINE webhooks. Nil answers them 503.
+	Webhooks *webhook.Service
 }
 
 // Server implements api.StrictServerInterface.
@@ -51,6 +54,7 @@ type Server struct {
 	apiKeys   APIKeyAuthenticator
 	members   MemberAuthenticator
 	tenants   *tenant.Service
+	webhooks  *webhook.Service
 	started   time.Time
 	now       func() time.Time
 }
@@ -77,6 +81,7 @@ func New(d Deps) *Server {
 		apiKeys:   d.APIKeys,
 		members:   d.Members,
 		tenants:   d.Tenants,
+		webhooks:  d.Webhooks,
 		started:   time.Now(),
 		now:       time.Now,
 	}
