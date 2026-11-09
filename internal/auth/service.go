@@ -53,7 +53,9 @@ const (
 	// rotation, then this many lost responses.
 	MaxChildren = 3
 
-	defaultIPPerMinute    = 10
+	// defaultIPPerMinute is generous because offices share one NAT address;
+	// the per-email and per-user limits carry the brute-force defence.
+	defaultIPPerMinute    = 30
 	defaultEmailPerMinute = 5
 	// defaultUserPerMinute caps credential checks per account: MFA codes,
 	// current-password checks when changing the password or disabling TOTP.

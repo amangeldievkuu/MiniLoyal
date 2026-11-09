@@ -32,6 +32,10 @@ Date: 2026-11-09. Scope: `main` after the platform, auth and dashboard merges. R
 | P4       | No HSTS from the API; the TLS terminator must add it.                                                                      | Phase 7 deploy docs.                                                                                                                                                                                                                                                                                 |
 | P4       | Retention is not documented: refresh tokens until expiry or 60 days after revocation, audit IPs indefinitely.              | Phase 7 PDPA runbook; add a retention section to the plan.                                                                                                                                                                                                                                           |
 
+## Rate limit defaults
+
+Per client IP 30 per minute on register, login, MFA and refresh (offices share one address); per email 5 per minute on login; per user 10 per minute on MFA codes and current-password checks; 5 wrong codes kill an MFA challenge.
+
 ## Conventions confirmed by the review
 
 - All nine tenant-scoped tables have forced RLS with the standard policy; the application role owns nothing and cannot bypass RLS; every `WithSystem` use is a single-column lookup.
