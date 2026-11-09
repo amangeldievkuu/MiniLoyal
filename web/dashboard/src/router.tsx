@@ -9,12 +9,15 @@ import {
 import { sessionStore } from './auth/session';
 import { lastTenant } from './auth/tenant';
 import { AppShell } from './components/AppShell';
+import { AcceptInvitePage } from './pages/AcceptInvitePage';
 import { ApiKeysPage } from './pages/ApiKeysPage';
 import { AppChannelsPage } from './pages/AppChannelsPage';
 import { AppSettingsPage } from './pages/AppSettingsPage';
 import { AuditPage } from './pages/AuditPage';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
 import { MePage } from './pages/MePage';
+import { MemberDetailPage } from './pages/MemberDetailPage';
+import { MembersPage } from './pages/MembersPage';
 import { StaffPage } from './pages/StaffPage';
 import { StoresPage } from './pages/StoresPage';
 import { TeamPage } from './pages/TeamPage';
@@ -50,6 +53,17 @@ const registerRoute = createRoute({
   path: '/register',
   beforeLoad: redirectIfAuthenticated,
   component: RegisterPage,
+});
+
+/** Invitation links land here; a signed-in user may accept one for another tenant. */
+const acceptInviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/accept-invite',
+  validateSearch: (search: Record<string, unknown>): { token: string } => {
+    const token = search['token'];
+    return { token: typeof token === 'string' ? token : '' };
+  },
+  component: AcceptInvitePage,
 });
 
 /** Everything below needs a session; the shell renders around it. */
@@ -105,6 +119,18 @@ const appRoute = createRoute({
   component: AppSettingsPage,
 });
 
+const membersRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: '/apps/$appId/members',
+  component: MembersPage,
+});
+
+const memberDetailRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: '/apps/$appId/members/$memberId',
+  component: MemberDetailPage,
+});
+
 const channelsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/apps/$appId/channels',
@@ -138,12 +164,15 @@ const meRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   loginRoute,
   registerRoute,
+  acceptInviteRoute,
   authRoute.addChildren([
     indexRoute,
     tenantRoute,
     teamRoute,
     auditRoute,
     appRoute,
+    membersRoute,
+    memberDetailRoute,
     channelsRoute,
     storesRoute,
     staffRoute,

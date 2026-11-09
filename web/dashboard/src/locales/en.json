@@ -87,6 +87,16 @@
       "submit": "Create account",
       "haveAccount": "Already have an account?",
       "login": "Sign in"
+    },
+    "acceptInvite": {
+      "title": "Join the team",
+      "help": "You were invited to a MiniLoyal dashboard. Set a password if you are new, or enter your existing one.",
+      "password": "Password",
+      "passwordHint": "At least 10 characters. New accounts need one; existing accounts confirm theirs.",
+      "displayName": "Display name",
+      "submit": "Accept invitation",
+      "missingToken": "This invitation link is incomplete. Ask for a new one.",
+      "backToLogin": "Back to sign in"
     }
   },
   "tenant": {
@@ -106,14 +116,21 @@
   },
   "team": {
     "title": "Team",
-    "help": "People who can sign in to this dashboard. They need a MiniLoyal account first.",
-    "add": "Add member",
+    "help": "People who can sign in to this dashboard. Invite them by email; the link creates their account when they have none.",
     "email": "Email",
     "role": "Role",
     "remove": "Remove member",
     "removeConfirm": "Remove {{email}} from the team?",
     "empty": "No team members yet.",
-    "you": "(you)"
+    "you": "(you)",
+    "invite": "Invite",
+    "inviteLinkTitle": "Invitation link",
+    "inviteLinkHelp": "Send this link to {{email}}. It works once and expires in 7 days.",
+    "pendingTitle": "Pending invitations",
+    "pendingEmpty": "No pending invitations.",
+    "expires": "Expires",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke the invitation for {{email}}?"
   },
   "audit": {
     "title": "Audit log",
@@ -132,7 +149,8 @@
       "channels": "LINE channels",
       "stores": "Stores",
       "staff": "Staff",
-      "apiKeys": "API keys"
+      "apiKeys": "API keys",
+      "members": "Members"
     },
     "settings": {
       "title": "App settings",
@@ -147,7 +165,15 @@
       "oaSecretHint": "Updated only when you type one; after saving, only whether it is set is shown.",
       "oaSecretSet": "A channel secret is set",
       "oaSecretNotSet": "No channel secret set",
-      "clearSecret": "Clear the stored channel secret"
+      "clearSecret": "Clear the stored channel secret",
+      "verifiedAt": "Verified {{date}}",
+      "notVerified": "Not verified",
+      "notVerifiedHint": "Save the channel ID and secret: MiniLoyal verifies them with LINE and fills in the basic ID.",
+      "webhookTitle": "Webhook URL",
+      "webhookHelp": "LINE sends follow and unfollow events here so friend status stays current.",
+      "webhookStep1": "Open the Messaging API channel in the LINE Developers Console.",
+      "webhookStep2": "Paste this URL into Webhook URL under the Messaging API settings and click Verify.",
+      "webhookStep3": "Turn on Use webhook."
     }
   },
   "channels": {
@@ -166,7 +192,9 @@
       "developing": "Developing",
       "review": "Review",
       "published": "Published"
-    }
+    },
+    "verified": "Verified",
+    "notVerified": "Not verified"
   },
   "stores": {
     "title": "Stores",
@@ -257,6 +285,72 @@
       "title": "Signed-in devices",
       "logoutAll": "Sign out everywhere",
       "logoutAllHelp": "Ends the session on every device, including this one."
+    },
+    "security": {
+      "title": "Security activity",
+      "help": "Sign-ins and account changes, newest first.",
+      "event": "Event",
+      "ip": "IP address",
+      "userAgent": "Device",
+      "time": "Time",
+      "loadMore": "Load more",
+      "empty": "No activity yet.",
+      "events": {
+        "loginSuccess": "Signed in",
+        "loginFailed": "Sign-in failed",
+        "mfaFailed": "Wrong two-step code",
+        "mfaExhausted": "Too many two-step attempts",
+        "passwordChanged": "Password changed",
+        "totpEnabled": "Two-step verification enabled",
+        "totpDisabled": "Two-step verification disabled",
+        "sessionsEnded": "Signed out everywhere",
+        "refreshReplayed": "Reused sign-in token blocked",
+        "invitationAccepted": "Joined a team",
+        "accountCreated": "Account created"
+      }
+    }
+  },
+  "members": {
+    "title": "Members",
+    "help": "Everyone who signed in to this MINI App with LINE.",
+    "search": "Search",
+    "searchPlaceholder": "Name or LINE user ID",
+    "loadMore": "Load more",
+    "empty": "No members yet.",
+    "noResults": "No members match.",
+    "member": "Member",
+    "friend": "Friend",
+    "isFriend": "Friend",
+    "notFriend": "Not a friend",
+    "consent": "Consent",
+    "noConsent": "Not given",
+    "joined": "Joined",
+    "anonymous": "(no name)",
+    "detail": {
+      "back": "Back to members",
+      "lineUserId": "LINE user ID",
+      "language": "Language",
+      "phone": "Phone",
+      "birthday": "Birthday",
+      "gender": "Gender",
+      "genders": {
+        "female": "Female",
+        "male": "Male",
+        "other": "Other"
+      },
+      "customFields": "Custom fields",
+      "friendChangedAt": "Friend status changed",
+      "consentAccepted": "Version {{version}}, accepted {{date}}",
+      "lastLogin": "Last sign-in",
+      "updatedAt": "Updated",
+      "privacyTitle": "Personal data",
+      "privacyHelp": "Export or erase this member's personal data for a PDPA request. Both actions are recorded in the audit log.",
+      "export": "Export data",
+      "erase": "Erase personal data",
+      "eraseTitle": "Erase personal data",
+      "eraseBody": "Profile, contact details and consent are blanked and the member is signed out. Points and coupon history stay. Type {{phrase}} to confirm.",
+      "erasePhraseLabel": "Confirmation",
+      "notAvailable": "—"
     }
   }
 }

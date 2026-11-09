@@ -9,6 +9,7 @@ import type { PasswordChangeRequest, TotpEnrollment } from '../api/types';
 import { sessionStore, useMe } from '../auth/session';
 import { ErrorAlert, PageHeader, ShowOnceDialog } from '../components/feedback';
 import { Alert, Badge, Button, Card, Field, Status } from '../components/ui';
+import { SecurityActivityCard } from './SecurityActivityCard';
 
 export function MePage() {
   const { t } = useTranslation();
@@ -106,6 +107,8 @@ export function MePage() {
           <ErrorAlert error={logoutAll.error} />
         </div>
       </Card>
+
+      <SecurityActivityCard />
     </div>
   );
 }
