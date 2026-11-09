@@ -93,12 +93,11 @@ function ChannelCard({
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const secret = String(fd.get('channel_secret') ?? '');
     // The secret is required: the API proves control of the channel with it.
     save.mutate({
       channel_id: String(fd.get('channel_id') ?? '').trim(),
       liff_id: String(fd.get('liff_id') ?? '').trim(),
-      channel_secret: secret,
+      channel_secret: String(fd.get('channel_secret') ?? ''),
     });
     const secretInput = e.currentTarget.elements.namedItem('channel_secret');
     if (secretInput instanceof HTMLInputElement) secretInput.value = '';
@@ -112,9 +111,14 @@ function ChannelCard({
       title={envLabel}
       actions={
         channel ? (
-          <Badge tone={channel.channel_secret_set ? 'success' : 'neutral'}>
-            {channel.channel_secret_set ? t('channels.secretSet') : t('common.set')}
-          </Badge>
+          <>
+            <Badge tone={channel.channel_secret_set ? 'success' : 'neutral'}>
+              {channel.channel_secret_set ? t('channels.secretSet') : t('common.set')}
+            </Badge>
+            <Badge tone={channel.verified_at ? 'success' : 'warning'}>
+              {channel.verified_at ? t('channels.verified') : t('channels.notVerified')}
+            </Badge>
+          </>
         ) : (
           <Badge tone="warning">{t('channels.notConfigured')}</Badge>
         )
@@ -145,9 +149,11 @@ function ChannelCard({
             name="channel_secret"
             type="password"
             autoComplete="off"
-            label={`${t('channels.secret')} (${t('common.optional')})`}
+            label={t('channels.secret')}
             placeholder={channel?.channel_secret_set ? '••••••••' : ''}
             hint={t('channels.secretHint')}
+            required
+            minLength={1}
             maxLength={128}
             error={err?.field('channel_secret')}
           />

@@ -13,6 +13,7 @@ import { Badge, Status } from './ui';
 
 const tabs = [
   { to: '/apps/$appId', key: 'settings' },
+  { to: '/apps/$appId/members', key: 'members' },
   { to: '/apps/$appId/channels', key: 'channels' },
   { to: '/apps/$appId/stores', key: 'stores' },
   { to: '/apps/$appId/staff', key: 'staff' },

@@ -87,6 +87,16 @@
       "submit": "建立帳號",
       "haveAccount": "已經有帳號？",
       "login": "登入"
+    },
+    "acceptInvite": {
+      "title": "加入團隊",
+      "help": "您受邀加入 MiniLoyal 後台。新使用者請設定密碼，已有帳號者請輸入現有密碼。",
+      "password": "密碼",
+      "passwordHint": "至少 10 個字元。新帳號需要設定；已有帳號者輸入現有密碼。",
+      "displayName": "顯示名稱",
+      "submit": "接受邀請",
+      "missingToken": "這個邀請連結不完整，請重新索取。",
+      "backToLogin": "返回登入"
     }
   },
   "tenant": {
@@ -106,14 +116,21 @@
   },
   "team": {
     "title": "團隊",
-    "help": "可以登入後台的使用者。被加入的人必須已經有 MiniLoyal 帳號。",
-    "add": "新增成員",
+    "help": "可以登入後台的使用者。用電子郵件邀請，對方沒有帳號時連結會替他建立。",
     "email": "電子郵件",
     "role": "角色",
     "remove": "移除成員",
     "removeConfirm": "確定要將 {{email}} 移出團隊嗎？",
     "empty": "尚無團隊成員。",
-    "you": "（您）"
+    "you": "（您）",
+    "invite": "邀請成員",
+    "inviteLinkTitle": "邀請連結",
+    "inviteLinkHelp": "請把這個連結傳給 {{email}}。連結只能使用一次，7 天後失效。",
+    "pendingTitle": "待接受的邀請",
+    "pendingEmpty": "沒有待接受的邀請。",
+    "expires": "到期",
+    "revoke": "撤銷",
+    "revokeConfirm": "確定要撤銷給 {{email}} 的邀請嗎？"
   },
   "audit": {
     "title": "稽核紀錄",
@@ -132,7 +149,8 @@
       "channels": "LINE 頻道",
       "stores": "門市",
       "staff": "門市人員",
-      "apiKeys": "API 金鑰"
+      "apiKeys": "API 金鑰",
+      "members": "會員"
     },
     "settings": {
       "title": "應用程式設定",
@@ -147,7 +165,15 @@
       "oaSecretHint": "僅在輸入時更新，儲存後只會顯示是否已設定。",
       "oaSecretSet": "已設定 channel secret",
       "oaSecretNotSet": "尚未設定 channel secret",
-      "clearSecret": "清除已儲存的 channel secret"
+      "clearSecret": "清除已儲存的 channel secret",
+      "verifiedAt": "已驗證 {{date}}",
+      "notVerified": "尚未驗證",
+      "notVerifiedHint": "儲存 Channel ID 與 secret 後，MiniLoyal 會向 LINE 驗證並自動填入官方帳號 ID。",
+      "webhookTitle": "Webhook 網址",
+      "webhookHelp": "LINE 會把加好友與封鎖事件送到這裡，好友狀態才會保持最新。",
+      "webhookStep1": "在 LINE Developers Console 開啟 Messaging API 頻道。",
+      "webhookStep2": "在 Messaging API 設定的 Webhook URL 貼上這個網址並按下驗證。",
+      "webhookStep3": "開啟「Use webhook」。"
     }
   },
   "channels": {
@@ -166,7 +192,9 @@
       "developing": "開發中",
       "review": "審核中",
       "published": "已發布"
-    }
+    },
+    "verified": "已驗證",
+    "notVerified": "尚未驗證"
   },
   "stores": {
     "title": "門市",
@@ -257,6 +285,72 @@
       "title": "登入裝置",
       "logoutAll": "登出所有裝置",
       "logoutAllHelp": "會使所有裝置上的登入失效，包含這一台。"
+    },
+    "security": {
+      "title": "安全活動",
+      "help": "登入與帳號變更紀錄，最新的在最上面。",
+      "event": "事件",
+      "ip": "IP 位址",
+      "userAgent": "裝置",
+      "time": "時間",
+      "loadMore": "載入更多",
+      "empty": "尚無紀錄。",
+      "events": {
+        "loginSuccess": "登入成功",
+        "loginFailed": "登入失敗",
+        "mfaFailed": "兩步驟驗證碼錯誤",
+        "mfaExhausted": "兩步驟驗證嘗試過多",
+        "passwordChanged": "已變更密碼",
+        "totpEnabled": "已啟用兩步驟驗證",
+        "totpDisabled": "已停用兩步驟驗證",
+        "sessionsEnded": "已登出所有裝置",
+        "refreshReplayed": "已阻擋重複使用的登入憑證",
+        "invitationAccepted": "已加入團隊",
+        "accountCreated": "已建立帳號"
+      }
+    }
+  },
+  "members": {
+    "title": "會員",
+    "help": "所有曾用 LINE 登入此 MINI App 的會員。",
+    "search": "搜尋",
+    "searchPlaceholder": "名稱或 LINE 使用者 ID",
+    "loadMore": "載入更多",
+    "empty": "尚無會員。",
+    "noResults": "沒有符合的會員。",
+    "member": "會員",
+    "friend": "好友",
+    "isFriend": "已加好友",
+    "notFriend": "未加好友",
+    "consent": "個資同意",
+    "noConsent": "尚未同意",
+    "joined": "加入時間",
+    "anonymous": "（未提供名稱）",
+    "detail": {
+      "back": "返回會員列表",
+      "lineUserId": "LINE 使用者 ID",
+      "language": "語言",
+      "phone": "電話",
+      "birthday": "生日",
+      "gender": "性別",
+      "genders": {
+        "female": "女性",
+        "male": "男性",
+        "other": "其他"
+      },
+      "customFields": "自訂欄位",
+      "friendChangedAt": "好友狀態變更時間",
+      "consentAccepted": "版本 {{version}}，於 {{date}} 同意",
+      "lastLogin": "最後登入",
+      "updatedAt": "更新時間",
+      "privacyTitle": "個人資料",
+      "privacyHelp": "依個資法請求匯出或刪除此會員的個人資料，兩個動作都會寫入稽核紀錄。",
+      "export": "匯出資料",
+      "erase": "刪除個人資料",
+      "eraseTitle": "刪除個人資料",
+      "eraseBody": "會清除個人檔案、聯絡方式與同意紀錄並登出該會員；點數與優惠券歷史會保留。請輸入 {{phrase}} 以確認。",
+      "erasePhraseLabel": "確認文字",
+      "notAvailable": "—"
     }
   }
 }

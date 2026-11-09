@@ -9,7 +9,8 @@ import { Card, Select } from '../components/ui';
 import { LoginForm } from './auth/LoginForm';
 import { RegisterForm } from './auth/RegisterForm';
 
-function AuthLayout({ children, footer }: { children: ReactNode; footer: ReactNode }) {
+/** Centered card with the brand and language switcher, for pages outside the shell. */
+export function AuthLayout({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   const { t, i18n } = useTranslation();
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-8">
@@ -29,7 +30,9 @@ function AuthLayout({ children, footer }: { children: ReactNode; footer: ReactNo
         </Select>
       </div>
       <Card>{children}</Card>
-      <p className="mt-4 text-center text-sm text-zinc-600 dark:text-zinc-400">{footer}</p>
+      {footer && (
+        <p className="mt-4 text-center text-sm text-zinc-600 dark:text-zinc-400">{footer}</p>
+      )}
     </div>
   );
 }

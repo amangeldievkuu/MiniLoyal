@@ -15,14 +15,50 @@ import {
   type Role,
 } from '../api/types';
 import { AppHeader } from '../components/AppHeader';
-import { ErrorAlert, ReadOnlyNotice } from '../components/feedback';
+import { CopyButton, ErrorAlert, ReadOnlyNotice } from '../components/feedback';
 import { Badge, Button, Card, Field, SelectField, Status } from '../components/ui';
+import { formatDateTime } from '../lib/format';
 import { canManage } from '../lib/roles';
 
 export function AppSettingsPage() {
   const { appId = '' } = useParams({ strict: false });
   return (
     <AppHeader appId={appId}>{(app, role) => <SettingsForm app={app} role={role} />}</AppHeader>
+  );
+}
+
+/** Verified-with-LINE state of the Official Account credentials. */
+export function VerificationBadge({ verifiedAt }: { verifiedAt: string | null | undefined }) {
+  const { t } = useTranslation();
+  return verifiedAt ? (
+    <Badge tone="success">
+      {t('appPage.settings.verifiedAt', { date: formatDateTime(verifiedAt) })}
+    </Badge>
+  ) : (
+    <Badge tone="warning">{t('appPage.settings.notVerified')}</Badge>
+  );
+}
+
+/** The URL to paste into the LINE Messaging API channel, with setup steps. */
+export function WebhookCard({ url }: { url: string }) {
+  const { t } = useTranslation();
+  return (
+    <Card
+      title={t('appPage.settings.webhookTitle')}
+      description={t('appPage.settings.webhookHelp')}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <code className="rounded bg-zinc-100 px-2 py-1 font-mono text-xs break-all dark:bg-zinc-800">
+          {url}
+        </code>
+        <CopyButton text={url} />
+      </div>
+      <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-zinc-700 dark:text-zinc-300">
+        <li>{t('appPage.settings.webhookStep1')}</li>
+        <li>{t('appPage.settings.webhookStep2')}</li>
+        <li>{t('appPage.settings.webhookStep3')}</li>
+      </ol>
+    </Card>
   );
 }
 
@@ -71,109 +107,121 @@ function SettingsForm({ app, role }: { app: App; role: Role | null }) {
   const err = asApiError(update.error);
 
   return (
-    <form onSubmit={submit} aria-busy={update.isPending} className="space-y-6">
-      {!editable && <ReadOnlyNotice />}
-      <Card title={t('appPage.settings.title')}>
-        <fieldset disabled={!editable} className="grid gap-4 sm:grid-cols-2">
-          <Field
-            id="name"
-            name="name"
-            label={t('appPage.settings.name')}
-            defaultValue={app.name}
-            required
-            maxLength={100}
-            error={err?.field('name')}
-          />
-          <SelectField
-            id="locale"
-            name="locale"
-            label={t('appPage.settings.locale')}
-            defaultValue={app.locale}
-          >
-            {LOCALES.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </SelectField>
-          <SelectField
-            id="status"
-            name="status"
-            label={t('appPage.settings.status')}
-            defaultValue={app.status}
-          >
-            {APP_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {t(`statuses.${s}`)}
-              </option>
-            ))}
-          </SelectField>
-        </fieldset>
-      </Card>
+    <div className="space-y-6">
+      <form onSubmit={submit} aria-busy={update.isPending} className="space-y-6">
+        {!editable && <ReadOnlyNotice />}
+        <Card title={t('appPage.settings.title')}>
+          <fieldset disabled={!editable} className="grid gap-4 sm:grid-cols-2">
+            <Field
+              id="name"
+              name="name"
+              label={t('appPage.settings.name')}
+              defaultValue={app.name}
+              required
+              maxLength={100}
+              error={err?.field('name')}
+            />
+            <SelectField
+              id="locale"
+              name="locale"
+              label={t('appPage.settings.locale')}
+              defaultValue={app.locale}
+            >
+              {LOCALES.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField
+              id="status"
+              name="status"
+              label={t('appPage.settings.status')}
+              defaultValue={app.status}
+            >
+              {APP_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {t(`statuses.${s}`)}
+                </option>
+              ))}
+            </SelectField>
+          </fieldset>
+        </Card>
 
-      <Card
-        title={t('appPage.settings.oaTitle')}
-        description={t('appPage.settings.oaHelp')}
-        actions={
-          <Badge tone={app.oa_channel_secret_set ? 'success' : 'warning'}>
-            {app.oa_channel_secret_set
-              ? t('appPage.settings.oaSecretSet')
-              : t('appPage.settings.oaSecretNotSet')}
-          </Badge>
-        }
-      >
-        <fieldset disabled={!editable} className="grid gap-4 sm:grid-cols-2">
-          <Field
-            id="oa_channel_id"
-            name="oa_channel_id"
-            label={t('appPage.settings.oaChannelId')}
-            defaultValue={app.oa_channel_id ?? ''}
-            inputMode="numeric"
-            maxLength={32}
-            error={err?.field('oa_channel_id')}
-          />
-          <Field
-            id="oa_basic_id"
-            name="oa_basic_id"
-            label={t('appPage.settings.oaBasicId')}
-            defaultValue={app.oa_basic_id ?? ''}
-            maxLength={32}
-            error={err?.field('oa_basic_id')}
-          />
-          <Field
-            id="oa_channel_secret"
-            name="oa_channel_secret"
-            type="password"
-            autoComplete="off"
-            label={t('appPage.settings.oaSecret')}
-            placeholder={app.oa_channel_secret_set ? '••••••••' : ''}
-            hint={t('appPage.settings.oaSecretHint')}
-            maxLength={128}
-            disabled={clearSecret}
-            error={err?.field('oa_channel_secret')}
-          />
-          {app.oa_channel_secret_set && (
-            <label className="flex items-center gap-2 self-end text-sm">
-              <input
-                type="checkbox"
-                checked={clearSecret}
-                onChange={(e) => setClearSecret(e.target.checked)}
-              />
-              {t('appPage.settings.clearSecret')}
-            </label>
+        <Card
+          title={t('appPage.settings.oaTitle')}
+          description={t('appPage.settings.oaHelp')}
+          actions={
+            <>
+              <Badge tone={app.oa_channel_secret_set ? 'success' : 'neutral'}>
+                {app.oa_channel_secret_set
+                  ? t('appPage.settings.oaSecretSet')
+                  : t('appPage.settings.oaSecretNotSet')}
+              </Badge>
+              <VerificationBadge verifiedAt={app.oa_verified_at} />
+            </>
+          }
+        >
+          {!app.oa_verified_at && (
+            <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+              {t('appPage.settings.notVerifiedHint')}
+            </p>
           )}
-        </fieldset>
-      </Card>
+          <fieldset disabled={!editable} className="grid gap-4 sm:grid-cols-2">
+            <Field
+              id="oa_channel_id"
+              name="oa_channel_id"
+              label={t('appPage.settings.oaChannelId')}
+              defaultValue={app.oa_channel_id ?? ''}
+              inputMode="numeric"
+              maxLength={32}
+              error={err?.field('oa_channel_id')}
+            />
+            <Field
+              id="oa_basic_id"
+              name="oa_basic_id"
+              label={t('appPage.settings.oaBasicId')}
+              defaultValue={app.oa_basic_id ?? ''}
+              maxLength={32}
+              error={err?.field('oa_basic_id')}
+            />
+            <Field
+              id="oa_channel_secret"
+              name="oa_channel_secret"
+              type="password"
+              autoComplete="off"
+              label={t('appPage.settings.oaSecret')}
+              placeholder={app.oa_channel_secret_set ? '••••••••' : ''}
+              hint={t('appPage.settings.oaSecretHint')}
+              maxLength={128}
+              disabled={clearSecret}
+              error={err?.field('oa_channel_secret')}
+            />
+            {app.oa_channel_secret_set && (
+              <label className="flex items-center gap-2 self-end text-sm">
+                <input
+                  type="checkbox"
+                  checked={clearSecret}
+                  onChange={(e) => setClearSecret(e.target.checked)}
+                />
+                {t('appPage.settings.clearSecret')}
+              </label>
+            )}
+          </fieldset>
+        </Card>
 
-      {editable && (
-        <div className="flex items-center gap-3">
-          <Button type="submit" disabled={update.isPending}>
-            {update.isPending ? t('common.working') : t('common.save')}
-          </Button>
-          {update.isSuccess && <Status>{t('common.saved')}</Status>}
-        </div>
-      )}
-      <ErrorAlert error={update.error} />
-    </form>
+        {editable && (
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={update.isPending}>
+              {update.isPending ? t('common.working') : t('common.save')}
+            </Button>
+            {update.isSuccess && <Status>{t('common.saved')}</Status>}
+          </div>
+        )}
+        <ErrorAlert error={update.error} />
+      </form>
+
+      <WebhookCard url={app.webhook_url} />
+    </div>
   );
 }
