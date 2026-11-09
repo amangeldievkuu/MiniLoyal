@@ -29,7 +29,7 @@ func (e *memberEnv) linkOA(access string, app api.App, channelID string) {
 // webhook posts one signed LINE event for the app.
 func (e *memberEnv) webhook(app api.App, typ, eventID, lineUserID string) resp {
 	e.t.Helper()
-	body := []byte(fmt.Sprintf(`{"destination":"Ubot","events":[{"type":%q,"webhookEventId":%q,"deliveryContext":{"isRedelivery":false},"timestamp":1762689600000,"mode":"active","source":{"type":"user","userId":%q}}]}`, typ, eventID, lineUserID))
+	body := []byte(fmt.Sprintf(`{"destination":"Ubot","events":[{"type":%q,"webhookEventId":%q,"deliveryContext":{"isRedelivery":false},"timestamp":4102444800000,"mode":"active","source":{"type":"user","userId":%q}}]}`, typ, eventID, lineUserID))
 	return e.webhookBody(app, body)
 }
 

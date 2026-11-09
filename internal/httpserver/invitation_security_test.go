@@ -90,11 +90,10 @@ func TestInviteTokenEntropyAndSecrecy(t *testing.T) {
 	}
 }
 
-// Invariant: accepting with the wrong password for an existing account and
-// accepting with an unknown token are both 401 with the same code, name no
-// account, and leave the invitation pending. The messages are compared and
-// logged: today they differ, which tells the token holder only what the
-// 400 validation messages already tell them (create vs confirm).
+// Invariant (security review P1): an invitation for an existing account is
+// not a password oracle and cannot bypass TOTP. Any password, right or wrong,
+// gets the same 401 sign_in_required; the account has to be signed in to
+// accept. An unknown token is a plain 401. No response names the account.
 func TestAcceptWrongPasswordAndUnknownTokenLookAlike(t *testing.T) {
 	e, _ := newInviteEnv(t)
 	owner, _ := e.register("owner@example.com", "correct horse battery")
@@ -103,52 +102,46 @@ func TestAcceptWrongPasswordAndUnknownTokenLookAlike(t *testing.T) {
 	_, token := inviteToken(t, e.invite(owner.AccessToken, tn.Id, "existing@example.com", "staff", uuid.NewString()))
 
 	wrong := e.accept(map[string]any{"token": token, "password": "not the right password"})
+	right := e.accept(map[string]any{"token": token, "password": "existing long password"})
 	unknown := e.accept(map[string]any{"token": base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32)), "password": "not the right password"})
-	if wrong.status != http.StatusUnauthorized || unknown.status != http.StatusUnauthorized {
-		t.Fatalf("wrong password %d, unknown token %d; want 401 and 401", wrong.status, unknown.status)
-	}
-	var wrongErr, unknownErr api.Error
-	wrong.into(t, &wrongErr)
-	unknown.into(t, &unknownErr)
-	if wrongErr.Code != unknownErr.Code || wrongErr.Code != "unauthorized" {
-		t.Errorf("codes differ: %q vs %q", wrongErr.Code, unknownErr.Code)
-	}
-	for _, body := range [][]byte{wrong.body, unknown.body} {
+	for name, r := range map[string]resp{"wrong password": wrong, "right password": right, "unknown token": unknown} {
+		if r.status != http.StatusUnauthorized {
+			t.Fatalf("%s: %d %s", name, r.status, r.body)
+		}
+		if len(r.cookies) != 0 {
+			t.Errorf("%s: a refused acceptance set a cookie", name)
+		}
 		for _, secret := range []string{"existing@example.com", existing.User.Id.String(), token} {
-			if bytes.Contains(body, []byte(secret)) {
-				t.Errorf("401 body names %q: %s", secret, body)
+			if bytes.Contains(r.body, []byte(secret)) {
+				t.Errorf("%s: 401 body names %q: %s", name, secret, r.body)
 			}
 		}
 	}
-	if len(wrong.cookies) != 0 || len(unknown.cookies) != 0 {
-		t.Error("a refused acceptance set a cookie")
+	var wrongErr, rightErr, unknownErr api.Error
+	wrong.into(t, &wrongErr)
+	right.into(t, &rightErr)
+	unknown.into(t, &unknownErr)
+	if wrongErr.Code != "sign_in_required" || rightErr.Code != wrongErr.Code || rightErr.Message != wrongErr.Message {
+		t.Errorf("right and wrong passwords must be indistinguishable: %+v vs %+v", rightErr, wrongErr)
 	}
-	if wrongErr.Message != unknownErr.Message {
-		t.Logf("messages differ: wrong password %q, unknown token %q", wrongErr.Message, unknownErr.Message)
+	if unknownErr.Code != "unauthorized" {
+		t.Errorf("unknown token code = %q", unknownErr.Code)
 	}
-	// Still pending, still redeemable with the right password; the failed
-	// attempt is in the account's security history.
+	// Still pending, and accepted once the account itself is signed in.
 	list := e.do(http.MethodGet, "/v1/dashboard/tenants/"+tn.Id.String()+"/invitations", nil, bearer(owner.AccessToken))
 	var pending []api.Invitation
 	list.into(t, &pending)
 	if len(pending) != 1 {
-		t.Errorf("pending after a wrong password = %d, want 1", len(pending))
+		t.Errorf("pending after refused attempts = %d, want 1", len(pending))
 	}
-	joined := e.accept(map[string]any{"token": token, "password": "existing long password"})
+	joined := e.do(http.MethodPost, "/v1/dashboard/auth/accept-invite", map[string]any{"token": token}, bearer(existing.AccessToken))
 	if joined.status != http.StatusOK {
-		t.Fatalf("accept with the right password: %d %s", joined.status, joined.body)
+		t.Fatalf("accept while signed in: %d %s", joined.status, joined.body)
 	}
-	events := e.do(http.MethodGet, "/v1/dashboard/me/security-events", nil, bearer(existing.AccessToken))
-	var page api.SecurityEventPage
-	events.into(t, &page)
-	failed := 0
-	for _, ev := range page.Items {
-		if ev.Event == "login.failed" {
-			failed++
-		}
-	}
-	if failed != 1 {
-		t.Errorf("login.failed events = %d, want 1", failed)
+	var sess api.Session
+	joined.into(t, &sess)
+	if sess.User.Id != existing.User.Id {
+		t.Errorf("acceptance created another account: %s vs %s", sess.User.Id, existing.User.Id)
 	}
 }
 
@@ -342,22 +335,22 @@ func TestTwoTenantsInviteTheSameEmailIndependently(t *testing.T) {
 		}
 	}
 
-	// Accepting A creates the account; B then needs that password.
+	// Accepting A creates the account; B then needs that account signed in.
 	first := e.accept(map[string]any{"token": tokenA, "password": "shared long password"})
 	if first.status != http.StatusOK {
 		t.Fatalf("accept A: %d %s", first.status, first.body)
 	}
 	var sessA api.Session
 	first.into(t, &sessA)
-	if r := e.accept(map[string]any{"token": tokenB}); r.status != http.StatusBadRequest {
-		t.Errorf("accept B without a password: %d %s", r.status, r.body)
+	if r := e.accept(map[string]any{"token": tokenB}); r.status != http.StatusUnauthorized {
+		t.Errorf("accept B without signing in: %d %s", r.status, r.body)
 	}
-	if r := e.accept(map[string]any{"token": tokenB, "password": "another password entirely"}); r.status != http.StatusUnauthorized {
-		t.Errorf("accept B with another password: %d %s", r.status, r.body)
+	if r := e.accept(map[string]any{"token": tokenB, "password": "shared long password"}); r.status != http.StatusUnauthorized {
+		t.Errorf("accept B with the password must be refused: %d %s", r.status, r.body)
 	}
-	second := e.accept(map[string]any{"token": tokenB, "password": "shared long password"})
+	second := e.do(http.MethodPost, "/v1/dashboard/auth/accept-invite", map[string]any{"token": tokenB}, bearer(sessA.AccessToken))
 	if second.status != http.StatusOK {
-		t.Fatalf("accept B: %d %s", second.status, second.body)
+		t.Fatalf("accept B while signed in: %d %s", second.status, second.body)
 	}
 	var sessB api.Session
 	second.into(t, &sessB)

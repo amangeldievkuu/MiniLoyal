@@ -62,6 +62,9 @@ func parseListQuery(in ListQuery) (int, *listCursor, error) {
 	if len(in.Q) > MaxQueryLen {
 		return 0, nil, apierr.BadRequest("q is too long")
 	}
+	if !cleanText(in.Q) {
+		return 0, nil, apierr.BadRequest("q must be text")
+	}
 	cursor, err := decodeCursor(in.Cursor)
 	if err != nil {
 		return 0, nil, err

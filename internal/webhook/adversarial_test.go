@@ -41,7 +41,7 @@ func TestSignatureMustCoverTheRawBody(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	// LINE's body: spaces after colons and keys in LINE's order.
-	body := []byte(`{"destination": "Ubot", "events": [{"type": "follow", "webhookEventId": "sig-1", "deliveryContext": {"isRedelivery": false}, "timestamp": 1762689600000, "mode": "active", "source": {"type": "user", "userId": "Usig1"}}]}`)
+	body := []byte(`{"destination": "Ubot", "events": [{"type": "follow", "webhookEventId": "sig-1", "deliveryContext": {"isRedelivery": false}, "timestamp":4102444800000, "mode": "active", "source": {"type": "user", "userId": "Usig1"}}]}`)
 	var decoded any
 	if err := json.Unmarshal(body, &decoded); err != nil {
 		t.Fatal(err)
@@ -155,14 +155,14 @@ func TestEventsWithoutAUserAreIgnored(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	events := []string{
-		`{"type":"follow","webhookEventId":"nou-1","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active","source":{"type":"user"}}`,
-		`{"type":"follow","webhookEventId":"nou-2","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active","source":{"type":"user","userId":""}}`,
-		`{"type":"follow","webhookEventId":"nou-3","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active","source":null}`,
-		`{"type":"follow","webhookEventId":"nou-4","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active"}`,
-		`{"type":"follow","webhookEventId":"nou-5","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active","source":{"type":"group","groupId":"Cg1","userId":"Ugroupmember"}}`,
-		`{"type":"unfollow","webhookEventId":"nou-6","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active","source":{"type":"room","roomId":"Rr1"}}`,
-		`{"type":"follow","webhookEventId":"","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active","source":{"type":"user","userId":"Unoid"}}`,
-		`{"type":"follow","webhookEventId":"nou-8","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active","source":{"type":"user","userId":"Ugood"}}`,
+		`{"type":"follow","webhookEventId":"nou-1","deliveryContext":{"isRedelivery":false},"timestamp":4102444800000,"mode":"active","source":{"type":"user"}}`,
+		`{"type":"follow","webhookEventId":"nou-2","deliveryContext":{"isRedelivery":false},"timestamp":4102444800000,"mode":"active","source":{"type":"user","userId":""}}`,
+		`{"type":"follow","webhookEventId":"nou-3","deliveryContext":{"isRedelivery":false},"timestamp":4102444800000,"mode":"active","source":null}`,
+		`{"type":"follow","webhookEventId":"nou-4","deliveryContext":{"isRedelivery":false},"timestamp":4102444800000,"mode":"active"}`,
+		`{"type":"follow","webhookEventId":"nou-5","deliveryContext":{"isRedelivery":false},"timestamp":4102444800000,"mode":"active","source":{"type":"group","groupId":"Cg1","userId":"Ugroupmember"}}`,
+		`{"type":"unfollow","webhookEventId":"nou-6","deliveryContext":{"isRedelivery":false},"timestamp":4102444800000,"mode":"active","source":{"type":"room","roomId":"Rr1"}}`,
+		`{"type":"follow","webhookEventId":"","deliveryContext":{"isRedelivery":false},"timestamp":4102444800000,"mode":"active","source":{"type":"user","userId":"Unoid"}}`,
+		`{"type":"follow","webhookEventId":"nou-8","deliveryContext":{"isRedelivery":false},"timestamp":4102444800000,"mode":"active","source":{"type":"user","userId":"Ugood"}}`,
 	}
 	body := []byte(`{"destination":"Ubot","events":[` + strings.Join(events, ",") + `]}`)
 	res, err := f.svc.Receive(ctx, f.app, line.Sign(oaSecret, body), body)
@@ -192,7 +192,7 @@ func TestLargeBatchIsBoundedAndDeduplicatedWithinItself(t *testing.T) {
 	const n = 1000
 	parts := make([]string, 0, n)
 	for i := 0; i < n; i++ {
-		parts = append(parts, fmt.Sprintf(`{"type":"follow","webhookEventId":"big-%04d","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active","source":{"type":"user","userId":"Ubig%04d"}}`, i, i))
+		parts = append(parts, fmt.Sprintf(`{"type":"follow","webhookEventId":"big-%04d","deliveryContext":{"isRedelivery":false},"timestamp":4102444800000,"mode":"active","source":{"type":"user","userId":"Ubig%04d"}}`, i, i))
 	}
 	body := []byte(`{"destination":"Ubot","events":[` + strings.Join(parts, ",") + `]}`)
 	start := time.Now()
@@ -218,7 +218,7 @@ func TestLargeBatchIsBoundedAndDeduplicatedWithinItself(t *testing.T) {
 	// The same event ID 50 times in one body: one application, 49 duplicates.
 	same := make([]string, 0, 50)
 	for i := 0; i < 50; i++ {
-		same = append(same, `{"type":"follow","webhookEventId":"same-1","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active","source":{"type":"user","userId":"Usame"}}`)
+		same = append(same, `{"type":"follow","webhookEventId":"same-1","deliveryContext":{"isRedelivery":false},"timestamp":4102444800000,"mode":"active","source":{"type":"user","userId":"Usame"}}`)
 	}
 	body = []byte(`{"destination":"Ubot","events":[` + strings.Join(same, ",") + `]}`)
 	res, err = f.svc.Receive(ctx, f.app, line.Sign(oaSecret, body), body)

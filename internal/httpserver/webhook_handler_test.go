@@ -99,7 +99,7 @@ func TestWebhookBodyLimitBoundary(t *testing.T) {
 	e.linkOA(ownerTok, app, "2001000002")
 
 	// Pad the destination so the whole body is exactly webhookMaxBody bytes.
-	frame := `{"destination":"","events":[{"type":"follow","webhookEventId":"limit-1","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active","source":{"type":"user","userId":"Ulimit"}}]}`
+	frame := `{"destination":"","events":[{"type":"follow","webhookEventId":"limit-1","deliveryContext":{"isRedelivery":false},"timestamp":4102444800000,"mode":"active","source":{"type":"user","userId":"Ulimit"}}]}`
 	pad := strings.Repeat("d", webhookMaxBody-len(frame))
 	exact := []byte(strings.Replace(frame, `"destination":""`, `"destination":"`+pad+`"`, 1))
 	if len(exact) != webhookMaxBody {

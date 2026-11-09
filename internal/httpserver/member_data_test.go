@@ -48,12 +48,10 @@ func names(page api.MemberPage) []string {
 	return out
 }
 
-// Documented behaviour: q is passed to LIKE unescaped, so % and _ act as
-// wildcards and a backslash escapes the next character. The hard
-// requirement is that no q, however hostile, fails the request or reaches
-// another app. FINDING (low): db/queries/member.sql ListMembers should
-// escape q (or use position()) so a display name containing %, _ or a
-// backslash can be searched for literally.
+// Search is literal: %, _ and backslash in q are escaped before the LIKE
+// pattern is built, so a display name containing them can be found and no
+// q acts as a wildcard. The hard requirement stays: no q, however hostile,
+// fails the request or reaches another app.
 func TestMemberSearchMetacharacters(t *testing.T) {
 	e := newMemberEnv(t)
 	ownerTok := e.owner("owner@example.com")
@@ -71,24 +69,24 @@ func TestMemberSearchMetacharacters(t *testing.T) {
 		q    string
 		want []string // display names, newest first
 	}{
-		{"%", []string{"Plain", `Delta\Epsilon`, "Beta_Gamma", "Alpha 100%"}}, // wildcard: everything
-		{"_", []string{"Plain", `Delta\Epsilon`, "Beta_Gamma", "Alpha 100%"}}, // wildcard: any one character
+		{"%", []string{"Alpha 100%"}}, // literal percent sign
+		{"_", []string{"Beta_Gamma"}}, // literal underscore
 		{"100%", []string{"Alpha 100%"}},
-		{"a_pha", []string{"Alpha 100%"}}, // _ matches the l
+		{"a_pha", nil}, // _ is not a wildcard
 		{"Beta_Gamma", []string{"Beta_Gamma"}},
-		{"BetaXGamma", nil},                     // the wildcard is in the pattern, never in the data
-		{`Delta\E`, nil},                        // \E escapes E: looks for "DeltaE", which no name contains
-		{`Delta\\E`, []string{`Delta\Epsilon`}}, // \\ is a literal backslash
-		{`\`, []string{"Alpha 100%"}},           // \ escapes the trailing %: names ending in a literal %
-		{`%\`, []string{"Alpha 100%"}},
-		{`\\`, []string{`Delta\Epsilon`}},
+		{"BetaXGamma", nil},
+		{`Delta\E`, []string{`Delta\Epsilon`}}, // literal backslash
+		{`Delta\\E`, nil},                      // two backslashes: no such name
+		{`\`, []string{`Delta\Epsilon`}},
+		{`%\`, nil},
+		{`\\`, nil},
 		{"'; DROP TABLE members; --", nil},
 		{"Usearch03", []string{"Plain"}},               // exact LINE user ID
 		{"usearch03", nil},                             // LINE user IDs are case-sensitive and never pattern-matched
 		{"Usearch0", nil},                              // and never prefix-matched
 		{strings.Repeat("x", member.MaxQueryLen), nil}, // longest accepted q
-		{"plain  ", nil},                               // not trimmed: the trailing spaces are part of the pattern
-		{strings.Repeat("%", member.MaxQueryLen), []string{"Plain", `Delta\Epsilon`, "Beta_Gamma", "Alpha 100%"}},
+		{"plain  ", nil},                               // not trimmed: the trailing spaces are part of the search
+		{strings.Repeat("%", member.MaxQueryLen), nil}, // a wall of percent signs matches no name
 	}
 	for _, tc := range cases {
 		t.Run(fmt.Sprintf("q=%q", tc.q), func(t *testing.T) {

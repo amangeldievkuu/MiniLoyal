@@ -1,11 +1,13 @@
 package member
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -33,8 +35,8 @@ func validateUpdate(in Update, now time.Time) (sqlc.UpdateMemberProfileParams, e
 
 	if in.DisplayName != nil {
 		name := strings.TrimSpace(*in.DisplayName)
-		if n := len(name); n < 1 || n > MaxDisplayNameLen {
-			fields["display_name"] = fmt.Sprintf("must be 1 to %d characters", MaxDisplayNameLen)
+		if n := len(name); n < 1 || n > MaxDisplayNameLen || !cleanText(name) {
+			fields["display_name"] = fmt.Sprintf("must be 1 to %d characters of text", MaxDisplayNameLen)
 		} else {
 			params.DisplayName = &name
 		}
@@ -100,13 +102,17 @@ func validateCustomFields(m map[string]any) ([]byte, error) {
 		return nil, fmt.Errorf("at most %d keys", MaxCustomFieldKeys)
 	}
 	for k := range m {
-		if k == "" || len(k) > MaxCustomFieldKey {
-			return nil, fmt.Errorf("keys must be 1 to %d characters", MaxCustomFieldKey)
+		if k == "" || len(k) > MaxCustomFieldKey || !cleanText(k) {
+			return nil, fmt.Errorf("keys must be 1 to %d characters of text", MaxCustomFieldKey)
 		}
 	}
 	raw, err := json.Marshal(m)
 	if err != nil {
 		return nil, fmt.Errorf("must be a JSON object")
+	}
+	// Postgres text and jsonb refuse NUL; it survives marshalling as \u0000.
+	if bytes.Contains(raw, []byte(`\u0000`)) {
+		return nil, fmt.Errorf("must not contain NUL characters")
 	}
 	if len(raw) > MaxCustomFieldBytes {
 		return nil, fmt.Errorf("at most %d bytes", MaxCustomFieldBytes)
@@ -116,8 +122,15 @@ func validateCustomFields(m map[string]any) ([]byte, error) {
 
 func validateConsentVersion(v string) error {
 	v = strings.TrimSpace(v)
-	if v == "" || len(v) > MaxConsentVersion {
+	if v == "" || len(v) > MaxConsentVersion || !cleanText(v) {
 		return apierr.Validation(map[string]string{"version": fmt.Sprintf("must be 1 to %d characters", MaxConsentVersion)})
 	}
 	return nil
+}
+
+// cleanText reports whether s is valid UTF-8 without NUL, which is what
+// Postgres text columns accept. Anything else is a validation error, not a
+// database error.
+func cleanText(s string) bool {
+	return utf8.ValidString(s) && !strings.ContainsRune(s, 0)
 }
