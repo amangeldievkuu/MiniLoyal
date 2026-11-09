@@ -1,0 +1,132 @@
+// Command api serves the MiniLoyal HTTP API.
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/amangeldievkuu/miniloyal/internal/httpserver"
+	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
+	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
+	"github.com/amangeldievkuu/miniloyal/internal/platform/log"
+	"github.com/amangeldievkuu/miniloyal/internal/platform/otel"
+)
+
+// version is set at build time: -ldflags "-X main.version=...".
+var version = "dev"
+
+func main() {
+	os.Exit(run())
+}
+
+func run() int {
+	healthcheck := flag.Bool("healthcheck", false, "probe the running server's /healthz and exit (for container health checks)")
+	showVersion := flag.Bool("version", false, "print the version and exit")
+	flag.Parse()
+	if *showVersion {
+		fmt.Println(version)
+		return 0
+	}
+	if *healthcheck {
+		return probe()
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+	logger, err := log.Setup(os.Stderr, cfg.LogLevel, cfg.LogFormat)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	shutdownTracing, err := otel.Setup(ctx, "miniloyal-api", version, cfg.OTLPEndpoint)
+	if err != nil {
+		logger.Error("tracing setup failed", "err", err)
+		return 1
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
+
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("database connection failed", "err", err)
+		return 1
+	}
+	defer pool.Close()
+
+	srv := &http.Server{
+		Addr:              cfg.APIAddr,
+		Handler:           httpserver.New(cfg, logger, pool, version).Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		logger.Info("api listening", "addr", cfg.APIAddr, "env", cfg.Env, "version", version)
+		errCh <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("server failed", "err", err)
+			return 1
+		}
+	case <-ctx.Done():
+		logger.Info("shutting down")
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("shutdown failed", "err", err)
+		return 1
+	}
+	return 0
+}
+
+// probe is the container health check: distroless images have no shell or
+// curl, so the binary checks itself.
+func probe() int {
+	addr := os.Getenv("API_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck: bad API_ADDR:", err)
+		return 1
+	}
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://" + net.JoinHostPort(host, port) + "/healthz")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck:", err)
+		return 1
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintln(os.Stderr, "healthcheck: status", resp.Status)
+		return 1
+	}
+	return 0
+}

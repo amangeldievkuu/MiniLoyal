@@ -1,0 +1,43 @@
+# Build output
+bin/
+dist/
+dist-ssr/
+*.tsbuildinfo
+coverage/
+coverage.out
+
+# Dependencies
+node_modules/
+
+# Env (keep the examples)
+.env
+.env.*
+!.env.example
+
+# Local secrets and keys
+*.pem
+*.key
+secrets/
+.kek
+
+# Database dumps (docker compose backup service)
+backups/
+
+# Logs
+*.log
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.sw?
+
+# Claude Code worktrees and local overrides
+.claude/worktrees/
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Playwright
+playwright-report/
+test-results/

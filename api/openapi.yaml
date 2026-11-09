@@ -1,0 +1,110 @@
+openapi: 3.0.3
+info:
+  title: MiniLoyal API
+  version: 0.1.0
+  description: |
+    Membership and loyalty backend for LINE MINI Apps: LINE login, member
+    cards, points, coupons, stamp cards, messaging and webhooks.
+
+    Authentication (added per endpoint as features land):
+    - memberSession: JWT issued by POST /v1/auth/line to a MINI App user.
+    - staffSession: JWT issued to store staff in the staff LIFF app.
+    - dashboardSession: JWT issued to dashboard users.
+    - apiKey: server key (prefix ml_) for brand backends and POS systems.
+
+    Every write endpoint requires an Idempotency-Key header.
+servers:
+  - url: http://localhost:8080
+    description: Local development
+tags:
+  - name: system
+    description: Liveness and readiness
+paths:
+  /healthz:
+    get:
+      tags: [system]
+      operationId: getHealthz
+      summary: Liveness probe
+      description: The process is up and serving requests.
+      responses:
+        '200':
+          description: Alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /readyz:
+    get:
+      tags: [system]
+      operationId: getReadyz
+      summary: Readiness probe
+      description: The process can reach its database.
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          description: Not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+  securitySchemes:
+    memberSession:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    staffSession:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    dashboardSession:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    Health:
+      type: object
+      required: [status, version, uptime_seconds]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        version:
+          type: string
+          example: '0.1.0'
+        uptime_seconds:
+          type: integer
+          format: int64
+    Error:
+      type: object
+      required: [code, message, request_id]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable code, for example bad_request, unauthorized, not_found, conflict, unavailable, internal.
+        message:
+          type: string
+        request_id:
+          type: string
+        details:
+          type: object
+          additionalProperties: true

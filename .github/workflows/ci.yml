@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: miniloyal
+          POSTGRES_PASSWORD: miniloyal
+          POSTGRES_DB: miniloyal_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U miniloyal -d miniloyal_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgres://miniloyal:miniloyal@localhost:5432/miniloyal_test?sslmode=disable
+      TEST_DATABASE_URL: postgres://miniloyal:miniloyal@localhost:5432/miniloyal_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          # The latest Go, so builds include standard library security fixes.
+          # go.mod only sets the minimum version.
+          go-version: stable
+          cache: true
+      - run: make lint-go
+      - run: make vuln
+      - name: Generated Go code is current
+        run: |
+          make gen-api gen-sql
+          git diff --exit-code -- internal/api internal/db
+      - run: make migrate
+      - run: make test-go
+
+  node:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.22
+          cache: npm
+      - run: npm ci
+      - name: Generated TypeScript types are current
+        run: |
+          npm run gen:api
+          git diff --exit-code -- sdk/js/src/api/schema.d.ts web/dashboard/src/api/schema.d.ts web/staff/src/api/schema.d.ts
+      - run: npm run check
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+
+  docker:
+    # The images a deploy builds: a broken Dockerfile should show up here, not on the server.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build --target api --tag miniloyal-api .
+      - run: docker build --target worker --tag miniloyal-worker .
+      - run: docker build --target web --tag miniloyal-web .
+
+  smoke:
+    # Only main: pull requests aren't releases, and forks get no secrets.
+    if: github.event_name == 'push'
+    needs: [go, node]
+    runs-on: ubuntu-24.04
+    # A Smoke outage shouldn't turn main red; the failed job still shows in the run.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - name: Upload dependency inventory to Smoke
+        env:
+          SMOKE_TOKEN: ${{ secrets.SMOKE_TOKEN }}
+          SMOKE_ASSET_ID: ${{ vars.SMOKE_ASSET_ID }}
+        run: |
+          if [ -z "$SMOKE_TOKEN" ] || [ -z "$SMOKE_ASSET_ID" ]; then
+            echo "Smoke not configured (SMOKE_TOKEN secret, SMOKE_ASSET_ID variable); skipping"
+            exit 0
+          fi
+          curl -sS --fail-with-body --retry 3 \
+            -H "Authorization: Bearer $SMOKE_TOKEN" \
+            -H "Idempotency-Key: $GITHUB_SHA-$GITHUB_RUN_ATTEMPT" \
+            -F "files=@package-lock.json" -F "paths=package-lock.json" \
+            -F "files=@go.sum" -F "paths=go.sum" \
+            -F "release=${GITHUB_SHA::12}" -F "commit=$GITHUB_SHA" \
+            -F "pipelineUrl=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            "https://api.smoke.aircraft.tw/v1/assets/$SMOKE_ASSET_ID/inventory"

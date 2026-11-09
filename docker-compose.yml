@@ -1,0 +1,119 @@
+# Development: docker compose up -d db
+# Full stack:  docker compose --profile app up -d --build
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-miniloyal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-miniloyal}
+      POSTGRES_DB: ${POSTGRES_DB:-miniloyal}
+    # Only this machine; the app reaches it as db:5432 inside Docker.
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    # Durable commits for the points ledger; WAL archiving to GCS is added in Phase 7.
+    command: ['postgres', '-c', 'synchronous_commit=on', '-c', 'wal_level=replica']
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Applies pending migrations, then exits; api and worker wait for it.
+  migrate:
+    profiles: [app]
+    build: { context: ., target: migrate, args: { VERSION: '${VERSION:-dev}' } }
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      ENV: ${ENV:-production}
+      DATABASE_URL: postgres://${POSTGRES_USER:-miniloyal}:${POSTGRES_PASSWORD:-miniloyal}@db:5432/${POSTGRES_DB:-miniloyal}?sslmode=disable
+      SESSION_SIGNING_KEY: ${SESSION_SIGNING_KEY:-}
+      KEK_FILE: ${KEK_FILE:-}
+      KMS_KEY_NAME: ${KMS_KEY_NAME:-}
+
+  api:
+    profiles: [app]
+    build: { context: ., target: api, args: { VERSION: '${VERSION:-dev}' } }
+    restart: unless-stopped
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      ENV: ${ENV:-production}
+      API_ADDR: ':8080'
+      DATABASE_URL: postgres://${POSTGRES_USER:-miniloyal}:${POSTGRES_PASSWORD:-miniloyal}@db:5432/${POSTGRES_DB:-miniloyal}?sslmode=disable
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: json
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      DASHBOARD_ORIGIN: ${DASHBOARD_ORIGIN:-http://localhost:8080}
+      SESSION_SIGNING_KEY: ${SESSION_SIGNING_KEY:-}
+      KEK_FILE: ${KEK_FILE:-}
+      KMS_KEY_NAME: ${KMS_KEY_NAME:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - ./secrets:/secrets:ro
+
+  worker:
+    profiles: [app]
+    build: { context: ., target: worker, args: { VERSION: '${VERSION:-dev}' } }
+    restart: unless-stopped
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      ENV: ${ENV:-production}
+      DATABASE_URL: postgres://${POSTGRES_USER:-miniloyal}:${POSTGRES_PASSWORD:-miniloyal}@db:5432/${POSTGRES_DB:-miniloyal}?sslmode=disable
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: json
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
+      SESSION_SIGNING_KEY: ${SESSION_SIGNING_KEY:-}
+      KEK_FILE: ${KEK_FILE:-}
+      KMS_KEY_NAME: ${KMS_KEY_NAME:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - ./secrets:/secrets:ro
+
+  # Dashboard and API on one origin behind nginx (TLS terminates in front of this on the VM).
+  web:
+    profiles: [app]
+    build: { context: ., target: web }
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    ports:
+      - '${WEB_PORT:-8080}:80'
+
+  # Database dumps into ./backups: one at start, then every BACKUP_INTERVAL_HOURS, kept for
+  # BACKUP_KEEP_DAYS (deploy/backup.sh). Copy that folder off the machine too; restore with
+  # deploy/restore.sh. For a dump right now, run the backup service once with the argument "now".
+  backup:
+    profiles: [app]
+    image: postgres:17
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    entrypoint: ['sh', '/backup.sh']
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-miniloyal}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-miniloyal}
+      PGDATABASE: ${POSTGRES_DB:-miniloyal}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./deploy/backup.sh:/backup.sh:ro
+      - ./backups:/backups
+    # Unhealthy when the newest dump is older than two intervals (dumps are failing).
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'test -n "$$(find /backups -maxdepth 1 -name ''*.dump'' -mmin -$$((BACKUP_INTERVAL_HOURS * 120)))"',
+        ]
+      interval: 10m
+      timeout: 10s
+      start_period: 10m
+
+volumes:
+  pgdata:

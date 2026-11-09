@@ -1,0 +1,43 @@
+{
+  "name": "miniloyal",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "sdk/*",
+    "web/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "gen:api": "for d in sdk/js web/dashboard web/staff; do openapi-typescript api/openapi.yaml -o $d/src/api/schema.d.ts || exit 1; done",
+    "check": "npm run check --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "dev:dashboard": "npm run dev -w @miniloyal/dashboard",
+    "dev:staff": "npm run dev -w @miniloyal/staff",
+    "dev:demo": "npm run dev -w @miniloyal/demo-cafe"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@line/liff": "^2.32.0",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "eslint": "^10.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "openapi-typescript": "^7.13.0",
+    "prettier": "^3.9.10",
+    "tsup": "^9.0.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}

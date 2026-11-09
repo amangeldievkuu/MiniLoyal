@@ -1,0 +1,9 @@
+node_modules
+dist
+bin
+backups
+coverage
+package-lock.json
+**/src/api/schema.d.ts
+.claude/worktrees/
+docs/plan/

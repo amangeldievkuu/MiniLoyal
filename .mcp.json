@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "smoke": {
+      "type": "http",
+      "url": "https://smoke.aircraft.tw/mcp"
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    }
+  }
+}
