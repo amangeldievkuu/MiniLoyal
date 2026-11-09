@@ -24,3 +24,7 @@ SELECT id, revoked_at FROM refresh_tokens WHERE parent_id = $1;
 -- name: DeleteSpentRefreshTokens :execrows
 DELETE FROM refresh_tokens
 WHERE expires_at < now() OR revoked_at < now() - interval '60 days';
+
+-- name: DeleteSpentRefreshTokensForUser :execrows
+DELETE FROM refresh_tokens
+WHERE user_id = $1 AND (expires_at < now() OR revoked_at < now() - interval '60 days');

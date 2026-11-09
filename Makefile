@@ -10,6 +10,8 @@ OAPI        := github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.2
 
 # Our own packages only: npm packages under node_modules may ship Go files.
 GOPKGS      := $(shell go list ./... | grep -v /node_modules/)
+# staticcheck skips generated code (oapi-codegen, sqlc); vet and tests still cover it.
+LINTPKGS    := $(filter-out %/internal/api %/internal/db/sqlc,$(GOPKGS))
 GOFMT_DIRS  := cmd internal db
 
 .PHONY: help build test test-go test-short test-node lint lint-go lint-node vuln gen gen-api gen-sql gen-ts gen-check migrate migrate-status db-up db-down dev dev-dashboard dev-staff ci docker clean
@@ -42,7 +44,7 @@ lint: lint-go lint-node
 lint-go:
 	@test -z "$$(gofmt -l $(GOFMT_DIRS))" || (echo "gofmt needed on:"; gofmt -l $(GOFMT_DIRS); exit 1)
 	go vet $(GOPKGS)
-	go run $(STATICCHECK) $(GOPKGS)
+	go run $(STATICCHECK) $(LINTPKGS)
 
 lint-node:
 	@if [ -d node_modules ]; then npm run lint && npm run format:check; else echo "lint-node: skipped (run npm install)"; fi

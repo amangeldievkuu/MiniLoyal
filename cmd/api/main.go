@@ -13,7 +13,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/httpserver"
+	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/log"
@@ -67,11 +69,25 @@ func run() int {
 	}
 	defer pool.Close()
 
+	authSvc, err := auth.New(auth.Deps{
+		Pool:  pool,
+		Clock: clock.Real{},
+		Log:   logger,
+		// TODO(integrator): Encryptor: crypto.FromConfig(cfg) once internal/platform/crypto lands; TOTP enrollment answers 503 until then.
+		Encryptor: nil,
+		Config:    auth.Config{SigningKey: cfg.SessionSigningKey},
+	})
+	if err != nil {
+		logger.Error("auth service setup failed", "err", err)
+		return 1
+	}
+
 	srv := &http.Server{
 		Addr: cfg.APIAddr,
 		Handler: httpserver.New(httpserver.Deps{
 			Config: cfg, Log: logger, DB: pool, Version: version,
-			// Dashboard and APIKeys authenticators are wired by the Phase 1 services.
+			Auth: authSvc, Dashboard: authSvc,
+			// APIKeys is wired by the tenant service (platform fork).
 		}).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,

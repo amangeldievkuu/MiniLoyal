@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/amangeldievkuu/miniloyal/internal/api"
+	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 )
 
@@ -22,8 +23,10 @@ type Deps struct {
 	DB      *pgxpool.Pool
 	Version string
 
-	// Dashboard verifies dashboard access tokens (internal/auth). Nil means
-	// every bearer token is rejected.
+	// Auth serves the dashboard sign-in endpoints. Nil answers them 503.
+	Auth *auth.Service
+	// Dashboard verifies dashboard access tokens. Defaults to Auth; nil
+	// with no Auth means every bearer token is rejected.
 	Dashboard DashboardAuthenticator
 	// APIKeys verifies server API keys (internal/tenant). Nil means every
 	// X-API-Key is rejected.
@@ -36,6 +39,7 @@ type Server struct {
 	log       *slog.Logger
 	db        *pgxpool.Pool
 	version   string
+	auth      *auth.Service
 	dashboard DashboardAuthenticator
 	apiKeys   APIKeyAuthenticator
 	started   time.Time
@@ -51,11 +55,15 @@ func New(d Deps) *Server {
 	if d.Config == nil {
 		d.Config = &config.Config{Env: config.Development}
 	}
+	if d.Dashboard == nil && d.Auth != nil {
+		d.Dashboard = d.Auth
+	}
 	return &Server{
 		cfg:       d.Config,
 		log:       d.Log,
 		db:        d.DB,
 		version:   d.Version,
+		auth:      d.Auth,
 		dashboard: d.Dashboard,
 		apiKeys:   d.APIKeys,
 		started:   time.Now(),
