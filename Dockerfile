@@ -43,7 +43,7 @@ COPY web ./web
 COPY apps ./apps
 RUN npm run build -w @miniloyal/sdk && npm run build -w @miniloyal/dashboard
 
-FROM nginx:1.27-alpine AS web
+FROM nginx:1.29-alpine AS web
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY deploy/security-headers.conf /etc/nginx/security-headers.conf
 COPY --from=webbuild /src/web/dashboard/dist /usr/share/nginx/html
