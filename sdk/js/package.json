@@ -1,7 +1,7 @@
 {
   "name": "@miniloyal/sdk",
-  "version": "0.1.0",
-  "description": "MiniLoyal client for LINE MINI Apps: wraps @line/liff login and the MiniLoyal API",
+  "version": "0.2.0",
+  "description": "MiniLoyal client for LINE MINI Apps: LIFF login, member sessions, profile, consent and friendship",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -21,16 +21,15 @@
   },
   "files": [
     "dist",
-    "src/api"
+    "src/api",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/check-size.mjs",
     "dev": "tsup --watch",
     "check": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
-  },
-  "dependencies": {
-    "openapi-fetch": "^0.17.0"
   },
   "peerDependencies": {
     "@line/liff": "^2.26.0"
