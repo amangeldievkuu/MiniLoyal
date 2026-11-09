@@ -15,6 +15,9 @@ import (
 
 	"github.com/amangeldievkuu/miniloyal/internal/api"
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
+	"github.com/amangeldievkuu/miniloyal/internal/lineauth"
+	"github.com/amangeldievkuu/miniloyal/internal/lineauth/lineauthtest"
+	"github.com/amangeldievkuu/miniloyal/internal/member"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
@@ -40,6 +43,9 @@ type world struct {
 	db      *testutil.DB
 	svc     *tenant.Service
 	handler http.Handler
+	// verifier is the fake LINE ID token verifier behind /v1/auth/line, so
+	// matrix tests can sign members in to any app with a configured channel.
+	verifier *lineauthtest.FakeVerifier
 
 	tenantA, tenantB      uuid.UUID
 	ownerA, adminA        uuid.UUID
@@ -49,8 +55,18 @@ type world struct {
 func newWorld(t *testing.T) *world {
 	t.Helper()
 	d := testutil.NewDB(t)
-	svc := tenant.New(d.App, crypto.Static(bytes.Repeat([]byte{5}, 32)), clock.Real{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	w := &world{t: t, db: d, svc: svc}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// The tenant service encrypts channel secrets and lineauth decrypts them,
+	// so both share one keyring.
+	keyring := crypto.Static(bytes.Repeat([]byte{5}, 32))
+	svc := tenant.New(d.App, keyring, clock.Real{}, log)
+	w := &world{t: t, db: d, svc: svc, verifier: lineauthtest.NewFakeVerifier()}
+	lineAuth, err := lineauth.New(lineauth.Deps{Pool: d.App, Keyring: keyring, Verifier: w.verifier, Clock: clock.Real{}, Log: log,
+		Config: lineauth.Config{SigningKey: fullSigningKey, IPPerMinute: 10000}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	members := member.New(member.Deps{Pool: d.App, Tenants: svc, Clock: clock.Real{}, Log: log})
 	w.tenantA = d.NewTenant(t, "Alpha")
 	w.tenantB = d.NewTenant(t, "Beta")
 	w.ownerA = w.user("owner-a@example.com")
@@ -65,12 +81,14 @@ func newWorld(t *testing.T) *world {
 
 	srv := New(Deps{
 		Config:    &config.Config{Env: config.Development},
-		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Log:       log,
 		DB:        d.Admin,
 		Version:   "test",
 		Dashboard: fakeDashboard{tokens: map[string]uuid.UUID{"owner-a": w.ownerA, "admin-a": w.adminA, "staff-a": w.staffA, "owner-b": w.ownerB, "loner": w.loner}},
 		APIKeys:   svc,
 		Tenants:   svc,
+		LineAuth:  lineAuth,
+		MemberSvc: members,
 	})
 	w.handler = srv.Handler()
 	return w
@@ -165,6 +183,32 @@ func (w *world) createApp(token string, tenantID uuid.UUID, name string) api.App
 	var app api.App
 	r.into(w.t, &app)
 	return app
+}
+
+// putChannel registers a developing MINI App channel on the app so members
+// can sign in; channelID becomes the accepted token audience.
+func (w *world) putChannel(token string, app api.App, channelID string) {
+	w.t.Helper()
+	r := w.as(token).put("/v1/dashboard/apps/"+app.Id.String()+"/channels/developing", uuid.NewString(),
+		map[string]any{"channel_id": channelID, "liff_id": channelID + "-" + uuid.NewString()[:8], "channel_secret": "secret-" + channelID})
+	if r.code != http.StatusOK {
+		w.t.Fatalf("put channel: %d %s", r.code, r.body)
+	}
+}
+
+// lineLogin signs a LINE user in to the app through /v1/auth/line with a
+// token the fake verifier accepts for channelID.
+func (w *world) lineLogin(app api.App, channelID, sub, name string) api.MemberSession {
+	w.t.Helper()
+	token := "idtoken-" + sub + "-" + uuid.NewString()
+	w.verifier.Add(token, lineauth.Claims{Sub: sub, Name: name, Picture: "https://profile.line-scdn.net/" + sub, Aud: channelID})
+	r := w.call(http.MethodPost, "/v1/auth/line", "", "", "", map[string]any{"app_id": app.Id, "id_token": token})
+	if r.code != http.StatusOK {
+		w.t.Fatalf("line login: %d %s", r.code, r.body)
+	}
+	var sess api.MemberSession
+	r.into(w.t, &sess)
+	return sess
 }
 
 func want(t *testing.T, r tresp, code int) {
