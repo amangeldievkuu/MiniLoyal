@@ -53,6 +53,10 @@ type Config struct {
 	WorkerConcurrency int
 	OTLPEndpoint      string
 	ShutdownTimeout   time.Duration
+
+	// TrustProxy makes the API read X-Forwarded-For and X-Forwarded-Proto
+	// from the reverse proxy in front of it (nginx in docker compose).
+	TrustProxy bool
 }
 
 // Load reads .env (existing environment variables win), then the environment,
@@ -84,6 +88,7 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 		KEKFile:         get("KEK_FILE", ""),
 		KMSKeyName:      get("KMS_KEY_NAME", ""),
 		OTLPEndpoint:    get("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
+		TrustProxy:      get("TRUST_PROXY", "") == "true",
 		ShutdownTimeout: 15 * time.Second,
 	}
 

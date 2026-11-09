@@ -68,8 +68,11 @@ func run() int {
 	defer pool.Close()
 
 	srv := &http.Server{
-		Addr:              cfg.APIAddr,
-		Handler:           httpserver.New(cfg, logger, pool, version).Handler(),
+		Addr: cfg.APIAddr,
+		Handler: httpserver.New(httpserver.Deps{
+			Config: cfg, Log: logger, DB: pool, Version: version,
+			// Dashboard and APIKeys authenticators are wired by the Phase 1 services.
+		}).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

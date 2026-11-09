@@ -14,20 +14,53 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 )
 
-// Server implements api.StrictServerInterface.
-type Server struct {
-	cfg     *config.Config
-	log     *slog.Logger
-	db      *pgxpool.Pool
-	version string
-	started time.Time
-	now     func() time.Time
+// Deps are the collaborators the server needs. Phase packages add their
+// services here and cmd/api wires them.
+type Deps struct {
+	Config  *config.Config
+	Log     *slog.Logger
+	DB      *pgxpool.Pool
+	Version string
+
+	// Dashboard verifies dashboard access tokens (internal/auth). Nil means
+	// every bearer token is rejected.
+	Dashboard DashboardAuthenticator
+	// APIKeys verifies server API keys (internal/tenant). Nil means every
+	// X-API-Key is rejected.
+	APIKeys APIKeyAuthenticator
 }
 
-// New returns a Server. db may be nil in unit tests; readiness then reports
-// the database as unavailable.
-func New(cfg *config.Config, log *slog.Logger, db *pgxpool.Pool, version string) *Server {
-	return &Server{cfg: cfg, log: log, db: db, version: version, started: time.Now(), now: time.Now}
+// Server implements api.StrictServerInterface.
+type Server struct {
+	cfg       *config.Config
+	log       *slog.Logger
+	db        *pgxpool.Pool
+	version   string
+	dashboard DashboardAuthenticator
+	apiKeys   APIKeyAuthenticator
+	started   time.Time
+	now       func() time.Time
+}
+
+// New returns a Server. Deps.DB may be nil in unit tests; readiness then
+// reports the database as unavailable.
+func New(d Deps) *Server {
+	if d.Log == nil {
+		d.Log = slog.Default()
+	}
+	if d.Config == nil {
+		d.Config = &config.Config{Env: config.Development}
+	}
+	return &Server{
+		cfg:       d.Config,
+		log:       d.Log,
+		db:        d.DB,
+		version:   d.Version,
+		dashboard: d.Dashboard,
+		apiKeys:   d.APIKeys,
+		started:   time.Now(),
+		now:       time.Now,
+	}
 }
 
 // Handler returns the HTTP handler with every route and middleware.
@@ -41,7 +74,7 @@ func (s *Server) Handler() http.Handler {
 		BaseRouter:       mux,
 		ErrorHandlerFunc: s.requestError,
 	})
-	return chain(mux, recoverer(s.log), requestID, securityHeaders, logRequests(s.log))
+	return chain(mux, recoverer(s.log), requestID, securityHeaders, logRequests(s.log), s.authenticate)
 }
 
 // GetHealthz reports liveness: the process is up and serving.
