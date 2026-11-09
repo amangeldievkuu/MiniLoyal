@@ -25,6 +25,7 @@ const oaSecret = "oa-channel-secret"
 type fixture struct {
 	d        *testutil.DB
 	svc      *webhook.Service
+	keyring  crypto.Keyring
 	tenant   uuid.UUID
 	app      uuid.UUID
 	noSecret uuid.UUID
@@ -36,14 +37,22 @@ func newFixture(t *testing.T) *fixture {
 	keyring := crypto.Static(bytes.Repeat([]byte{9}, 32))
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	tenants := tenant.New(d.App, keyring, clock.Real{}, log)
-	f := &fixture{d: d, svc: webhook.New(d.App, tenants, log), tenant: d.NewTenant(t, "Alpha"), app: testutil.NewID(), noSecret: testutil.NewID()}
-	enc, err := keyring.Encrypt(context.Background(), []byte(oaSecret), "apps.oa_channel_secret_enc:"+f.app.String())
+	f := &fixture{d: d, svc: webhook.New(d.App, tenants, log), keyring: keyring, tenant: d.NewTenant(t, "Alpha"), noSecret: testutil.NewID()}
+	f.app = f.addApp(t, f.tenant, "cafe", "2001", oaSecret)
+	d.Exec(t, "INSERT INTO apps (id, tenant_id, name, slug) VALUES ($1, $2, 'Bare', 'bare')", f.noSecret, f.tenant)
+	return f
+}
+
+// addApp inserts an app with an encrypted Official Account channel secret.
+func (f *fixture) addApp(t *testing.T, tenantID uuid.UUID, slug, oaChannelID, secret string) uuid.UUID {
+	t.Helper()
+	id := testutil.NewID()
+	enc, err := f.keyring.Encrypt(context.Background(), []byte(secret), "apps.oa_channel_secret_enc:"+id.String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Exec(t, "INSERT INTO apps (id, tenant_id, name, slug, oa_channel_id, oa_channel_secret_enc) VALUES ($1, $2, 'Cafe', 'cafe', '2001', $3)", f.app, f.tenant, enc)
-	d.Exec(t, "INSERT INTO apps (id, tenant_id, name, slug) VALUES ($1, $2, 'Bare', 'bare')", f.noSecret, f.tenant)
-	return f
+	f.d.Exec(t, "INSERT INTO apps (id, tenant_id, name, slug, oa_channel_id, oa_channel_secret_enc) VALUES ($1, $2, $3, $4, $5, $6)", id, tenantID, slug, slug, oaChannelID, enc)
+	return id
 }
 
 func event(typ, id, userID string, redelivery bool) []byte {
