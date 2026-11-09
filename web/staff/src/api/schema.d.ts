@@ -1293,8 +1293,20 @@ export interface components {
             nonce?: string;
             /** @description liff.getAccessToken(), kept for service messages once the MINI App is verified. */
             liff_access_token?: string;
+            /** @description liff.getLanguage(), a BCP 47 tag used for member-facing messages. */
+            language?: string;
+        };
+        /** @description What a MINI App may know about its own app. */
+        AppPublic: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            locale: string;
+            /** @description The Official Account's basic ID (for example @123abcd) for the add-friend prompt. */
+            oa_basic_id?: string | null;
         };
         MemberSession: {
+            app: components["schemas"]["AppPublic"];
             session_token: string;
             /** @enum {string} */
             token_type: "Bearer";

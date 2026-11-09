@@ -2465,10 +2465,32 @@ components:
           type: string
           maxLength: 4096
           description: liff.getAccessToken(), kept for service messages once the MINI App is verified.
+        language:
+          type: string
+          maxLength: 16
+          description: liff.getLanguage(), a BCP 47 tag used for member-facing messages.
+    AppPublic:
+      type: object
+      description: What a MINI App may know about its own app.
+      required: [id, name, locale]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        locale:
+          type: string
+        oa_basic_id:
+          type: string
+          nullable: true
+          description: The Official Account's basic ID (for example @123abcd) for the add-friend prompt.
     MemberSession:
       type: object
-      required: [session_token, token_type, expires_in, member, is_new]
+      required: [session_token, token_type, expires_in, member, app, is_new]
       properties:
+        app:
+          $ref: '#/components/schemas/AppPublic'
         session_token:
           type: string
         token_type:
