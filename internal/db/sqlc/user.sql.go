@@ -14,17 +14,19 @@ import (
 
 const consumeMfaChallengeAttempt = `-- name: ConsumeMfaChallengeAttempt :one
 UPDATE mfa_challenges SET attempts = attempts + 1
-WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND expires_at > now()
+WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND expires_at > $3
 RETURNING attempts
 `
 
 type ConsumeMfaChallengeAttemptParams struct {
-	ID     uuid.UUID `json:"id"`
-	UserID uuid.UUID `json:"user_id"`
+	ID     uuid.UUID          `json:"id"`
+	UserID uuid.UUID          `json:"user_id"`
+	Now    pgtype.Timestamptz `json:"now"`
 }
 
+// "now" comes from the service clock so expiry is deterministic in tests.
 func (q *Queries) ConsumeMfaChallengeAttempt(ctx context.Context, arg ConsumeMfaChallengeAttemptParams) (int32, error) {
-	row := q.db.QueryRow(ctx, consumeMfaChallengeAttempt, arg.ID, arg.UserID)
+	row := q.db.QueryRow(ctx, consumeMfaChallengeAttempt, arg.ID, arg.UserID, arg.Now)
 	var attempts int32
 	err := row.Scan(&attempts)
 	return attempts, err

@@ -357,7 +357,7 @@ func (s *Service) CompleteMFA(ctx context.Context, mfaToken, code string, c Clie
 	}
 	// Every attempt counts against the challenge, used or not, so a token
 	// cannot be hammered and cannot be reused after it succeeded.
-	attempts, err := s.q.ConsumeMfaChallengeAttempt(ctx, sqlc.ConsumeMfaChallengeAttemptParams{ID: jti, UserID: cl.Subject})
+	attempts, err := s.q.ConsumeMfaChallengeAttempt(ctx, sqlc.ConsumeMfaChallengeAttemptParams{ID: jti, UserID: cl.Subject, Now: ts(s.clock.Now())})
 	if err != nil {
 		if db.IsNotFound(err) {
 			return nil, errBadChallenge

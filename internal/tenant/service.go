@@ -26,11 +26,12 @@ import (
 
 // Service is the tenant domain.
 type Service struct {
-	pool    *pgxpool.Pool
-	keyring crypto.Keyring
-	idem    *idempotency.Store
-	clock   clock.Clock
-	log     *slog.Logger
+	pool     *pgxpool.Pool
+	keyring  crypto.Keyring
+	idem     *idempotency.Store
+	clock    clock.Clock
+	log      *slog.Logger
+	verifier ChannelVerifier
 }
 
 // New returns a Service. Idempotent outcomes are stored encrypted with the

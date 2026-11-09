@@ -243,7 +243,7 @@ func toAPISession(s *auth.Session) api.Session {
 	return api.Session{
 		AccessToken: s.AccessToken,
 		ExpiresIn:   s.ExpiresIn,
-		TokenType:   api.Bearer,
+		TokenType:   api.SessionTokenTypeBearer,
 		User:        toAPIUser(s.User),
 	}
 }

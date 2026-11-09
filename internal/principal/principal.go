@@ -55,6 +55,9 @@ type Principal struct {
 	TenantID uuid.UUID
 	AppID    uuid.UUID
 	Scopes   []string
+
+	// MemberID is set for KindMember (a MINI App user signed in through LINE).
+	MemberID uuid.UUID
 }
 
 // HasScope reports whether an API key principal carries scope.
@@ -67,6 +70,11 @@ func (p Principal) IsUser() bool { return p.Kind == KindUser && p.UserID != uuid
 
 // IsAPIKey reports whether the caller is a server API key.
 func (p Principal) IsAPIKey() bool { return p.Kind == KindAPIKey && p.APIKeyID != uuid.Nil }
+
+// IsMember reports whether the caller is a MINI App member.
+func (p Principal) IsMember() bool {
+	return p.Kind == KindMember && p.MemberID != uuid.Nil && p.AppID != uuid.Nil && p.TenantID != uuid.Nil
+}
 
 type ctxKey struct{}
 

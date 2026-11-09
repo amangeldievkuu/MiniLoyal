@@ -102,7 +102,10 @@ func (s *Store) Run(ctx context.Context, req Request, fn Fn) (Result, error) {
 			}
 		}
 		// A stale outcome past its TTL is treated as absent.
-		if err := q.ExpireIdempotencyKey(ctx, sqlc.ExpireIdempotencyKeyParams{TenantID: req.TenantID, Scope: req.Scope, Key: req.Key}); err != nil {
+		if err := q.ExpireIdempotencyKey(ctx, sqlc.ExpireIdempotencyKeyParams{
+			TenantID: req.TenantID, Scope: req.Scope, Key: req.Key,
+			Now: pgtype.Timestamptz{Time: s.clock.Now(), Valid: true},
+		}); err != nil {
 			return fmt.Errorf("idempotency: expire: %w", err)
 		}
 		claim, err := q.ClaimIdempotencyKey(ctx, sqlc.ClaimIdempotencyKeyParams{

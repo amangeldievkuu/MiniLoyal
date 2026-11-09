@@ -37,6 +37,7 @@ type App struct {
 	OaChannelSecretEnc []byte             `json:"oa_channel_secret_enc"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	OaVerifiedAt       pgtype.Timestamptz `json:"oa_verified_at"`
 }
 
 type AppChannel struct {
@@ -49,6 +50,7 @@ type AppChannel struct {
 	ChannelSecretEnc []byte             `json:"channel_secret_enc"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	VerifiedAt       pgtype.Timestamptz `json:"verified_at"`
 }
 
 type AuditLog struct {
@@ -77,6 +79,53 @@ type IdempotencyKey struct {
 	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
 }
 
+type Invitation struct {
+	ID               uuid.UUID          `json:"id"`
+	TenantID         uuid.UUID          `json:"tenant_id"`
+	Email            string             `json:"email"`
+	Role             string             `json:"role"`
+	TokenHash        string             `json:"token_hash"`
+	InvitedByUserID  uuid.NullUUID      `json:"invited_by_user_id"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+	AcceptedAt       pgtype.Timestamptz `json:"accepted_at"`
+	AcceptedByUserID uuid.NullUUID      `json:"accepted_by_user_id"`
+	RevokedAt        pgtype.Timestamptz `json:"revoked_at"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
+type Member struct {
+	ID              uuid.UUID          `json:"id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	AppID           uuid.UUID          `json:"app_id"`
+	LineUserID      string             `json:"line_user_id"`
+	DisplayName     *string            `json:"display_name"`
+	PictureUrl      *string            `json:"picture_url"`
+	Language        *string            `json:"language"`
+	IsFriend        bool               `json:"is_friend"`
+	FriendChangedAt pgtype.Timestamptz `json:"friend_changed_at"`
+	Phone           *string            `json:"phone"`
+	Birthday        pgtype.Date        `json:"birthday"`
+	Gender          *string            `json:"gender"`
+	CustomFields    []byte             `json:"custom_fields"`
+	ConsentVersion  *string            `json:"consent_version"`
+	ConsentAt       pgtype.Timestamptz `json:"consent_at"`
+	LastLoginAt     pgtype.Timestamptz `json:"last_login_at"`
+	AnonymizedAt    pgtype.Timestamptz `json:"anonymized_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MemberConsent struct {
+	ID         int64              `json:"id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	AppID      uuid.UUID          `json:"app_id"`
+	MemberID   uuid.UUID          `json:"member_id"`
+	Version    string             `json:"version"`
+	AcceptedAt pgtype.Timestamptz `json:"accepted_at"`
+	Ip         *netip.Addr        `json:"ip"`
+	UserAgent  *string            `json:"user_agent"`
+}
+
 type MfaChallenge struct {
 	ID        uuid.UUID          `json:"id"`
 	UserID    uuid.UUID          `json:"user_id"`
@@ -95,6 +144,16 @@ type RefreshToken struct {
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
 	UserAgent *string            `json:"user_agent"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type SecurityEvent struct {
+	ID        int64              `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	Event     string             `json:"event"`
+	Ip        *netip.Addr        `json:"ip"`
+	UserAgent *string            `json:"user_agent"`
+	Metadata  []byte             `json:"metadata"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
@@ -162,4 +221,13 @@ type User struct {
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	TotpLastStep      *int64             `json:"totp_last_step"`
+}
+
+type WebhookInboundEvent struct {
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	AppID              uuid.UUID          `json:"app_id"`
+	LineWebhookEventID string             `json:"line_webhook_event_id"`
+	EventType          string             `json:"event_type"`
+	Redelivery         bool               `json:"redelivery"`
+	ReceivedAt         pgtype.Timestamptz `json:"received_at"`
 }

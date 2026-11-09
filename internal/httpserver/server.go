@@ -32,6 +32,9 @@ type Deps struct {
 	// APIKeys verifies server API keys (internal/tenant). Nil means every
 	// X-API-Key is rejected.
 	APIKeys APIKeyAuthenticator
+	// Members verifies member session tokens (internal/lineauth). Nil means
+	// every bearer token outside /v1/dashboard/ is rejected.
+	Members MemberAuthenticator
 	// Tenants serves tenants, team, apps, channels, stores, staff, API keys
 	// and the audit log.
 	Tenants *tenant.Service
@@ -46,6 +49,7 @@ type Server struct {
 	auth      *auth.Service
 	dashboard DashboardAuthenticator
 	apiKeys   APIKeyAuthenticator
+	members   MemberAuthenticator
 	tenants   *tenant.Service
 	started   time.Time
 	now       func() time.Time
@@ -71,6 +75,7 @@ func New(d Deps) *Server {
 		auth:      d.Auth,
 		dashboard: d.Dashboard,
 		apiKeys:   d.APIKeys,
+		members:   d.Members,
 		tenants:   d.Tenants,
 		started:   time.Now(),
 		now:       time.Now,

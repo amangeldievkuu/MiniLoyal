@@ -57,8 +57,9 @@ WHERE id = $1 AND (totp_last_step IS NULL OR totp_last_step < $2);
 INSERT INTO mfa_challenges (id, user_id, expires_at) VALUES ($1, $2, $3);
 
 -- name: ConsumeMfaChallengeAttempt :one
+-- "now" comes from the service clock so expiry is deterministic in tests.
 UPDATE mfa_challenges SET attempts = attempts + 1
-WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND expires_at > now()
+WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND expires_at > sqlc.arg('now')
 RETURNING attempts;
 
 -- name: MarkMfaChallengeUsed :execrows

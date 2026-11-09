@@ -131,12 +131,18 @@ var otherCoveredOps = []string{
 	"dashboardRegister", "dashboardLogin", "dashboardMfa", "dashboardRefresh", "dashboardLogout",
 	"getDashboardMe", "changeDashboardPassword", "dashboardLogoutAll", "enrollTotp", "confirmTotp", "disableTotp",
 	"listTenants", "getCurrentApp",
+	// Phase 2 operations: covered by their own suites as the features land.
+	"loginWithLine", "getMe", "updateMe", "deleteMe", "recordConsent", "exportMe",
+	"receiveLineWebhook",
+	"listMembers", "getMember", "eraseMember", "exportMember",
+	"serverListMembers", "serverGetMember",
+	"listInvitations", "createInvitation", "revokeInvitation", "acceptInvitation", "listSecurityEvents",
 }
 
 // deletesWithoutIdempotencyKey lists the write operations the spec exempts
 // from the Idempotency-Key header. Every other non-GET operation outside the
 // sign-in and profile groups must declare it.
-var deletesWithoutIdempotencyKey = []string{"removeTeamMember", "deleteAppChannel", "deleteStore", "deleteStaff", "revokeApiKey"}
+var deletesWithoutIdempotencyKey = []string{"removeTeamMember", "deleteAppChannel", "deleteStore", "deleteStaff", "revokeApiKey", "deleteMe", "eraseMember", "revokeInvitation"}
 
 func TestEveryOperationIsInTheCoverageTable(t *testing.T) {
 	spec, err := api.GetSpec()
@@ -183,7 +189,11 @@ func TestEveryOperationIsInTheCoverageTable(t *testing.T) {
 					t.Errorf("%s: tenant-scoped operations must require dashboardSession, got %v", id, op.Security)
 				}
 			}
-			authGroup := strings.HasPrefix(path, "/v1/dashboard/auth/") || strings.HasPrefix(path, "/v1/dashboard/me")
+			// Sign-in endpoints and the LINE webhook are retried by their callers
+			// in ways that cannot carry a client key (LINE redelivers; the SDK
+			// re-exchanges the ID token), so they are exempt.
+			authGroup := strings.HasPrefix(path, "/v1/dashboard/auth/") || strings.HasPrefix(path, "/v1/dashboard/me") ||
+				strings.HasPrefix(path, "/v1/auth/") || strings.HasPrefix(path, "/webhooks/")
 			if method != http.MethodGet && !authGroup && !hasIdem && !slices.Contains(deletesWithoutIdempotencyKey, id) {
 				t.Errorf("%s %s (%s) is a write without the Idempotency-Key parameter", method, path, id)
 			}

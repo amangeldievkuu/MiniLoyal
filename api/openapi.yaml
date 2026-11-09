@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MiniLoyal API
-  version: 0.2.0
+  version: 0.3.0
   description: |
     Membership and loyalty backend for LINE MINI Apps: LINE login, member
     cards, points, coupons, stamp cards, messaging and webhooks.
@@ -39,6 +39,18 @@ tags:
     description: Audit log of admin and staff actions
   - name: server
     description: Server-to-server API (API key)
+  - name: member-auth
+    description: MINI App member sign-in through LINE
+  - name: member
+    description: The signed-in MINI App member
+  - name: members
+    description: Members as seen by the dashboard and the server API
+  - name: webhooks
+    description: Inbound LINE webhooks
+  - name: invitations
+    description: Team invitations
+  - name: security
+    description: Account security history
 paths:
   /healthz:
     get:
@@ -425,7 +437,8 @@ paths:
     post:
       tags: [tenants]
       operationId: addTeamMember
-      summary: Add an existing dashboard user to the tenant
+      deprecated: true
+      summary: Add an existing dashboard user to the tenant (deprecated, use invitations)
       description: |
         The user must already have a dashboard account. Owners can grant any
         role; admins can grant admin or staff. Email invitations arrive in a
@@ -1075,6 +1088,411 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  # --------------------------------------------------------- member auth
+  /v1/auth/line:
+    post:
+      tags: [member-auth]
+      operationId: loginWithLine
+      summary: Exchange a LIFF ID token for a member session
+      description: |
+        The MINI App sends the ID token from liff.getIDToken(). The token is
+        verified against LINE's JWKS (ES256) or the channel secret (HS256);
+        its audience must be one of the app's configured channel IDs. The
+        member is created on first sign-in. Sessions last one hour; the SDK
+        exchanges a fresh ID token when one expires.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LineLoginRequest'
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: The ID token is invalid, expired or for another channel
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Unknown or disabled app
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/me:
+    get:
+      tags: [member]
+      operationId: getMe
+      summary: The signed-in member
+      security:
+        - memberSession: []
+      responses:
+        '200':
+          description: Member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags: [member]
+      operationId: updateMe
+      summary: Update profile fields
+      security:
+        - memberSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberUpdate'
+      responses:
+        '200':
+          description: Updated member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+    delete:
+      tags: [member]
+      operationId: deleteMe
+      summary: Erase my personal data
+      description: |
+        PDPA erasure. Personal fields are blanked in place so points and
+        coupon history stay consistent; the LINE account can register again
+        as a new member. The session ends.
+      security:
+        - memberSession: []
+      responses:
+        '204':
+          description: Erased
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/consent:
+    post:
+      tags: [member]
+      operationId: recordConsent
+      summary: Record consent to the current personal-data notice
+      security:
+        - memberSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentRequest'
+      responses:
+        '200':
+          description: Member with consent recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+  /v1/me/export:
+    get:
+      tags: [member]
+      operationId: exportMe
+      summary: Everything stored about me
+      description: PDPA access right. A machine-readable copy of the member's data.
+      security:
+        - memberSession: []
+      responses:
+        '200':
+          description: Export
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberExport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ------------------------------------------------------------ webhooks
+  /webhooks/line/{appId}:
+    parameters:
+      - $ref: '#/components/parameters/AppId'
+    post:
+      tags: [webhooks]
+      operationId: receiveLineWebhook
+      summary: Inbound webhook from the app's LINE Official Account
+      description: |
+        Configure this URL in the Messaging API channel of the brand's
+        Official Account. The body is the raw LINE webhook payload and is
+        verified with X-Line-Signature (HMAC-SHA256 over the raw body with
+        the channel secret). Events are deduplicated by webhookEventId and
+        redeliveries are honoured. follow and unfollow update the member's
+        friend status. Always answers within one second.
+      parameters:
+        - name: X-Line-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Accepted
+        '401':
+          description: Bad signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ----------------------------------------------------- dashboard members
+  /v1/dashboard/apps/{appId}/members:
+    parameters:
+      - $ref: '#/components/parameters/AppId'
+    get:
+      tags: [members]
+      operationId: listMembers
+      summary: Members of the app, newest first
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Query'
+      responses:
+        '200':
+          description: A page of members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/dashboard/members/{memberId}:
+    parameters:
+      - $ref: '#/components/parameters/MemberId'
+    get:
+      tags: [members]
+      operationId: getMember
+      summary: Member details
+      security:
+        - dashboardSession: []
+      responses:
+        '200':
+          description: Member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [members]
+      operationId: eraseMember
+      summary: Erase a member's personal data
+      description: PDPA erasure on the member's behalf. Owners and admins only; audited.
+      security:
+        - dashboardSession: []
+      responses:
+        '204':
+          description: Erased
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/dashboard/members/{memberId}/export:
+    parameters:
+      - $ref: '#/components/parameters/MemberId'
+    get:
+      tags: [members]
+      operationId: exportMember
+      summary: Export a member's data
+      description: PDPA access request handled by the brand. Owners and admins only; audited.
+      security:
+        - dashboardSession: []
+      responses:
+        '200':
+          description: Export
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberExport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---------------------------------------------------------- invitations
+  /v1/dashboard/tenants/{tenantId}/invitations:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      tags: [invitations]
+      operationId: listInvitations
+      summary: Pending invitations
+      security:
+        - dashboardSession: []
+      responses:
+        '200':
+          description: Invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invitation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [invitations]
+      operationId: createInvitation
+      summary: Invite someone to the team
+      description: |
+        Returns the invitation link once; share it with the invitee. Owners
+        grant any role, admins grant admin or staff. One pending invitation
+        per email per tenant. Accepting the link creates the membership.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Already a member, or an invitation is pending
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+  /v1/dashboard/invitations/{invitationId}:
+    parameters:
+      - name: invitationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags: [invitations]
+      operationId: revokeInvitation
+      summary: Revoke a pending invitation
+      security:
+        - dashboardSession: []
+      responses:
+        '204':
+          description: Revoked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/dashboard/auth/accept-invite:
+    post:
+      tags: [dashboard-auth]
+      operationId: acceptInvitation
+      summary: Accept an invitation link
+      description: |
+        Creates the account when the email has none yet (password required),
+        adds the membership and signs the user in. Sets the refresh cookie.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptInvitationRequest'
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid, expired or already used invitation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/dashboard/me/security-events:
+    get:
+      tags: [security]
+      operationId: listSecurityEvents
+      summary: My account security history, newest first
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityEventPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   # --------------------------------------------------------------- server
   /v1/app:
     get:
@@ -1094,8 +1512,70 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /v1/members:
+    get:
+      tags: [server]
+      operationId: serverListMembers
+      summary: Members of the app (API key, members:read)
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Query'
+      responses:
+        '200':
+          description: A page of members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/members/{memberId}:
+    parameters:
+      - $ref: '#/components/parameters/MemberId'
+    get:
+      tags: [server]
+      operationId: serverGetMember
+      summary: Member details (API key, members:read)
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: Member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
+    MemberId:
+      name: memberId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Query:
+      name: q
+      in: query
+      required: false
+      description: Search text; matches the display name or an exact LINE user ID.
+      schema:
+        type: string
+        maxLength: 100
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -1471,7 +1951,18 @@ components:
     App:
       type: object
       required:
-        [id, tenant_id, name, slug, locale, status, oa_channel_secret_set, created_at, updated_at]
+        [
+          id,
+          tenant_id,
+          name,
+          slug,
+          locale,
+          status,
+          oa_channel_secret_set,
+          webhook_url,
+          created_at,
+          updated_at,
+        ]
       properties:
         id:
           type: string
@@ -1498,6 +1989,14 @@ components:
           description: The Official Account's basic ID, for example @123abcd, used for add-friend links.
         oa_channel_secret_set:
           type: boolean
+        oa_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the Official Account credentials were last verified against LINE.
+        webhook_url:
+          type: string
+          description: The URL to configure as the Messaging API webhook for this app.
         created_at:
           type: string
           format: date-time
@@ -1547,7 +2046,7 @@ components:
           description: Stored encrypted. Send an empty string to clear it.
     AppChannel:
       type: object
-      required: [environment, channel_id, liff_id, channel_secret_set, created_at]
+      required: [environment, channel_id, liff_id, channel_secret_set, verified_at, created_at]
       properties:
         environment:
           $ref: '#/components/schemas/ChannelEnvironment'
@@ -1559,12 +2058,17 @@ components:
           description: LIFF ID of this internal channel.
         channel_secret_set:
           type: boolean
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the channel credentials were last verified against LINE.
         created_at:
           type: string
           format: date-time
     AppChannelPut:
       type: object
-      required: [channel_id, liff_id]
+      required: [channel_id, liff_id, channel_secret]
       properties:
         channel_id:
           type: string
@@ -1577,8 +2081,9 @@ components:
         channel_secret:
           type: string
           writeOnly: true
+          minLength: 1
           maxLength: 128
-          description: Needed only for HS256 tokens and webhook signatures; stored encrypted.
+          description: Proves control of the channel (a token is minted with it) and verifies HS256 tokens; stored encrypted.
 
     # ---- stores
     Store:
@@ -1811,6 +2316,256 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AuditEntry'
+        next_cursor:
+          type: string
+          nullable: true
+
+    # ---- members
+    Gender:
+      type: string
+      enum: [female, male, other]
+    Consent:
+      type: object
+      required: [version, accepted_at]
+      properties:
+        version:
+          type: string
+        accepted_at:
+          type: string
+          format: date-time
+    Member:
+      type: object
+      required: [id, app_id, is_friend, custom_fields, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+          nullable: true
+        picture_url:
+          type: string
+          nullable: true
+        language:
+          type: string
+          nullable: true
+          description: The member's LINE language, when LINE shared it.
+        is_friend:
+          type: boolean
+          description: Whether the member currently follows the brand's Official Account.
+        phone:
+          type: string
+          nullable: true
+        birthday:
+          type: string
+          format: date
+          nullable: true
+        gender:
+          $ref: '#/components/schemas/Gender'
+        custom_fields:
+          type: object
+          additionalProperties: true
+        consent:
+          $ref: '#/components/schemas/Consent'
+        created_at:
+          type: string
+          format: date-time
+    MemberDetail:
+      allOf:
+        - $ref: '#/components/schemas/Member'
+        - type: object
+          required: [line_user_id, created_at, updated_at]
+          properties:
+            line_user_id:
+              type: string
+            friend_changed_at:
+              type: string
+              format: date-time
+              nullable: true
+            last_login_at:
+              type: string
+              format: date-time
+              nullable: true
+            updated_at:
+              type: string
+              format: date-time
+    MemberUpdate:
+      type: object
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        phone:
+          type: string
+          maxLength: 32
+          nullable: true
+        birthday:
+          type: string
+          format: date
+          nullable: true
+        gender:
+          $ref: '#/components/schemas/Gender'
+        custom_fields:
+          type: object
+          additionalProperties: true
+          description: Brand-defined fields; replaces the stored object. At most 32 keys and 8 KiB.
+    ConsentRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Identifier of the personal-data notice the member accepted, for example 2026-11.
+    MemberExport:
+      type: object
+      required: [member, consents, exported_at]
+      properties:
+        member:
+          $ref: '#/components/schemas/MemberDetail'
+        consents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Consent'
+        exported_at:
+          type: string
+          format: date-time
+    MemberPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberDetail'
+        next_cursor:
+          type: string
+          nullable: true
+    LineLoginRequest:
+      type: object
+      required: [app_id, id_token]
+      properties:
+        app_id:
+          type: string
+          format: uuid
+        id_token:
+          type: string
+          minLength: 20
+          maxLength: 4096
+        nonce:
+          type: string
+          maxLength: 255
+          description: The nonce passed to liff.login(), when one was used.
+        liff_access_token:
+          type: string
+          maxLength: 4096
+          description: liff.getAccessToken(), kept for service messages once the MINI App is verified.
+    MemberSession:
+      type: object
+      required: [session_token, token_type, expires_in, member, is_new]
+      properties:
+        session_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Seconds until the session token expires.
+        member:
+          $ref: '#/components/schemas/Member'
+        is_new:
+          type: boolean
+          description: True when this sign-in created the member.
+
+    # ---- invitations and security events
+    Invitation:
+      type: object
+      required: [id, email, role, expires_at, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+    InvitationCreate:
+      type: object
+      required: [email, role]
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+    InvitationCreated:
+      allOf:
+        - $ref: '#/components/schemas/Invitation'
+        - type: object
+          required: [invite_url]
+          properties:
+            invite_url:
+              type: string
+              description: The link to send to the invitee. Shown once; only its hash is stored.
+    AcceptInvitationRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 20
+          maxLength: 255
+        password:
+          type: string
+          minLength: 10
+          maxLength: 200
+          description: Required when the invited email has no account yet.
+        display_name:
+          type: string
+          maxLength: 100
+    SecurityEvent:
+      type: object
+      required: [id, event, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        event:
+          type: string
+          description: Dotted name, for example login.success, login.mfa_failed, password.changed, totp.enabled, sessions.ended, refresh.replayed.
+        ip:
+          type: string
+          nullable: true
+        user_agent:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+    SecurityEventPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecurityEvent'
         next_cursor:
           type: string
           nullable: true

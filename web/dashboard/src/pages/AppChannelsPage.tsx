@@ -94,10 +94,11 @@ function ChannelCard({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const secret = String(fd.get('channel_secret') ?? '');
+    // The secret is required: the API proves control of the channel with it.
     save.mutate({
       channel_id: String(fd.get('channel_id') ?? '').trim(),
       liff_id: String(fd.get('liff_id') ?? '').trim(),
-      ...(secret ? { channel_secret: secret } : {}),
+      channel_secret: secret,
     });
     const secretInput = e.currentTarget.elements.namedItem('channel_secret');
     if (secretInput instanceof HTMLInputElement) secretInput.value = '';

@@ -198,8 +198,10 @@ func TestExpiredMFATokenIsRejected(t *testing.T) {
 	if res.Mfa == nil || res.Mfa.ExpiresIn != int(auth.DefaultMFATTL.Seconds()) {
 		t.Fatalf("challenge: %s", r.body)
 	}
-	// Just inside the window (TTL plus skew) the challenge still completes.
-	e.clk.Advance(auth.DefaultMFATTL + 29*time.Second)
+	// Just inside the TTL the challenge still completes. The challenge row
+	// expires exactly at the TTL; the token's 30-second skew only tolerates
+	// clock drift between servers.
+	e.clk.Advance(auth.DefaultMFATTL - time.Second)
 	if r := e.do(http.MethodPost, "/v1/dashboard/auth/mfa", map[string]any{"mfa_token": res.Mfa.MfaToken, "code": totpCode(t, secret, e.now())}, nil); r.status != http.StatusOK {
 		t.Fatalf("challenge inside the skew window: %d %s", r.status, r.body)
 	}

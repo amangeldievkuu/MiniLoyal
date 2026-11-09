@@ -155,7 +155,7 @@ func TestApplicationRoleCannotBypassRLS(t *testing.T) {
 
 	// Policies are forced, so even the table owner would be subject to them.
 	rows, err := d.Admin.Query(context.Background(),
-		"SELECT relname FROM pg_class WHERE relkind = 'r' AND relnamespace = 'public'::regnamespace AND relname NOT IN ('goose_db_version', 'users', 'refresh_tokens', 'totp_recovery_codes', 'mfa_challenges') AND NOT (relrowsecurity AND relforcerowsecurity)")
+		"SELECT relname FROM pg_class WHERE relkind = 'r' AND relnamespace = 'public'::regnamespace AND relname NOT IN ('goose_db_version', 'users', 'refresh_tokens', 'totp_recovery_codes', 'mfa_challenges', 'security_events') AND NOT (relrowsecurity AND relforcerowsecurity)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,6 +271,26 @@ var rlsTables = []tenantTable{
 	}},
 	{name: "idempotency_keys", col: "tenant_id", seeded: true, appDelete: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
 		_, err := x.Exec(ctx, "INSERT INTO idempotency_keys (tenant_id, scope, key, request_hash, expires_at) VALUES ($1, 'user:x', $2, '\\x00', now() + interval '1 day')", f.tenant, randHex(8))
+		return err
+	}},
+	{name: "members", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		_, err := x.Exec(ctx, "INSERT INTO members (id, tenant_id, app_id, line_user_id) VALUES ($1, $2, $3, $4)", testutil.NewID(), f.tenant, f.app, "U"+randHex(16))
+		return err
+	}},
+	{name: "member_consents", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		memberID := testutil.NewID()
+		if _, err := x.Exec(ctx, "INSERT INTO members (id, tenant_id, app_id, line_user_id) VALUES ($1, $2, $3, $4)", memberID, f.tenant, f.app, "U"+randHex(16)); err != nil {
+			return err
+		}
+		_, err := x.Exec(ctx, "INSERT INTO member_consents (tenant_id, app_id, member_id, version) VALUES ($1, $2, $3, '2026-11')", f.tenant, f.app, memberID)
+		return err
+	}},
+	{name: "webhook_inbound_events", col: "tenant_id", seeded: true, appDelete: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		_, err := x.Exec(ctx, "INSERT INTO webhook_inbound_events (tenant_id, app_id, line_webhook_event_id, event_type) VALUES ($1, $2, $3, 'follow')", f.tenant, f.app, randHex(12))
+		return err
+	}},
+	{name: "invitations", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		_, err := x.Exec(ctx, "INSERT INTO invitations (id, tenant_id, email, role, token_hash, expires_at) VALUES ($1, $2, $3, 'staff', $4, now() + interval '7 days')", testutil.NewID(), f.tenant, randHex(6)+"@example.com", randHex(32))
 		return err
 	}},
 }

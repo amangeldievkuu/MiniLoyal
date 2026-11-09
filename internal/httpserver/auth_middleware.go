@@ -22,6 +22,17 @@ type APIKeyAuthenticator interface {
 	AuthenticateAPIKey(ctx context.Context, key string) (principal.Principal, error)
 }
 
+// MemberAuthenticator verifies a MINI App member session token. Implemented
+// by the lineauth service.
+type MemberAuthenticator interface {
+	AuthenticateMember(ctx context.Context, bearerToken string) (principal.Principal, error)
+}
+
+// dashboardPathPrefix is where bearer tokens are dashboard sessions; every
+// other bearer token is a member session. The two token kinds carry different
+// typ claims, so a token presented on the wrong side is refused either way.
+const dashboardPathPrefix = "/v1/dashboard/"
+
 // authenticate reads X-API-Key or Authorization: Bearer, verifies it and
 // stores the principal in the context. Requests without credentials pass
 // through; handlers decide what they require via requireUser and
@@ -44,11 +55,26 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 		}
 		if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
 			token := strings.TrimSpace(strings.TrimPrefix(h, "Bearer "))
-			if token == "" || s.dashboard == nil {
+			if token == "" {
 				writeError(w, r, http.StatusUnauthorized, "unauthorized", "invalid bearer token")
 				return
 			}
-			p, err := s.dashboard.AuthenticateDashboard(ctx, token)
+			var p principal.Principal
+			var err error
+			switch {
+			case strings.HasPrefix(r.URL.Path, dashboardPathPrefix):
+				if s.dashboard == nil {
+					writeError(w, r, http.StatusUnauthorized, "unauthorized", "invalid bearer token")
+					return
+				}
+				p, err = s.dashboard.AuthenticateDashboard(ctx, token)
+			default:
+				if s.members == nil {
+					writeError(w, r, http.StatusUnauthorized, "unauthorized", "invalid bearer token")
+					return
+				}
+				p, err = s.members.AuthenticateMember(ctx, token)
+			}
 			if err != nil {
 				s.writeAuthFailure(w, r, err)
 				return
@@ -74,6 +100,17 @@ func requireUser(ctx context.Context) (principal.Principal, error) {
 	p, ok := principal.FromContext(ctx)
 	if !ok || !p.IsUser() {
 		return principal.Principal{}, apierr.Unauthorized("sign in to the dashboard")
+	}
+	return p, nil
+}
+
+// requireMember returns the MINI App member calling, or 401.
+//
+//lint:ignore U1000 used by the member handlers that replace stubs_member.go
+func requireMember(ctx context.Context) (principal.Principal, error) {
+	p, ok := principal.FromContext(ctx)
+	if !ok || !p.IsMember() {
+		return principal.Principal{}, apierr.Unauthorized("sign in with LINE")
 	}
 	return p, nil
 }

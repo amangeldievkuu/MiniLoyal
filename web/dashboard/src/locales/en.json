@@ -32,8 +32,15 @@
     "showOnceHelp": "This value is shown once. Copy it now and store it safely.",
     "done": "Done"
   },
-  "statuses": { "active": "Active", "disabled": "Disabled" },
-  "roles": { "owner": "Owner", "admin": "Admin", "staff": "Staff" },
+  "statuses": {
+    "active": "Active",
+    "disabled": "Disabled"
+  },
+  "roles": {
+    "owner": "Owner",
+    "admin": "Admin",
+    "staff": "Staff"
+  },
   "nav": {
     "apps": "Apps",
     "team": "Team",
@@ -150,12 +157,16 @@
     "channelId": "Channel ID",
     "liffId": "LIFF ID",
     "secret": "Channel secret",
-    "secretHint": "Optional; only HS256 tokens and webhook signatures need it.",
+    "secretHint": "Required. MiniLoyal verifies the channel with it; only whether it is set is shown afterwards.",
     "secretSet": "Secret set",
     "notConfigured": "Not configured",
     "remove": "Remove this environment",
     "removeConfirm": "Remove the channel settings for the {{environment}} environment?",
-    "env": { "developing": "Developing", "review": "Review", "published": "Published" }
+    "env": {
+      "developing": "Developing",
+      "review": "Review",
+      "published": "Published"
+    }
   },
   "stores": {
     "title": "Stores",
@@ -177,7 +188,10 @@
     "store": "Store",
     "noStore": "No store",
     "role": "Role",
-    "roles": { "cashier": "Cashier", "manager": "Manager" },
+    "roles": {
+      "cashier": "Cashier",
+      "manager": "Manager"
+    },
     "line": "LINE",
     "linked": "Linked",
     "notLinked": "Not linked",

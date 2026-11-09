@@ -28,4 +28,4 @@ RETURNING (created_at = now())::boolean AS inserted, request_hash, status_code, 
 -- name: ExpireIdempotencyKey :exec
 -- Drops a stale outcome so the claim that follows starts fresh.
 DELETE FROM idempotency_keys
-WHERE tenant_id = $1 AND scope = $2 AND key = $3 AND expires_at <= now();
+WHERE tenant_id = $1 AND scope = $2 AND key = $3 AND expires_at <= sqlc.arg('now');

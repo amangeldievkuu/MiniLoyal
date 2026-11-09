@@ -308,7 +308,8 @@ export interface paths {
         get: operations["listTeam"];
         put?: never;
         /**
-         * Add an existing dashboard user to the tenant
+         * Add an existing dashboard user to the tenant (deprecated, use invitations)
+         * @deprecated
          * @description The user must already have a dashboard account. Owners can grant any
          *     role; admins can grant admin or staff. Email invitations arrive in a
          *     later phase.
@@ -588,6 +589,264 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/line": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange a LIFF ID token for a member session
+         * @description The MINI App sends the ID token from liff.getIDToken(). The token is
+         *     verified against LINE's JWKS (ES256) or the channel secret (HS256);
+         *     its audience must be one of the app's configured channel IDs. The
+         *     member is created on first sign-in. Sessions last one hour; the SDK
+         *     exchanges a fresh ID token when one expires.
+         */
+        post: operations["loginWithLine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in member */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        /**
+         * Erase my personal data
+         * @description PDPA erasure. Personal fields are blanked in place so points and
+         *     coupon history stay consistent; the LINE account can register again
+         *     as a new member. The session ends.
+         */
+        delete: operations["deleteMe"];
+        options?: never;
+        head?: never;
+        /** Update profile fields */
+        patch: operations["updateMe"];
+        trace?: never;
+    };
+    "/v1/me/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record consent to the current personal-data notice */
+        post: operations["recordConsent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Everything stored about me
+         * @description PDPA access right. A machine-readable copy of the member's data.
+         */
+        get: operations["exportMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/line/{appId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inbound webhook from the app's LINE Official Account
+         * @description Configure this URL in the Messaging API channel of the brand's
+         *     Official Account. The body is the raw LINE webhook payload and is
+         *     verified with X-Line-Signature (HMAC-SHA256 over the raw body with
+         *     the channel secret). Events are deduplicated by webhookEventId and
+         *     redeliveries are honoured. follow and unfollow update the member's
+         *     friend status. Always answers within one second.
+         */
+        post: operations["receiveLineWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/apps/{appId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        /** Members of the app, newest first */
+        get: operations["listMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/members/{memberId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        /** Member details */
+        get: operations["getMember"];
+        put?: never;
+        post?: never;
+        /**
+         * Erase a member's personal data
+         * @description PDPA erasure on the member's behalf. Owners and admins only; audited.
+         */
+        delete: operations["eraseMember"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/members/{memberId}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Export a member's data
+         * @description PDPA access request handled by the brand. Owners and admins only; audited.
+         */
+        get: operations["exportMember"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/tenants/{tenantId}/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        /** Pending invitations */
+        get: operations["listInvitations"];
+        put?: never;
+        /**
+         * Invite someone to the team
+         * @description Returns the invitation link once; share it with the invitee. Owners
+         *     grant any role, admins grant admin or staff. One pending invitation
+         *     per email per tenant. Accepting the link creates the membership.
+         */
+        post: operations["createInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/invitations/{invitationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitationId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a pending invitation */
+        delete: operations["revokeInvitation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/auth/accept-invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept an invitation link
+         * @description Creates the account when the email has none yet (password required),
+         *     adds the membership and signs the user in. Sets the refresh cookie.
+         */
+        post: operations["acceptInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/me/security-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My account security history, newest first */
+        get: operations["listSecurityEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/app": {
         parameters: {
             query?: never;
@@ -600,6 +859,42 @@ export interface paths {
          * @description Useful to verify a key. Requires no scope.
          */
         get: operations["getCurrentApp"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Members of the app (API key, members:read) */
+        get: operations["serverListMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/members/{memberId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        /** Member details (API key, members:read) */
+        get: operations["serverGetMember"];
         put?: never;
         post?: never;
         delete?: never;
@@ -771,6 +1066,13 @@ export interface components {
             /** @description The Official Account's basic ID, for example @123abcd, used for add-friend links. */
             oa_basic_id?: string | null;
             oa_channel_secret_set: boolean;
+            /**
+             * Format: date-time
+             * @description When the Official Account credentials were last verified against LINE.
+             */
+            oa_verified_at?: string | null;
+            /** @description The URL to configure as the Messaging API webhook for this app. */
+            webhook_url: string;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -799,14 +1101,19 @@ export interface components {
             /** @description LIFF ID of this internal channel. */
             liff_id: string;
             channel_secret_set: boolean;
+            /**
+             * Format: date-time
+             * @description When the channel credentials were last verified against LINE.
+             */
+            verified_at: string | null;
             /** Format: date-time */
             created_at: string;
         };
         AppChannelPut: {
             channel_id: string;
             liff_id: string;
-            /** @description Needed only for HS256 tokens and webhook signatures; stored encrypted. */
-            channel_secret?: string;
+            /** @description Proves control of the channel (a token is minted with it) and verifies HS256 tokens; stored encrypted. */
+            channel_secret: string;
         };
         Store: {
             /** Format: uuid */
@@ -915,6 +1222,131 @@ export interface components {
             items: components["schemas"]["AuditEntry"][];
             next_cursor?: string | null;
         };
+        /** @enum {string} */
+        Gender: "female" | "male" | "other";
+        Consent: {
+            version: string;
+            /** Format: date-time */
+            accepted_at: string;
+        };
+        Member: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            app_id: string;
+            display_name?: string | null;
+            picture_url?: string | null;
+            /** @description The member's LINE language, when LINE shared it. */
+            language?: string | null;
+            /** @description Whether the member currently follows the brand's Official Account. */
+            is_friend: boolean;
+            phone?: string | null;
+            /** Format: date */
+            birthday?: string | null;
+            gender?: components["schemas"]["Gender"];
+            custom_fields: {
+                [key: string]: unknown;
+            };
+            consent?: components["schemas"]["Consent"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        MemberDetail: components["schemas"]["Member"] & {
+            line_user_id: string;
+            /** Format: date-time */
+            friend_changed_at?: string | null;
+            /** Format: date-time */
+            last_login_at?: string | null;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        MemberUpdate: {
+            display_name?: string;
+            phone?: string | null;
+            /** Format: date */
+            birthday?: string | null;
+            gender?: components["schemas"]["Gender"];
+            /** @description Brand-defined fields; replaces the stored object. At most 32 keys and 8 KiB. */
+            custom_fields?: {
+                [key: string]: unknown;
+            };
+        };
+        ConsentRequest: {
+            /** @description Identifier of the personal-data notice the member accepted, for example 2026-11. */
+            version: string;
+        };
+        MemberExport: {
+            member: components["schemas"]["MemberDetail"];
+            consents: components["schemas"]["Consent"][];
+            /** Format: date-time */
+            exported_at: string;
+        };
+        MemberPage: {
+            items: components["schemas"]["MemberDetail"][];
+            next_cursor?: string | null;
+        };
+        LineLoginRequest: {
+            /** Format: uuid */
+            app_id: string;
+            id_token: string;
+            /** @description The nonce passed to liff.login(), when one was used. */
+            nonce?: string;
+            /** @description liff.getAccessToken(), kept for service messages once the MINI App is verified. */
+            liff_access_token?: string;
+        };
+        MemberSession: {
+            session_token: string;
+            /** @enum {string} */
+            token_type: "Bearer";
+            /** @description Seconds until the session token expires. */
+            expires_in: number;
+            member: components["schemas"]["Member"];
+            /** @description True when this sign-in created the member. */
+            is_new: boolean;
+        };
+        Invitation: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["Role"];
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        InvitationCreate: {
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["Role"];
+        };
+        InvitationCreated: components["schemas"]["Invitation"] & {
+            /** @description The link to send to the invitee. Shown once; only its hash is stored. */
+            invite_url: string;
+        };
+        AcceptInvitationRequest: {
+            token: string;
+            /** @description Required when the invited email has no account yet. */
+            password?: string;
+            display_name?: string;
+        };
+        SecurityEvent: {
+            /** Format: int64 */
+            id: number;
+            /** @description Dotted name, for example login.success, login.mfa_failed, password.changed, totp.enabled, sessions.ended, refresh.replayed. */
+            event: string;
+            ip?: string | null;
+            user_agent?: string | null;
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            created_at: string;
+        };
+        SecurityEventPage: {
+            items: components["schemas"]["SecurityEvent"][];
+            next_cursor?: string | null;
+        };
     };
     responses: {
         /** @description Malformed request or validation failure */
@@ -973,6 +1405,9 @@ export interface components {
         };
     };
     parameters: {
+        MemberId: string;
+        /** @description Search text; matches the display name or an exact LINE user ID. */
+        Query: string;
         /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
         IdempotencyKey: string;
         TenantId: string;
@@ -2145,6 +2580,457 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    loginWithLine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description The ID token is invalid, expired or for another channel */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Unknown or disabled app */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Member */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    deleteMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Erased */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    updateMe: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated member */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    recordConsent: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsentRequest"];
+            };
+        };
+        responses: {
+            /** @description Member with consent recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    exportMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Export */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberExport"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    receiveLineWebhook: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Line-Signature": string;
+            };
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad signature */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listMembers: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description Search text; matches the display name or an exact LINE user ID. */
+                q?: components["parameters"]["Query"];
+            };
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of members */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Member */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    eraseMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Erased */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    exportMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Export */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberExport"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listInvitations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invitations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createInvitation: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationCreate"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationCreated"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Already a member, or an invitation is pending */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    revokeInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    acceptInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Invalid, expired or already used invitation */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    listSecurityEvents: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityEventPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
     getCurrentApp: {
         parameters: {
             query?: never;
@@ -2164,6 +3050,60 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    serverListMembers: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description Search text; matches the display name or an exact LINE user ID. */
+                q?: components["parameters"]["Query"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of members */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    serverGetMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Member */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

@@ -140,7 +140,7 @@ func TestRegisterSetsSessionAndCookie(t *testing.T) {
 	e := newAuthEnv(t, auth.Config{})
 	sess, c := e.register("owner@example.com")
 
-	if sess.AccessToken == "" || sess.TokenType != api.Bearer || sess.ExpiresIn != 900 || string(sess.User.Email) != "owner@example.com" {
+	if sess.AccessToken == "" || sess.TokenType != api.SessionTokenTypeBearer || sess.ExpiresIn != 900 || string(sess.User.Email) != "owner@example.com" {
 		t.Errorf("unexpected session: %+v", sess)
 	}
 	if !c.HttpOnly || c.Path != refreshCookiePath || c.SameSite != http.SameSiteLaxMode || c.MaxAge <= 0 || c.Secure {

@@ -9,7 +9,17 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const clearAppOAVerified = `-- name: ClearAppOAVerified :exec
+UPDATE apps SET oa_verified_at = NULL, updated_at = now() WHERE id = $1
+`
+
+func (q *Queries) ClearAppOAVerified(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, clearAppOAVerified, id)
+	return err
+}
 
 const countApps = `-- name: CountApps :one
 SELECT count(*) FROM apps WHERE tenant_id = $1
@@ -25,7 +35,7 @@ func (q *Queries) CountApps(ctx context.Context, tenantID uuid.UUID) (int64, err
 const createApp = `-- name: CreateApp :one
 INSERT INTO apps (id, tenant_id, name, slug, locale)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at
+RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at
 `
 
 type CreateAppParams struct {
@@ -57,6 +67,7 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		&i.OaChannelSecretEnc,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OaVerifiedAt,
 	)
 	return i, err
 }
@@ -79,7 +90,7 @@ func (q *Queries) DeleteAppChannel(ctx context.Context, arg DeleteAppChannelPara
 }
 
 const getApp = `-- name: GetApp :one
-SELECT id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at FROM apps WHERE id = $1
+SELECT id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at FROM apps WHERE id = $1
 `
 
 func (q *Queries) GetApp(ctx context.Context, id uuid.UUID) (App, error) {
@@ -97,12 +108,13 @@ func (q *Queries) GetApp(ctx context.Context, id uuid.UUID) (App, error) {
 		&i.OaChannelSecretEnc,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OaVerifiedAt,
 	)
 	return i, err
 }
 
 const getAppChannelsByChannelID = `-- name: GetAppChannelsByChannelID :many
-SELECT id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc, created_at, updated_at FROM app_channels WHERE channel_id = $1
+SELECT id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc, created_at, updated_at, verified_at FROM app_channels WHERE channel_id = $1
 `
 
 func (q *Queries) GetAppChannelsByChannelID(ctx context.Context, channelID string) ([]AppChannel, error) {
@@ -124,6 +136,7 @@ func (q *Queries) GetAppChannelsByChannelID(ctx context.Context, channelID strin
 			&i.ChannelSecretEnc,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.VerifiedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -147,7 +160,7 @@ func (q *Queries) GetAppTenant(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 }
 
 const listAppChannels = `-- name: ListAppChannels :many
-SELECT id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc, created_at, updated_at FROM app_channels
+SELECT id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc, created_at, updated_at, verified_at FROM app_channels
 WHERE app_id = $1
 ORDER BY CASE environment WHEN 'developing' THEN 0 WHEN 'review' THEN 1 ELSE 2 END
 `
@@ -171,6 +184,49 @@ func (q *Queries) ListAppChannels(ctx context.Context, appID uuid.UUID) ([]AppCh
 			&i.ChannelSecretEnc,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.VerifiedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAppChannelsForLogin = `-- name: ListAppChannelsForLogin :many
+SELECT id, environment, channel_id, liff_id, channel_secret_enc, verified_at
+FROM app_channels WHERE app_id = $1
+`
+
+type ListAppChannelsForLoginRow struct {
+	ID               uuid.UUID          `json:"id"`
+	Environment      string             `json:"environment"`
+	ChannelID        string             `json:"channel_id"`
+	LiffID           string             `json:"liff_id"`
+	ChannelSecretEnc []byte             `json:"channel_secret_enc"`
+	VerifiedAt       pgtype.Timestamptz `json:"verified_at"`
+}
+
+// Every configured channel ID of the app is an acceptable ID token audience.
+func (q *Queries) ListAppChannelsForLogin(ctx context.Context, appID uuid.UUID) ([]ListAppChannelsForLoginRow, error) {
+	rows, err := q.db.Query(ctx, listAppChannelsForLogin, appID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAppChannelsForLoginRow
+	for rows.Next() {
+		var i ListAppChannelsForLoginRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Environment,
+			&i.ChannelID,
+			&i.LiffID,
+			&i.ChannelSecretEnc,
+			&i.VerifiedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -183,7 +239,7 @@ func (q *Queries) ListAppChannels(ctx context.Context, appID uuid.UUID) ([]AppCh
 }
 
 const listApps = `-- name: ListApps :many
-SELECT id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at FROM apps WHERE tenant_id = $1 ORDER BY created_at
+SELECT id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at FROM apps WHERE tenant_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ListApps(ctx context.Context, tenantID uuid.UUID) ([]App, error) {
@@ -207,6 +263,7 @@ func (q *Queries) ListApps(ctx context.Context, tenantID uuid.UUID) ([]App, erro
 			&i.OaChannelSecretEnc,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OaVerifiedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -218,6 +275,24 @@ func (q *Queries) ListApps(ctx context.Context, tenantID uuid.UUID) ([]App, erro
 	return items, nil
 }
 
+const setAppChannelVerified = `-- name: SetAppChannelVerified :exec
+UPDATE app_channels SET verified_at = now(), updated_at = now() WHERE id = $1
+`
+
+func (q *Queries) SetAppChannelVerified(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, setAppChannelVerified, id)
+	return err
+}
+
+const setAppOAVerified = `-- name: SetAppOAVerified :exec
+UPDATE apps SET oa_verified_at = now(), updated_at = now() WHERE id = $1
+`
+
+func (q *Queries) SetAppOAVerified(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, setAppOAVerified, id)
+	return err
+}
+
 const updateApp = `-- name: UpdateApp :one
 UPDATE apps SET
   name       = coalesce($1, name),
@@ -225,7 +300,7 @@ UPDATE apps SET
   status     = coalesce($3, status),
   updated_at = now()
 WHERE id = $4
-RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at
+RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at
 `
 
 type UpdateAppParams struct {
@@ -255,6 +330,7 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		&i.OaChannelSecretEnc,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OaVerifiedAt,
 	)
 	return i, err
 }
@@ -266,7 +342,7 @@ UPDATE apps SET
   oa_channel_secret_enc = $4,
   updated_at            = now()
 WHERE id = $1
-RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at
+RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at
 `
 
 type UpdateAppOAParams struct {
@@ -296,6 +372,7 @@ func (q *Queries) UpdateAppOA(ctx context.Context, arg UpdateAppOAParams) (App, 
 		&i.OaChannelSecretEnc,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OaVerifiedAt,
 	)
 	return i, err
 }
@@ -308,7 +385,7 @@ ON CONFLICT (app_id, environment) DO UPDATE SET
   liff_id            = EXCLUDED.liff_id,
   channel_secret_enc = coalesce(EXCLUDED.channel_secret_enc, app_channels.channel_secret_enc),
   updated_at         = now()
-RETURNING id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc, created_at, updated_at
+RETURNING id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc, created_at, updated_at, verified_at
 `
 
 type UpsertAppChannelParams struct {
@@ -342,6 +419,7 @@ func (q *Queries) UpsertAppChannel(ctx context.Context, arg UpsertAppChannelPara
 		&i.ChannelSecretEnc,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.VerifiedAt,
 	)
 	return i, err
 }

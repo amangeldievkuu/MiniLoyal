@@ -32,8 +32,15 @@
     "showOnceHelp": "這個值只會顯示一次，請立即複製並妥善保存。",
     "done": "完成"
   },
-  "statuses": { "active": "啟用", "disabled": "停用" },
-  "roles": { "owner": "擁有者", "admin": "管理員", "staff": "一般成員" },
+  "statuses": {
+    "active": "啟用",
+    "disabled": "停用"
+  },
+  "roles": {
+    "owner": "擁有者",
+    "admin": "管理員",
+    "staff": "一般成員"
+  },
   "nav": {
     "apps": "應用程式",
     "team": "團隊",
@@ -150,12 +157,16 @@
     "channelId": "Channel ID",
     "liffId": "LIFF ID",
     "secret": "Channel secret",
-    "secretHint": "選填；只有 HS256 token 與 webhook 簽章驗證需要。",
+    "secretHint": "必填。MiniLoyal 會用它向 LINE 驗證此頻道；儲存後只顯示是否已設定。",
     "secretSet": "已設定 secret",
     "notConfigured": "尚未設定",
     "remove": "移除此環境",
     "removeConfirm": "確定要移除 {{environment}} 環境的頻道設定嗎？",
-    "env": { "developing": "開發中", "review": "審核中", "published": "已發布" }
+    "env": {
+      "developing": "開發中",
+      "review": "審核中",
+      "published": "已發布"
+    }
   },
   "stores": {
     "title": "門市",
@@ -177,7 +188,10 @@
     "store": "門市",
     "noStore": "未指定門市",
     "role": "職務",
-    "roles": { "cashier": "收銀", "manager": "店長" },
+    "roles": {
+      "cashier": "收銀",
+      "manager": "店長"
+    },
     "line": "LINE 綁定",
     "linked": "已綁定",
     "notLinked": "尚未綁定",
