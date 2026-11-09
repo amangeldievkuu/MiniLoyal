@@ -378,24 +378,26 @@ func (q *Queries) UpdateAppOA(ctx context.Context, arg UpdateAppOAParams) (App, 
 }
 
 const upsertAppChannel = `-- name: UpsertAppChannel :one
-INSERT INTO app_channels (id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO app_channels (id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc, verified_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (app_id, environment) DO UPDATE SET
   channel_id         = EXCLUDED.channel_id,
   liff_id            = EXCLUDED.liff_id,
   channel_secret_enc = coalesce(EXCLUDED.channel_secret_enc, app_channels.channel_secret_enc),
+  verified_at        = EXCLUDED.verified_at,
   updated_at         = now()
 RETURNING id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc, created_at, updated_at, verified_at
 `
 
 type UpsertAppChannelParams struct {
-	ID               uuid.UUID `json:"id"`
-	TenantID         uuid.UUID `json:"tenant_id"`
-	AppID            uuid.UUID `json:"app_id"`
-	Environment      string    `json:"environment"`
-	ChannelID        string    `json:"channel_id"`
-	LiffID           string    `json:"liff_id"`
-	ChannelSecretEnc []byte    `json:"channel_secret_enc"`
+	ID               uuid.UUID          `json:"id"`
+	TenantID         uuid.UUID          `json:"tenant_id"`
+	AppID            uuid.UUID          `json:"app_id"`
+	Environment      string             `json:"environment"`
+	ChannelID        string             `json:"channel_id"`
+	LiffID           string             `json:"liff_id"`
+	ChannelSecretEnc []byte             `json:"channel_secret_enc"`
+	VerifiedAt       pgtype.Timestamptz `json:"verified_at"`
 }
 
 func (q *Queries) UpsertAppChannel(ctx context.Context, arg UpsertAppChannelParams) (AppChannel, error) {
@@ -407,6 +409,7 @@ func (q *Queries) UpsertAppChannel(ctx context.Context, arg UpsertAppChannelPara
 		arg.ChannelID,
 		arg.LiffID,
 		arg.ChannelSecretEnc,
+		arg.VerifiedAt,
 	)
 	var i AppChannel
 	err := row.Scan(

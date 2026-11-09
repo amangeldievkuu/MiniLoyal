@@ -248,7 +248,7 @@ func TestCrossTenantAccessIsNotFound(t *testing.T) {
 			{"get app", c.get(appPath)},
 			{"patch app", c.patch(appPath, uuid.NewString(), map[string]any{"name": "Hijack"})},
 			{"channels", c.get(appPath + "/channels")},
-			{"put channel", c.put(appPath+"/channels/developing", uuid.NewString(), map[string]any{"channel_id": "1", "liff_id": "2"})},
+			{"put channel", c.put(appPath+"/channels/developing", uuid.NewString(), map[string]any{"channel_id": "1", "liff_id": "2", "channel_secret": "s"})},
 			{"stores", c.get(appPath + "/stores")},
 			{"patch store", c.patch("/v1/dashboard/stores/"+st.Id.String(), uuid.NewString(), map[string]any{"name": "x"})},
 			{"delete store", c.del("/v1/dashboard/stores/" + st.Id.String())},
@@ -446,7 +446,7 @@ func TestChannels(t *testing.T) {
 	base := "/v1/dashboard/apps/" + app.Id.String() + "/channels"
 	owner := w.as("owner-a")
 
-	want(t, owner.put(base+"/production", uuid.NewString(), map[string]any{"channel_id": "100", "liff_id": "100-abc"}), http.StatusBadRequest)
+	want(t, owner.put(base+"/production", uuid.NewString(), map[string]any{"channel_id": "100", "liff_id": "100-abc", "channel_secret": "s"}), http.StatusBadRequest)
 	put := owner.put(base+"/developing", uuid.NewString(), map[string]any{"channel_id": "2007000001", "liff_id": "2007000001-AbCdEf", "channel_secret": "s3cret"})
 	want(t, put, http.StatusOK)
 	var ch api.AppChannel
@@ -454,12 +454,13 @@ func TestChannels(t *testing.T) {
 	if ch.Environment != "developing" || !ch.ChannelSecretSet {
 		t.Fatalf("channel: %+v", ch)
 	}
-	// Replacing without a secret keeps the stored one.
-	put = owner.put(base+"/developing", uuid.NewString(), map[string]any{"channel_id": "2007000001", "liff_id": "2007000001-AbCdEf"})
+	// The secret is required: it proves control of the channel.
+	want(t, owner.put(base+"/developing", uuid.NewString(), map[string]any{"channel_id": "2007000001", "liff_id": "2007000001-AbCdEf"}), http.StatusBadRequest)
+	put = owner.put(base+"/developing", uuid.NewString(), map[string]any{"channel_id": "2007000001", "liff_id": "2007000001-AbCdEf", "channel_secret": "s3cret"})
 	want(t, put, http.StatusOK)
 	put.into(t, &ch)
-	if !ch.ChannelSecretSet {
-		t.Error("secret should be kept when omitted")
+	if !ch.ChannelSecretSet || ch.VerifiedAt != nil {
+		t.Errorf("channel without a verifier: %+v", ch)
 	}
 	list := owner.get(base)
 	want(t, list, http.StatusOK)
@@ -470,7 +471,7 @@ func TestChannels(t *testing.T) {
 	}
 
 	// LIFF IDs are globally unique.
-	want(t, owner.put(base+"/review", uuid.NewString(), map[string]any{"channel_id": "2007000001", "liff_id": "2007000001-AbCdEf"}), http.StatusConflict)
+	want(t, owner.put(base+"/review", uuid.NewString(), map[string]any{"channel_id": "2007000001", "liff_id": "2007000001-AbCdEf", "channel_secret": "s3cret"}), http.StatusConflict)
 
 	// The stored secret decrypts.
 	rows, err := w.svc.ListChannels(context.Background(), principal.Principal{Kind: principal.KindUser, UserID: w.ownerA}, uuid.UUID(app.Id))

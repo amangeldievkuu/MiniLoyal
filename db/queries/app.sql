@@ -36,12 +36,13 @@ WHERE app_id = $1
 ORDER BY CASE environment WHEN 'developing' THEN 0 WHEN 'review' THEN 1 ELSE 2 END;
 
 -- name: UpsertAppChannel :one
-INSERT INTO app_channels (id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO app_channels (id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc, verified_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (app_id, environment) DO UPDATE SET
   channel_id         = EXCLUDED.channel_id,
   liff_id            = EXCLUDED.liff_id,
   channel_secret_enc = coalesce(EXCLUDED.channel_secret_enc, app_channels.channel_secret_enc),
+  verified_at        = EXCLUDED.verified_at,
   updated_at         = now()
 RETURNING *;
 

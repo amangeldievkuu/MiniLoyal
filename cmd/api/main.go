@@ -15,6 +15,7 @@ import (
 
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/httpserver"
+	"github.com/amangeldievkuu/miniloyal/internal/line"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
@@ -22,6 +23,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/platform/log"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/otel"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
+	"github.com/amangeldievkuu/miniloyal/internal/webhook"
 )
 
 // version is set at build time: -ldflags "-X main.version=...".
@@ -89,13 +91,24 @@ func run() int {
 	}
 	tenants := tenant.New(pool, keyring, clock.Real{}, logger)
 
+	// LINE Platform clients. Credentials are proven against LINE before they
+	// are stored; webhooks are verified with the stored secret.
+	lineHTTP := &http.Client{Timeout: 5 * time.Second}
+	lineTokens := line.NewTokenSource(line.TokenSourceOptions{HTTPClient: lineHTTP, Clock: clock.Real{}})
+	lineMessaging := line.NewMessaging(line.MessagingOptions{HTTPClient: lineHTTP, Tokens: lineTokens})
+	tenants.SetChannelVerifier(line.NewChannelVerifier(lineTokens, lineMessaging))
+	webhooks := webhook.New(pool, tenants, logger)
+	// Member sign-in verifies LIFF ID tokens with line.NewVerifier; the
+	// lineauth service wires it.
+
 	srv := &http.Server{
 		Addr: cfg.APIAddr,
 		Handler: httpserver.New(httpserver.Deps{
 			Config: cfg, Log: logger, DB: pool, Version: version,
 			Auth: authSvc, Dashboard: authSvc,
-			APIKeys: tenants,
-			Tenants: tenants,
+			APIKeys:  tenants,
+			Tenants:  tenants,
+			Webhooks: webhooks,
 		}).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
