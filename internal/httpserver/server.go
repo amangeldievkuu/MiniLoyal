@@ -12,6 +12,8 @@ import (
 
 	"github.com/amangeldievkuu/miniloyal/internal/api"
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
+	"github.com/amangeldievkuu/miniloyal/internal/lineauth"
+	"github.com/amangeldievkuu/miniloyal/internal/member"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 )
@@ -38,6 +40,12 @@ type Deps struct {
 	// Tenants serves tenants, team, apps, channels, stores, staff, API keys
 	// and the audit log.
 	Tenants *tenant.Service
+	// LineAuth serves member sign-in (POST /v1/auth/line). It also verifies
+	// member sessions, so Members defaults to it.
+	LineAuth *lineauth.Service
+	// MemberSvc serves the member's profile, consent, export and erasure, and
+	// the member lists for the dashboard and the server API.
+	MemberSvc *member.Service
 }
 
 // Server implements api.StrictServerInterface.
@@ -51,6 +59,8 @@ type Server struct {
 	apiKeys   APIKeyAuthenticator
 	members   MemberAuthenticator
 	tenants   *tenant.Service
+	lineauth  *lineauth.Service
+	memberSvc *member.Service
 	started   time.Time
 	now       func() time.Time
 }
@@ -67,6 +77,9 @@ func New(d Deps) *Server {
 	if d.Dashboard == nil && d.Auth != nil {
 		d.Dashboard = d.Auth
 	}
+	if d.Members == nil && d.LineAuth != nil {
+		d.Members = d.LineAuth
+	}
 	return &Server{
 		cfg:       d.Config,
 		log:       d.Log,
@@ -77,6 +90,8 @@ func New(d Deps) *Server {
 		apiKeys:   d.APIKeys,
 		members:   d.Members,
 		tenants:   d.Tenants,
+		lineauth:  d.LineAuth,
+		memberSvc: d.MemberSvc,
 		started:   time.Now(),
 		now:       time.Now,
 	}

@@ -15,6 +15,8 @@ import (
 
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/httpserver"
+	"github.com/amangeldievkuu/miniloyal/internal/lineauth"
+	"github.com/amangeldievkuu/miniloyal/internal/member"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
@@ -88,6 +90,20 @@ func run() int {
 		return 1
 	}
 	tenants := tenant.New(pool, keyring, clock.Real{}, logger)
+	lineAuth, err := lineauth.New(lineauth.Deps{
+		Pool:    pool,
+		Keyring: keyring,
+		// Verifier: the LINE ID token verifier from internal/line plugs in here; until then sign-in answers 503.
+		Verifier: nil,
+		Clock:    clock.Real{},
+		Log:      logger,
+		Config:   lineauth.Config{SigningKey: cfg.SessionSigningKey},
+	})
+	if err != nil {
+		logger.Error("line auth setup failed", "err", err)
+		return 1
+	}
+	members := member.New(member.Deps{Pool: pool, Tenants: tenants, Clock: clock.Real{}, Log: logger})
 
 	srv := &http.Server{
 		Addr: cfg.APIAddr,
@@ -96,6 +112,7 @@ func run() int {
 			Auth: authSvc, Dashboard: authSvc,
 			APIKeys: tenants,
 			Tenants: tenants,
+			Members: lineAuth, LineAuth: lineAuth, MemberSvc: members,
 		}).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
