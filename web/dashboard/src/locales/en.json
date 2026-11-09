@@ -1,0 +1,248 @@
+{
+  "brand": "MiniLoyal",
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "create": "Create",
+    "delete": "Delete",
+    "remove": "Remove",
+    "edit": "Edit",
+    "close": "Close",
+    "copy": "Copy",
+    "copied": "Copied",
+    "confirm": "Confirm",
+    "actions": "Actions",
+    "status": "Status",
+    "name": "Name",
+    "createdAt": "Created",
+    "none": "Nothing here yet",
+    "optional": "optional",
+    "readOnly": "Your role can only view this page.",
+    "saved": "Saved.",
+    "next": "Next",
+    "previous": "Previous",
+    "filter": "Filter",
+    "all": "All",
+    "set": "Set",
+    "notSet": "Not set",
+    "requestId": "Request ID",
+    "loading": "Loading…",
+    "signOut": "Sign out",
+    "working": "Working…",
+    "showOnceHelp": "This value is shown once. Copy it now and store it safely.",
+    "done": "Done"
+  },
+  "statuses": { "active": "Active", "disabled": "Disabled" },
+  "roles": { "owner": "Owner", "admin": "Admin", "staff": "Staff" },
+  "nav": {
+    "apps": "Apps",
+    "team": "Team",
+    "audit": "Audit log",
+    "account": "Account",
+    "tenant": "Tenant",
+    "language": "Language",
+    "backToTenant": "Back to tenant",
+    "notFound": "Page not found",
+    "notFoundHelp": "This address does not exist, or you cannot view it.",
+    "goHome": "Go home",
+    "noTenant": "You are not a member of any tenant",
+    "noTenantHelp": "Ask a team owner to add you, or register again to create a new tenant."
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "The server could not be reached.",
+    "rateLimited": "Too many attempts. Try again in {{seconds}} seconds."
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in to MiniLoyal",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "noAccount": "No account yet?",
+      "register": "Create one"
+    },
+    "mfa": {
+      "title": "Two-step verification",
+      "help": "Enter the 6-digit code from your authenticator app, or a recovery code.",
+      "code": "Code",
+      "submit": "Verify",
+      "back": "Back to sign in"
+    },
+    "register": {
+      "title": "Create a MiniLoyal account",
+      "displayName": "Display name",
+      "tenantName": "Company or brand name",
+      "tenantType": "Account type",
+      "brand": "Brand (our own members)",
+      "agency": "Agency (building for clients)",
+      "passwordHint": "At least 10 characters.",
+      "submit": "Create account",
+      "haveAccount": "Already have an account?",
+      "login": "Sign in"
+    }
+  },
+  "tenant": {
+    "plan": "Plan: {{plan}}",
+    "rename": "Rename tenant",
+    "apps": {
+      "title": "Apps",
+      "help": "One app is one LINE MINI App.",
+      "empty": "No apps yet.",
+      "create": "Create app",
+      "name": "Name",
+      "slug": "Slug",
+      "slugHint": "Lowercase letters, digits and hyphens for URLs. Leave empty to derive it from the name.",
+      "locale": "Default language",
+      "open": "Open"
+    }
+  },
+  "team": {
+    "title": "Team",
+    "help": "People who can sign in to this dashboard. They need a MiniLoyal account first.",
+    "add": "Add member",
+    "email": "Email",
+    "role": "Role",
+    "remove": "Remove member",
+    "removeConfirm": "Remove {{email}} from the team?",
+    "empty": "No team members yet.",
+    "you": "(you)"
+  },
+  "audit": {
+    "title": "Audit log",
+    "help": "Every dashboard and staff action, newest first.",
+    "time": "Time",
+    "actor": "Actor",
+    "action": "Action",
+    "target": "Target",
+    "app": "App",
+    "allApps": "All apps",
+    "empty": "No entries."
+  },
+  "appPage": {
+    "tabs": {
+      "settings": "Settings",
+      "channels": "LINE channels",
+      "stores": "Stores",
+      "staff": "Staff",
+      "apiKeys": "API keys"
+    },
+    "settings": {
+      "title": "App settings",
+      "name": "Name",
+      "locale": "Default language",
+      "status": "Status",
+      "oaTitle": "LINE Official Account",
+      "oaHelp": "The brand's Messaging API channel. The Official Account and the MINI App channel must belong to the same provider, or user IDs will not match.",
+      "oaChannelId": "Messaging API channel ID",
+      "oaBasicId": "Official Account basic ID (for example @123abcd)",
+      "oaSecret": "Channel secret",
+      "oaSecretHint": "Updated only when you type one; after saving, only whether it is set is shown.",
+      "oaSecretSet": "A channel secret is set",
+      "oaSecretNotSet": "No channel secret set",
+      "clearSecret": "Clear the stored channel secret"
+    }
+  },
+  "channels": {
+    "title": "LINE MINI App channels",
+    "help": "A MINI App channel has three internal channels (developing, review, published), each with its own LIFF ID. Fill them in separately; every configured channel ID is accepted as the ID token audience.",
+    "environment": "Environment",
+    "channelId": "Channel ID",
+    "liffId": "LIFF ID",
+    "secret": "Channel secret",
+    "secretHint": "Optional; only HS256 tokens and webhook signatures need it.",
+    "secretSet": "Secret set",
+    "notConfigured": "Not configured",
+    "remove": "Remove this environment",
+    "removeConfirm": "Remove the channel settings for the {{environment}} environment?",
+    "env": { "developing": "Developing", "review": "Review", "published": "Published" }
+  },
+  "stores": {
+    "title": "Stores",
+    "help": "The locations where staff add points, stamps and redeem coupons.",
+    "create": "Add store",
+    "edit": "Edit store",
+    "name": "Store name",
+    "code": "Store code",
+    "address": "Address",
+    "empty": "No stores yet.",
+    "deleteConfirm": "Delete the store \"{{name}}\"? It cannot be deleted while staff are assigned."
+  },
+  "staff": {
+    "title": "Staff",
+    "help": "Staff sign in to the staff app with LINE and enter their invite code on first sign-in.",
+    "create": "Add staff",
+    "edit": "Edit staff",
+    "displayName": "Display name",
+    "store": "Store",
+    "noStore": "No store",
+    "role": "Role",
+    "roles": { "cashier": "Cashier", "manager": "Manager" },
+    "line": "LINE",
+    "linked": "Linked",
+    "notLinked": "Not linked",
+    "inviteTitle": "Staff invite code",
+    "inviteHelp": "Give this code to the staff member to enter in the staff app on first sign-in.",
+    "empty": "No staff yet.",
+    "deleteConfirm": "Remove the staff member \"{{name}}\"?"
+  },
+  "apiKeys": {
+    "title": "API keys",
+    "help": "Server keys for brand backends and POS systems. A key is shown only once, when created.",
+    "create": "Create key",
+    "name": "Name",
+    "scopes": "Scopes",
+    "prefix": "Prefix",
+    "lastUsed": "Last used",
+    "never": "Never",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke the key \"{{name}}\"? Systems using it lose access immediately.",
+    "keyTitle": "New API key",
+    "keyHelp": "Send this key in the X-API-Key header.",
+    "empty": "No keys yet.",
+    "scopeLabels": {
+      "members:read": "Read members",
+      "members:write": "Create and update members",
+      "points:write": "Earn and adjust points",
+      "coupons:write": "Issue and redeem coupons",
+      "messages:send": "Send push messages",
+      "webhooks:manage": "Manage webhooks",
+      "config:read": "Read configuration"
+    }
+  },
+  "me": {
+    "title": "Account",
+    "email": "Email",
+    "displayName": "Display name",
+    "password": {
+      "title": "Change password",
+      "current": "Current password",
+      "new": "New password",
+      "hint": "At least 10 characters. Other devices are signed out after the change.",
+      "submit": "Change password",
+      "done": "Password updated."
+    },
+    "totp": {
+      "title": "Two-step verification (TOTP)",
+      "enabled": "Enabled",
+      "disabled": "Not enabled",
+      "enroll": "Set up",
+      "scan": "Scan this QR code with an authenticator app, or enter the secret by hand:",
+      "confirmCode": "Enter the 6-digit code the app shows",
+      "confirm": "Enable",
+      "recoveryTitle": "Recovery codes",
+      "recoveryHelp": "Each code works once. Print them or keep them in a password manager; they cannot be shown again.",
+      "copyAll": "Copy all",
+      "disable": "Disable two-step verification",
+      "disablePassword": "Current password",
+      "disableCode": "Code or recovery code",
+      "disableSubmit": "Disable",
+      "disabledDone": "Two-step verification is disabled."
+    },
+    "sessions": {
+      "title": "Signed-in devices",
+      "logoutAll": "Sign out everywhere",
+      "logoutAllHelp": "Ends the session on every device, including this one."
+    }
+  }
+}
