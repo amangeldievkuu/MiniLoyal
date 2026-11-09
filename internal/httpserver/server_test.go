@@ -96,15 +96,17 @@ func TestAPIKeyWithoutAuthenticatorIs401(t *testing.T) {
 func TestCaptureHTTPExposesRequest(t *testing.T) {
 	s := newTestServer(t)
 	var seen *http.Request
+	var ua string
 	probe := func(ctx context.Context, _ http.ResponseWriter, _ *http.Request, _ any) (any, error) {
 		seen = httpRequest(ctx)
+		ua = userAgent(ctx)
 		return nil, nil
 	}
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	req.Header.Set("User-Agent", "probe/1.0")
 	_, _ = captureHTTP(probe, "probe")(req.Context(), httptest.NewRecorder(), req, nil)
-	if seen == nil || userAgent(seen.Context()) != "probe/1.0" {
-		t.Fatalf("request not captured: %v", seen)
+	if seen == nil || ua != "probe/1.0" {
+		t.Fatalf("request not captured: %v, ua %q", seen, ua)
 	}
 	req.Header.Set("X-Forwarded-Proto", "https")
 	if s.requestIsHTTPS(req) {
