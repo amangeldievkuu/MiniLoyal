@@ -40,3 +40,9 @@ ORDER BY tu.created_at;
 
 -- name: TenantSlugExists :one
 SELECT EXISTS (SELECT 1 FROM tenants WHERE slug = $1);
+
+-- name: GetTeamMember :one
+SELECT tu.user_id, u.email, u.display_name, tu.role, tu.created_at
+FROM tenant_users tu
+JOIN users u ON u.id = tu.user_id
+WHERE tu.tenant_id = $1 AND tu.user_id = $2;

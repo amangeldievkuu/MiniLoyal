@@ -24,3 +24,6 @@ DELETE FROM stores WHERE id = $1;
 
 -- name: CountStaffInStore :one
 SELECT count(*) FROM staff WHERE store_id = $1;
+
+-- name: GetStoreTenant :one
+SELECT tenant_id FROM stores WHERE id = $1;

@@ -13,6 +13,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/api"
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
+	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 )
 
 // Deps are the collaborators the server needs. Phase packages add their
@@ -31,6 +32,9 @@ type Deps struct {
 	// APIKeys verifies server API keys (internal/tenant). Nil means every
 	// X-API-Key is rejected.
 	APIKeys APIKeyAuthenticator
+	// Tenants serves tenants, team, apps, channels, stores, staff, API keys
+	// and the audit log.
+	Tenants *tenant.Service
 }
 
 // Server implements api.StrictServerInterface.
@@ -42,6 +46,7 @@ type Server struct {
 	auth      *auth.Service
 	dashboard DashboardAuthenticator
 	apiKeys   APIKeyAuthenticator
+	tenants   *tenant.Service
 	started   time.Time
 	now       func() time.Time
 }
@@ -66,6 +71,7 @@ func New(d Deps) *Server {
 		auth:      d.Auth,
 		dashboard: d.Dashboard,
 		apiKeys:   d.APIKeys,
+		tenants:   d.Tenants,
 		started:   time.Now(),
 		now:       time.Now,
 	}

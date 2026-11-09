@@ -47,12 +47,12 @@ paths:
       summary: Liveness probe
       description: The process is up and serving requests.
       responses:
-        "200":
+        '200':
           description: Alive
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Health"
+                $ref: '#/components/schemas/Health'
   /readyz:
     get:
       tags: [system]
@@ -60,18 +60,18 @@ paths:
       summary: Readiness probe
       description: The process can reach its database.
       responses:
-        "200":
+        '200':
           description: Ready
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Health"
-        "503":
+                $ref: '#/components/schemas/Health'
+        '503':
           description: Not ready
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: '#/components/schemas/Error'
 
   # ----------------------------------------------------------------- auth
   /v1/dashboard/auth/register:
@@ -87,24 +87,24 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RegisterRequest"
+              $ref: '#/components/schemas/RegisterRequest'
       responses:
-        "201":
+        '201':
           description: Signed in
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Session"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "409":
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
           description: Email already registered
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-        "429":
-          $ref: "#/components/responses/TooManyRequests"
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/dashboard/auth/login:
     post:
       tags: [dashboard-auth]
@@ -119,20 +119,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LoginRequest"
+              $ref: '#/components/schemas/LoginRequest'
       responses:
-        "200":
+        '200':
           description: Session or MFA challenge
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LoginResult"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "429":
-          $ref: "#/components/responses/TooManyRequests"
+                $ref: '#/components/schemas/LoginResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/dashboard/auth/mfa:
     post:
       tags: [dashboard-auth]
@@ -143,20 +143,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MfaRequest"
+              $ref: '#/components/schemas/MfaRequest'
       responses:
-        "200":
+        '200':
           description: Signed in
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Session"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "429":
-          $ref: "#/components/responses/TooManyRequests"
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/dashboard/auth/refresh:
     post:
       tags: [dashboard-auth]
@@ -167,16 +167,16 @@ paths:
         the whole token family, except for a bounded number of lost
         responses (see the auth service).
       responses:
-        "200":
+        '200':
           description: New session
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Session"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "429":
-          $ref: "#/components/responses/TooManyRequests"
+                $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /v1/dashboard/auth/logout:
     post:
       tags: [dashboard-auth]
@@ -184,7 +184,7 @@ paths:
       summary: Sign out this device
       description: Revokes the refresh token in the cookie and clears it.
       responses:
-        "204":
+        '204':
           description: Signed out
 
   # ------------------------------------------------------------------- me
@@ -196,14 +196,14 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "200":
+        '200':
           description: Profile
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Me"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
+                $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/dashboard/me/password:
     post:
       tags: [dashboard-me]
@@ -216,24 +216,24 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PasswordChangeRequest"
+              $ref: '#/components/schemas/PasswordChangeRequest'
       responses:
-        "200":
+        '200':
           description: New session for this device
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Session"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
           description: Current password is wrong
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: '#/components/schemas/Error'
   /v1/dashboard/me/logout-all:
     post:
       tags: [dashboard-me]
@@ -243,10 +243,10 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "204":
+        '204':
           description: Signed out everywhere
-        "401":
-          $ref: "#/components/responses/Unauthorized"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/dashboard/me/totp/enroll:
     post:
       tags: [dashboard-me]
@@ -258,20 +258,20 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "200":
+        '200':
           description: Pending enrollment
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TotpEnrollment"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "409":
+                $ref: '#/components/schemas/TotpEnrollment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
           description: TOTP is already enabled
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: '#/components/schemas/Error'
   /v1/dashboard/me/totp/confirm:
     post:
       tags: [dashboard-me]
@@ -284,24 +284,24 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TotpCodeRequest"
+              $ref: '#/components/schemas/TotpCodeRequest'
       responses:
-        "200":
+        '200':
           description: TOTP enabled; recovery codes shown once
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TotpConfirmed"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "409":
+                $ref: '#/components/schemas/TotpConfirmed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
           description: No pending enrollment, or already enabled
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: '#/components/schemas/Error'
   /v1/dashboard/me/totp:
     delete:
       tags: [dashboard-me]
@@ -314,20 +314,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TotpDisableRequest"
+              $ref: '#/components/schemas/TotpDisableRequest'
       responses:
-        "204":
+        '204':
           description: Disabled
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
           description: Password or code is wrong
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: '#/components/schemas/Error'
 
   # -------------------------------------------------------------- tenants
   /v1/dashboard/tenants:
@@ -338,19 +338,19 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "200":
+        '200':
           description: Tenants with the caller's role in each
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Membership"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
+                  $ref: '#/components/schemas/Membership'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /v1/dashboard/tenants/{tenantId}:
     parameters:
-      - $ref: "#/components/parameters/TenantId"
+      - $ref: '#/components/parameters/TenantId'
     get:
       tags: [tenants]
       operationId: getTenant
@@ -358,16 +358,16 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "200":
+        '200':
           description: Tenant
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Tenant"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                $ref: '#/components/schemas/Tenant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
     patch:
       tags: [tenants]
       operationId: updateTenant
@@ -376,33 +376,33 @@ paths:
       security:
         - dashboardSession: []
       parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TenantUpdate"
+              $ref: '#/components/schemas/TenantUpdate'
       responses:
-        "200":
+        '200':
           description: Updated tenant
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Tenant"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/IdempotencyMismatch"
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
   /v1/dashboard/tenants/{tenantId}/team:
     parameters:
-      - $ref: "#/components/parameters/TenantId"
+      - $ref: '#/components/parameters/TenantId'
     get:
       tags: [tenants]
       operationId: listTeam
@@ -410,18 +410,18 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "200":
+        '200':
           description: Team members
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/TeamMember"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                  $ref: '#/components/schemas/TeamMember'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
     post:
       tags: [tenants]
       operationId: addTeamMember
@@ -433,43 +433,43 @@ paths:
       security:
         - dashboardSession: []
       parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TeamMemberAdd"
+              $ref: '#/components/schemas/TeamMemberAdd'
       responses:
-        "201":
+        '201':
           description: Added
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TeamMember"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
+                $ref: '#/components/schemas/TeamMember'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
           description: Tenant or user not found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-        "409":
+                $ref: '#/components/schemas/Error'
+        '409':
           description: Already a member
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-        "422":
-          $ref: "#/components/responses/IdempotencyMismatch"
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
   /v1/dashboard/tenants/{tenantId}/team/{userId}:
     parameters:
-      - $ref: "#/components/parameters/TenantId"
+      - $ref: '#/components/parameters/TenantId'
       - name: userId
         in: path
         required: true
@@ -484,36 +484,36 @@ paths:
       security:
         - dashboardSession: []
       parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TeamMemberUpdate"
+              $ref: '#/components/schemas/TeamMemberUpdate'
       responses:
-        "200":
+        '200':
           description: Updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TeamMember"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
+                $ref: '#/components/schemas/TeamMember'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
           description: Would leave the tenant without an owner
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-        "422":
-          $ref: "#/components/responses/IdempotencyMismatch"
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
     delete:
       tags: [tenants]
       operationId: removeTeamMember
@@ -522,23 +522,23 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "204":
+        '204':
           description: Removed
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
           description: Would leave the tenant without an owner
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: '#/components/schemas/Error'
   /v1/dashboard/tenants/{tenantId}/audit-log:
     parameters:
-      - $ref: "#/components/parameters/TenantId"
+      - $ref: '#/components/parameters/TenantId'
     get:
       tags: [audit]
       operationId: listAuditLog
@@ -546,8 +546,8 @@ paths:
       security:
         - dashboardSession: []
       parameters:
-        - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Cursor"
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
         - name: app_id
           in: query
           required: false
@@ -555,23 +555,23 @@ paths:
             type: string
             format: uuid
       responses:
-        "200":
+        '200':
           description: A page of audit entries
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuditPage"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                $ref: '#/components/schemas/AuditPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ----------------------------------------------------------------- apps
   /v1/dashboard/tenants/{tenantId}/apps:
     parameters:
-      - $ref: "#/components/parameters/TenantId"
+      - $ref: '#/components/parameters/TenantId'
     get:
       tags: [apps]
       operationId: listApps
@@ -579,18 +579,18 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "200":
+        '200':
           description: Apps
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/App"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                  $ref: '#/components/schemas/App'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
     post:
       tags: [apps]
       operationId: createApp
@@ -599,39 +599,39 @@ paths:
       security:
         - dashboardSession: []
       parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AppCreate"
+              $ref: '#/components/schemas/AppCreate'
       responses:
-        "201":
+        '201':
           description: Created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/App"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
+                $ref: '#/components/schemas/App'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
           description: Slug already used in this tenant, or plan limit reached
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-        "422":
-          $ref: "#/components/responses/IdempotencyMismatch"
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
   /v1/dashboard/apps/{appId}:
     parameters:
-      - $ref: "#/components/parameters/AppId"
+      - $ref: '#/components/parameters/AppId'
     get:
       tags: [apps]
       operationId: getApp
@@ -639,16 +639,16 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "200":
+        '200':
           description: App
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/App"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                $ref: '#/components/schemas/App'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
     patch:
       tags: [apps]
       operationId: updateApp
@@ -659,33 +659,33 @@ paths:
       security:
         - dashboardSession: []
       parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AppUpdate"
+              $ref: '#/components/schemas/AppUpdate'
       responses:
-        "200":
+        '200':
           description: Updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/App"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/IdempotencyMismatch"
+                $ref: '#/components/schemas/App'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
   /v1/dashboard/apps/{appId}/channels:
     parameters:
-      - $ref: "#/components/parameters/AppId"
+      - $ref: '#/components/parameters/AppId'
     get:
       tags: [apps]
       operationId: listAppChannels
@@ -694,22 +694,22 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "200":
+        '200':
           description: Channels
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/AppChannel"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                  $ref: '#/components/schemas/AppChannel'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /v1/dashboard/apps/{appId}/channels/{environment}:
     parameters:
-      - $ref: "#/components/parameters/AppId"
-      - $ref: "#/components/parameters/ChannelEnvironment"
+      - $ref: '#/components/parameters/AppId'
+      - $ref: '#/components/parameters/ChannelEnvironment'
     put:
       tags: [apps]
       operationId: putAppChannel
@@ -718,30 +718,30 @@ paths:
       security:
         - dashboardSession: []
       parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AppChannelPut"
+              $ref: '#/components/schemas/AppChannelPut'
       responses:
-        "200":
+        '200':
           description: Saved
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AppChannel"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/IdempotencyMismatch"
+                $ref: '#/components/schemas/AppChannel'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
     delete:
       tags: [apps]
       operationId: deleteAppChannel
@@ -749,19 +749,19 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "204":
+        '204':
           description: Removed
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # --------------------------------------------------------------- stores
   /v1/dashboard/apps/{appId}/stores:
     parameters:
-      - $ref: "#/components/parameters/AppId"
+      - $ref: '#/components/parameters/AppId'
     get:
       tags: [stores]
       operationId: listStores
@@ -769,18 +769,18 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "200":
+        '200':
           description: Stores
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Store"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                  $ref: '#/components/schemas/Store'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
     post:
       tags: [stores]
       operationId: createStore
@@ -788,36 +788,36 @@ paths:
       security:
         - dashboardSession: []
       parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/StoreCreate"
+              $ref: '#/components/schemas/StoreCreate'
       responses:
-        "201":
+        '201':
           description: Created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Store"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
+                $ref: '#/components/schemas/Store'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
           description: Store code already used in this app
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-        "422":
-          $ref: "#/components/responses/IdempotencyMismatch"
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
   /v1/dashboard/stores/{storeId}:
     parameters:
       - name: storeId
@@ -833,30 +833,30 @@ paths:
       security:
         - dashboardSession: []
       parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/StoreUpdate"
+              $ref: '#/components/schemas/StoreUpdate'
       responses:
-        "200":
+        '200':
           description: Updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Store"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/IdempotencyMismatch"
+                $ref: '#/components/schemas/Store'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
     delete:
       tags: [stores]
       operationId: deleteStore
@@ -865,25 +865,25 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "204":
+        '204':
           description: Deleted
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
           description: Staff are still assigned to this store
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: '#/components/schemas/Error'
 
   # ---------------------------------------------------------------- staff
   /v1/dashboard/apps/{appId}/staff:
     parameters:
-      - $ref: "#/components/parameters/AppId"
+      - $ref: '#/components/parameters/AppId'
     get:
       tags: [staff]
       operationId: listStaff
@@ -891,18 +891,18 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "200":
+        '200':
           description: Staff
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Staff"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                  $ref: '#/components/schemas/Staff'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
     post:
       tags: [staff]
       operationId: createStaff
@@ -913,34 +913,34 @@ paths:
       security:
         - dashboardSession: []
       parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/StaffCreate"
+              $ref: '#/components/schemas/StaffCreate'
       responses:
-        "201":
+        '201':
           description: Created, with a one-time invite code
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StaffCreated"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
+                $ref: '#/components/schemas/StaffCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
           description: App or store not found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
-        "422":
-          $ref: "#/components/responses/IdempotencyMismatch"
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
   /v1/dashboard/staff/{staffId}:
     parameters:
       - name: staffId
@@ -956,30 +956,30 @@ paths:
       security:
         - dashboardSession: []
       parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/StaffUpdate"
+              $ref: '#/components/schemas/StaffUpdate'
       responses:
-        "200":
+        '200':
           description: Updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Staff"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/IdempotencyMismatch"
+                $ref: '#/components/schemas/Staff'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
     delete:
       tags: [staff]
       operationId: deleteStaff
@@ -987,19 +987,19 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "204":
+        '204':
           description: Removed
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ------------------------------------------------------------- api keys
   /v1/dashboard/apps/{appId}/api-keys:
     parameters:
-      - $ref: "#/components/parameters/AppId"
+      - $ref: '#/components/parameters/AppId'
     get:
       tags: [api-keys]
       operationId: listApiKeys
@@ -1007,18 +1007,18 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "200":
+        '200':
           description: Keys (never the secret)
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/ApiKey"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                  $ref: '#/components/schemas/ApiKey'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
     post:
       tags: [api-keys]
       operationId: createApiKey
@@ -1027,30 +1027,30 @@ paths:
       security:
         - dashboardSession: []
       parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ApiKeyCreate"
+              $ref: '#/components/schemas/ApiKeyCreate'
       responses:
-        "201":
+        '201':
           description: Created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiKeyCreated"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/IdempotencyMismatch"
+                $ref: '#/components/schemas/ApiKeyCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
   /v1/dashboard/api-keys/{keyId}:
     parameters:
       - name: keyId
@@ -1066,14 +1066,14 @@ paths:
       security:
         - dashboardSession: []
       responses:
-        "204":
+        '204':
           description: Revoked
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # --------------------------------------------------------------- server
   /v1/app:
@@ -1085,14 +1085,14 @@ paths:
       security:
         - apiKey: []
       responses:
-        "200":
+        '200':
           description: App
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/App"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
+                $ref: '#/components/schemas/App'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
 components:
   parameters:
@@ -1124,7 +1124,7 @@ components:
       in: path
       required: true
       schema:
-        $ref: "#/components/schemas/ChannelEnvironment"
+        $ref: '#/components/schemas/ChannelEnvironment'
     Limit:
       name: limit
       in: query
@@ -1147,37 +1147,37 @@ components:
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'
     Unauthorized:
       description: Missing, expired or invalid credentials
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'
     Forbidden:
       description: The caller's role does not allow this
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'
     NotFound:
       description: Not found, or not visible to this tenant
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'
     TooManyRequests:
       description: Rate limit exceeded; retry after the Retry-After seconds
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'
     IdempotencyMismatch:
       description: Idempotency-Key was already used with a different payload
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'
   securitySchemes:
     memberSession:
       type: http
@@ -1205,7 +1205,7 @@ components:
           enum: [ok]
         version:
           type: string
-          example: "0.1.0"
+          example: '0.1.0'
         uptime_seconds:
           type: integer
           format: int64
@@ -1245,7 +1245,7 @@ components:
           minLength: 1
           maxLength: 100
         tenant_type:
-          $ref: "#/components/schemas/TenantType"
+          $ref: '#/components/schemas/TenantType'
     LoginRequest:
       type: object
       required: [email, password]
@@ -1262,9 +1262,9 @@ components:
       description: Exactly one of session or mfa is present.
       properties:
         session:
-          $ref: "#/components/schemas/Session"
+          $ref: '#/components/schemas/Session'
         mfa:
-          $ref: "#/components/schemas/MfaChallenge"
+          $ref: '#/components/schemas/MfaChallenge'
     MfaChallenge:
       type: object
       required: [mfa_token, expires_in]
@@ -1299,7 +1299,7 @@ components:
           type: integer
           description: Seconds until the access token expires.
         user:
-          $ref: "#/components/schemas/User"
+          $ref: '#/components/schemas/User'
     User:
       type: object
       required: [id, email, totp_enabled, created_at]
@@ -1323,11 +1323,11 @@ components:
       required: [user, memberships]
       properties:
         user:
-          $ref: "#/components/schemas/User"
+          $ref: '#/components/schemas/User'
         memberships:
           type: array
           items:
-            $ref: "#/components/schemas/Membership"
+            $ref: '#/components/schemas/Membership'
     PasswordChangeRequest:
       type: object
       required: [current_password, new_password]
@@ -1394,7 +1394,7 @@ components:
           type: string
           format: uuid
         type:
-          $ref: "#/components/schemas/TenantType"
+          $ref: '#/components/schemas/TenantType'
         name:
           type: string
         slug:
@@ -1423,9 +1423,9 @@ components:
       required: [tenant, role]
       properties:
         tenant:
-          $ref: "#/components/schemas/Tenant"
+          $ref: '#/components/schemas/Tenant'
         role:
-          $ref: "#/components/schemas/Role"
+          $ref: '#/components/schemas/Role'
     TeamMember:
       type: object
       required: [user_id, email, role, created_at]
@@ -1440,7 +1440,7 @@ components:
           type: string
           nullable: true
         role:
-          $ref: "#/components/schemas/Role"
+          $ref: '#/components/schemas/Role'
         created_at:
           type: string
           format: date-time
@@ -1452,13 +1452,13 @@ components:
           type: string
           format: email
         role:
-          $ref: "#/components/schemas/Role"
+          $ref: '#/components/schemas/Role'
     TeamMemberUpdate:
       type: object
       required: [role]
       properties:
         role:
-          $ref: "#/components/schemas/Role"
+          $ref: '#/components/schemas/Role'
 
     # ---- apps
     AppStatus:
@@ -1470,7 +1470,8 @@ components:
       description: The three internal channels of one LINE MINI App channel.
     App:
       type: object
-      required: [id, tenant_id, name, slug, locale, status, oa_channel_secret_set, created_at, updated_at]
+      required:
+        [id, tenant_id, name, slug, locale, status, oa_channel_secret_set, created_at, updated_at]
       properties:
         id:
           type: string
@@ -1486,7 +1487,7 @@ components:
           type: string
           description: BCP 47 tag used for member-facing defaults, for example zh-TW.
         status:
-          $ref: "#/components/schemas/AppStatus"
+          $ref: '#/components/schemas/AppStatus'
         oa_channel_id:
           type: string
           nullable: true
@@ -1513,7 +1514,7 @@ components:
           maxLength: 100
         slug:
           type: string
-          pattern: "^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$"
+          pattern: '^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$'
           description: URL-safe identifier, derived from the name when omitted.
         locale:
           type: string
@@ -1530,7 +1531,7 @@ components:
           type: string
           maxLength: 16
         status:
-          $ref: "#/components/schemas/AppStatus"
+          $ref: '#/components/schemas/AppStatus'
         oa_channel_id:
           type: string
           maxLength: 32
@@ -1549,7 +1550,7 @@ components:
       required: [environment, channel_id, liff_id, channel_secret_set, created_at]
       properties:
         environment:
-          $ref: "#/components/schemas/ChannelEnvironment"
+          $ref: '#/components/schemas/ChannelEnvironment'
         channel_id:
           type: string
           description: LINE MINI App channel ID; the ID token audience.
@@ -1600,7 +1601,7 @@ components:
           type: string
           nullable: true
         status:
-          $ref: "#/components/schemas/AppStatus"
+          $ref: '#/components/schemas/AppStatus'
         created_at:
           type: string
           format: date-time
@@ -1634,7 +1635,7 @@ components:
           maxLength: 300
           nullable: true
         status:
-          $ref: "#/components/schemas/AppStatus"
+          $ref: '#/components/schemas/AppStatus'
 
     # ---- staff
     StaffRole:
@@ -1657,9 +1658,9 @@ components:
         display_name:
           type: string
         role:
-          $ref: "#/components/schemas/StaffRole"
+          $ref: '#/components/schemas/StaffRole'
         status:
-          $ref: "#/components/schemas/AppStatus"
+          $ref: '#/components/schemas/AppStatus'
         line_linked:
           type: boolean
           description: Whether the staff member has signed in to the staff app with LINE.
@@ -1678,10 +1679,10 @@ components:
           type: string
           format: uuid
         role:
-          $ref: "#/components/schemas/StaffRole"
+          $ref: '#/components/schemas/StaffRole'
     StaffCreated:
       allOf:
-        - $ref: "#/components/schemas/Staff"
+        - $ref: '#/components/schemas/Staff'
         - type: object
           required: [invite_code]
           properties:
@@ -1700,9 +1701,9 @@ components:
           format: uuid
           nullable: true
         role:
-          $ref: "#/components/schemas/StaffRole"
+          $ref: '#/components/schemas/StaffRole'
         status:
-          $ref: "#/components/schemas/AppStatus"
+          $ref: '#/components/schemas/AppStatus'
 
     # ---- api keys
     ApiKeyScope:
@@ -1733,7 +1734,7 @@ components:
         scopes:
           type: array
           items:
-            $ref: "#/components/schemas/ApiKeyScope"
+            $ref: '#/components/schemas/ApiKeyScope'
         last_used_at:
           type: string
           format: date-time
@@ -1753,10 +1754,10 @@ components:
           type: array
           minItems: 1
           items:
-            $ref: "#/components/schemas/ApiKeyScope"
+            $ref: '#/components/schemas/ApiKeyScope'
     ApiKeyCreated:
       allOf:
-        - $ref: "#/components/schemas/ApiKey"
+        - $ref: '#/components/schemas/ApiKey'
         - type: object
           required: [key]
           properties:
@@ -1780,7 +1781,7 @@ components:
           format: uuid
           nullable: true
         actor_type:
-          $ref: "#/components/schemas/AuditActorType"
+          $ref: '#/components/schemas/AuditActorType'
         actor_id:
           type: string
           format: uuid
@@ -1809,7 +1810,7 @@ components:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/AuditEntry"
+            $ref: '#/components/schemas/AuditEntry'
         next_cursor:
           type: string
           nullable: true

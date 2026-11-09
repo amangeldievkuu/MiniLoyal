@@ -12,6 +12,49 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimIdempotencyKey = `-- name: ClaimIdempotencyKey :one
+INSERT INTO idempotency_keys (tenant_id, scope, key, request_hash, expires_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (tenant_id, scope, key) DO UPDATE SET key = EXCLUDED.key
+RETURNING (created_at = now())::boolean AS inserted, request_hash, status_code, response_body
+`
+
+type ClaimIdempotencyKeyParams struct {
+	TenantID    uuid.UUID          `json:"tenant_id"`
+	Scope       string             `json:"scope"`
+	Key         string             `json:"key"`
+	RequestHash []byte             `json:"request_hash"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+}
+
+type ClaimIdempotencyKeyRow struct {
+	Inserted     bool   `json:"inserted"`
+	RequestHash  []byte `json:"request_hash"`
+	StatusCode   *int32 `json:"status_code"`
+	ResponseBody []byte `json:"response_body"`
+}
+
+// A locking upsert: a concurrent duplicate blocks on the row until the first
+// request commits, then sees its stored outcome. inserted is true only for the
+// row this transaction created (created_at defaults to this transaction's now()).
+func (q *Queries) ClaimIdempotencyKey(ctx context.Context, arg ClaimIdempotencyKeyParams) (ClaimIdempotencyKeyRow, error) {
+	row := q.db.QueryRow(ctx, claimIdempotencyKey,
+		arg.TenantID,
+		arg.Scope,
+		arg.Key,
+		arg.RequestHash,
+		arg.ExpiresAt,
+	)
+	var i ClaimIdempotencyKeyRow
+	err := row.Scan(
+		&i.Inserted,
+		&i.RequestHash,
+		&i.StatusCode,
+		&i.ResponseBody,
+	)
+	return i, err
+}
+
 const completeIdempotencyKey = `-- name: CompleteIdempotencyKey :exec
 UPDATE idempotency_keys SET status_code = $4, response_body = $5
 WHERE tenant_id = $1 AND scope = $2 AND key = $3

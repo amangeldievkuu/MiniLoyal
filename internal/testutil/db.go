@@ -37,6 +37,9 @@ import (
 // AppPassword is the login role's password in test databases.
 const AppPassword = "miniloyal_api"
 
+// rolesLockID serialises role creation across test processes.
+const rolesLockID = 72300011
+
 // DB is a database created for one test with every migration applied.
 type DB struct {
 	// Admin connects as the owner: use it for fixtures and assertions that
@@ -88,8 +91,21 @@ func NewDB(t testing.TB) *DB {
 	if err != nil {
 		t.Fatalf("testutil: open database: %v", err)
 	}
-	if err := migrate.Roles(ctx, owner, AppPassword); err != nil {
-		t.Fatalf("testutil: roles: %v", err)
+	// Roles are cluster-wide. Test packages run in parallel, and concurrent
+	// ALTER ROLE statements fail with "tuple concurrently updated", so take an
+	// advisory lock on the shared admin database around role setup.
+	lock, err := root.Conn(ctx)
+	if err != nil {
+		t.Fatalf("testutil: lock connection: %v", err)
+	}
+	if _, err := lock.ExecContext(ctx, "SELECT pg_advisory_lock($1)", rolesLockID); err != nil {
+		t.Fatalf("testutil: advisory lock: %v", err)
+	}
+	rolesErr := migrate.Roles(ctx, owner, AppPassword)
+	_, _ = lock.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", rolesLockID)
+	_ = lock.Close()
+	if rolesErr != nil {
+		t.Fatalf("testutil: roles: %v", rolesErr)
 	}
 	if err := migrate.Up(ctx, owner); err != nil {
 		t.Fatalf("testutil: migrate: %v", err)

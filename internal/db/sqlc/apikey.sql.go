@@ -102,6 +102,17 @@ func (q *Queries) GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, 
 	return i, err
 }
 
+const getApiKeyTenant = `-- name: GetApiKeyTenant :one
+SELECT tenant_id FROM api_keys WHERE id = $1
+`
+
+func (q *Queries) GetApiKeyTenant(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getApiKeyTenant, id)
+	var tenant_id uuid.UUID
+	err := row.Scan(&tenant_id)
+	return tenant_id, err
+}
+
 const listApiKeys = `-- name: ListApiKeys :many
 SELECT id, tenant_id, app_id, name, prefix, key_hash, scopes, last_used_at, revoked_at, created_by_user_id, created_at FROM api_keys WHERE app_id = $1 AND revoked_at IS NULL ORDER BY created_at
 `

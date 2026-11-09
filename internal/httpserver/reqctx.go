@@ -33,6 +33,8 @@ func httpRequest(ctx context.Context) *http.Request {
 
 // httpResponse returns the response writer behind ctx, or nil outside a
 // handler. Set headers and cookies on it before returning the response.
+//
+//lint:ignore U1000 used by the auth handlers to set session cookies
 func httpResponse(ctx context.Context) http.ResponseWriter {
 	p, _ := ctx.Value(httpCtxKey{}).(httpPair)
 	return p.w
