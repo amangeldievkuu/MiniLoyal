@@ -76,42 +76,6 @@ func (s *Service) ListTeam(ctx context.Context, p principal.Principal, tenantID 
 	return rows, err
 }
 
-// AddTeamMember adds an existing dashboard user to the tenant.
-func (s *Service) AddTeamMember(ctx context.Context, p principal.Principal, tenantID uuid.UUID, idem Idem, email string, role principal.Role) (sqlc.GetTeamMemberRow, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-	if email == "" || !strings.Contains(email, "@") {
-		return sqlc.GetTeamMemberRow{}, apierr.Validation(map[string]string{"email": "is invalid"})
-	}
-	if !role.Valid() {
-		return sqlc.GetTeamMemberRow{}, apierr.Validation(map[string]string{"role": "must be owner, admin or staff"})
-	}
-	return write(ctx, s, p, tenantID, principal.RoleAdmin, idem, func(ctx context.Context, tx pgx.Tx, actor principal.Role) (sqlc.GetTeamMemberRow, error) {
-		if !canGrant(actor, role) {
-			return sqlc.GetTeamMemberRow{}, apierr.Forbidden("admins cannot grant the owner role")
-		}
-		q := sqlc.New(tx)
-		user, err := q.GetUserByEmail(ctx, email)
-		if err != nil {
-			return sqlc.GetTeamMemberRow{}, notFound(err, "user")
-		}
-		if _, err := q.InsertMembership(ctx, sqlc.InsertMembershipParams{TenantID: tenantID, UserID: user.ID, Role: string(role)}); err != nil {
-			if db.IsUniqueViolation(err, "") {
-				return sqlc.GetTeamMemberRow{}, apierr.Conflict("that user is already a member")
-			}
-			return sqlc.GetTeamMemberRow{}, fmt.Errorf("tenant: add member: %w", err)
-		}
-		row, err := q.GetTeamMember(ctx, sqlc.GetTeamMemberParams{TenantID: tenantID, UserID: user.ID})
-		if err != nil {
-			return sqlc.GetTeamMemberRow{}, fmt.Errorf("tenant: read member: %w", err)
-		}
-		return row, audit.Record(ctx, tx, audit.Entry{
-			TenantID: tenantID, Actor: p, Action: audit.TeamAdd,
-			TargetType: "user", TargetID: user.ID.String(),
-			Metadata: map[string]any{"role": string(role)},
-		})
-	})
-}
-
 // UpdateTeamMember changes a member's role. Owners only; the last owner
 // cannot be demoted.
 func (s *Service) UpdateTeamMember(ctx context.Context, p principal.Principal, tenantID, userID uuid.UUID, idem Idem, role principal.Role) (sqlc.GetTeamMemberRow, error) {

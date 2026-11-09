@@ -21,6 +21,8 @@ const (
 	TeamAdd          = "team.add"
 	TeamUpdate       = "team.update"
 	TeamRemove       = "team.remove"
+	TeamInvite       = "team.invite"
+	TeamInviteRevoke = "team.invite_revoke"
 	AppCreate        = "app.create"
 	AppUpdate        = "app.update"
 	AppChannelPut    = "app.channel.put"

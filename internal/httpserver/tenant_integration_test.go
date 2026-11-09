@@ -281,7 +281,7 @@ func TestStaffRoleIsReadOnly(t *testing.T) {
 	want(t, staff.patch("/v1/dashboard/apps/"+app.Id.String(), uuid.NewString(), map[string]any{"name": "No"}), http.StatusForbidden)
 	want(t, staff.post("/v1/dashboard/apps/"+app.Id.String()+"/stores", uuid.NewString(), map[string]any{"name": "No"}), http.StatusForbidden)
 	want(t, staff.patch("/v1/dashboard/tenants/"+w.tenantA.String(), uuid.NewString(), map[string]any{"name": "No"}), http.StatusForbidden)
-	want(t, staff.post("/v1/dashboard/tenants/"+w.tenantA.String()+"/team", uuid.NewString(), map[string]any{"email": "loner@example.com", "role": "staff"}), http.StatusForbidden)
+	want(t, staff.post("/v1/dashboard/tenants/"+w.tenantA.String()+"/invitations", uuid.NewString(), map[string]any{"email": "loner@example.com", "role": "staff"}), http.StatusForbidden)
 	// Unauthenticated and unknown tokens.
 	want(t, w.call(http.MethodGet, "/v1/dashboard/tenants", "", "", "", nil), http.StatusUnauthorized)
 	want(t, w.call(http.MethodGet, "/v1/dashboard/tenants", "nobody", "", "", nil), http.StatusUnauthorized)
@@ -310,17 +310,9 @@ func TestTeamRules(t *testing.T) {
 	team := "/v1/dashboard/tenants/" + w.tenantA.String() + "/team"
 	owner, admin := w.as("owner-a"), w.as("admin-a")
 
-	// Admin cannot grant owner; owner can.
-	want(t, admin.post(team, uuid.NewString(), map[string]any{"email": "loner@example.com", "role": "owner"}), http.StatusForbidden)
-	added := admin.post(team, uuid.NewString(), map[string]any{"email": "Loner@Example.com", "role": "staff"})
-	want(t, added, http.StatusCreated)
-	var m api.TeamMember
-	added.into(t, &m)
-	if m.UserId != w.loner || m.Role != "staff" {
-		t.Errorf("member: %+v", m)
-	}
-	want(t, admin.post(team, uuid.NewString(), map[string]any{"email": "loner@example.com", "role": "staff"}), http.StatusConflict)
-	want(t, admin.post(team, uuid.NewString(), map[string]any{"email": "nobody@example.com", "role": "staff"}), http.StatusNotFound)
+	// People join through invitations (invitation_handlers_test.go); here the
+	// loner is already a staff member.
+	w.member(w.tenantA, w.loner, "staff")
 
 	// Role updates are owner-only; the last owner cannot be demoted or removed.
 	want(t, admin.patch(team+"/"+w.loner.String(), uuid.NewString(), map[string]any{"role": "admin"}), http.StatusForbidden)

@@ -120,22 +120,6 @@ func (s *Server) ListTeam(ctx context.Context, req api.ListTeamRequestObject) (a
 	return out, nil
 }
 
-func (s *Server) AddTeamMember(ctx context.Context, req api.AddTeamMemberRequestObject) (api.AddTeamMemberResponseObject, error) {
-	ctx, p, err := s.dashboardCall(ctx)
-	if err != nil {
-		return nil, err
-	}
-	body, err := requireBody(req.Body)
-	if err != nil {
-		return nil, err
-	}
-	row, err := s.tenants.AddTeamMember(ctx, p, uuid.UUID(req.TenantId), idem(ctx, req.Params.IdempotencyKey, body), string(body.Email), principal.Role(body.Role))
-	if err != nil {
-		return nil, err
-	}
-	return api.AddTeamMember201JSONResponse(teamMemberFromGet(row)), nil
-}
-
 func (s *Server) UpdateTeamMember(ctx context.Context, req api.UpdateTeamMemberRequestObject) (api.UpdateTeamMemberResponseObject, error) {
 	ctx, p, err := s.dashboardCall(ctx)
 	if err != nil {

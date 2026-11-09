@@ -99,7 +99,10 @@ func (s *Service) ConfirmTOTP(ctx context.Context, userID uuid.UUID, code string
 		if n != 1 {
 			return apierr.Conflict("TOTP is already enabled")
 		}
-		return s.replaceRecoveryCodes(ctx, q, userID, codes)
+		if err := s.replaceRecoveryCodes(ctx, q, userID, codes); err != nil {
+			return err
+		}
+		return s.recordEvent(ctx, q, userID, EventTOTPEnabled, Client{}, nil)
 	})
 	if err != nil {
 		return nil, err
@@ -139,7 +142,7 @@ func (s *Service) DisableTOTP(ctx context.Context, userID uuid.UUID, password, c
 		if err := q.DeleteRecoveryCodes(ctx, userID); err != nil {
 			return fmt.Errorf("auth: delete recovery codes: %w", err)
 		}
-		return nil
+		return s.recordEvent(ctx, q, userID, EventTOTPDisabled, Client{}, nil)
 	})
 	if err == nil {
 		s.log.InfoContext(ctx, "totp disabled", "user_id", userID)
@@ -159,7 +162,7 @@ func (s *Service) checkSecondFactor(ctx context.Context, user sqlc.User, code st
 		}
 		return s.validateTOTP(ctx, user.ID, string(secret), code)
 	}
-	n, err := s.q.UseRecoveryCode(ctx, sqlc.UseRecoveryCodeParams{UserID: user.ID, CodeHash: hashRecoveryCode(code)})
+	n, err := s.q.UseRecoveryCode(ctx, sqlc.UseRecoveryCodeParams{UserID: user.ID, CodeHash: s.hashRecoveryCode(code)})
 	if err != nil {
 		return false, fmt.Errorf("auth: use recovery code: %w", err)
 	}
@@ -200,7 +203,7 @@ func (s *Service) replaceRecoveryCodes(ctx context.Context, q *sqlc.Queries, use
 		return fmt.Errorf("auth: delete recovery codes: %w", err)
 	}
 	for _, c := range codes {
-		if err := q.InsertRecoveryCode(ctx, sqlc.InsertRecoveryCodeParams{UserID: userID, CodeHash: hashRecoveryCode(c)}); err != nil {
+		if err := q.InsertRecoveryCode(ctx, sqlc.InsertRecoveryCodeParams{UserID: userID, CodeHash: s.hashRecoveryCode(c)}); err != nil {
 			return fmt.Errorf("auth: insert recovery code: %w", err)
 		}
 	}

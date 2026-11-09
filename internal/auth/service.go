@@ -102,6 +102,8 @@ type Service struct {
 	ipLimit    *Limiter
 	emailLimit *Limiter
 	userLimit  *Limiter
+	// recoveryKey is the HMAC key for stored recovery codes.
+	recoveryKey []byte
 }
 
 // New builds a Service. The dummy hash is derived once so sign-in attempts
@@ -145,20 +147,25 @@ func New(d Deps) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	recoveryKey, err := deriveRecoveryKey(cfg.SigningKey)
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
-		pool:       d.Pool,
-		q:          sqlc.New(d.Pool),
-		clock:      d.Clock,
-		log:        d.Log,
-		enc:        d.Encryptor,
-		signer:     &signer{key: cfg.SigningKey, issuer: cfg.Issuer, clock: d.Clock},
-		accessTTL:  cfg.AccessTTL,
-		mfaTTL:     cfg.MFATTL,
-		refreshTTL: cfg.RefreshTTL,
-		dummyHash:  dummy,
-		ipLimit:    NewLimiter(d.Clock, cfg.IPPerMinute, cfg.IPPerMinute),
-		emailLimit: NewLimiter(d.Clock, cfg.EmailPerMinute, cfg.EmailPerMinute),
-		userLimit:  NewLimiter(d.Clock, cfg.UserPerMinute, cfg.UserPerMinute),
+		pool:        d.Pool,
+		q:           sqlc.New(d.Pool),
+		clock:       d.Clock,
+		log:         d.Log,
+		enc:         d.Encryptor,
+		signer:      &signer{key: cfg.SigningKey, issuer: cfg.Issuer, clock: d.Clock},
+		accessTTL:   cfg.AccessTTL,
+		mfaTTL:      cfg.MFATTL,
+		refreshTTL:  cfg.RefreshTTL,
+		dummyHash:   dummy,
+		ipLimit:     NewLimiter(d.Clock, cfg.IPPerMinute, cfg.IPPerMinute),
+		emailLimit:  NewLimiter(d.Clock, cfg.EmailPerMinute, cfg.EmailPerMinute),
+		userLimit:   NewLimiter(d.Clock, cfg.UserPerMinute, cfg.UserPerMinute),
+		recoveryKey: recoveryKey,
 	}, nil
 }
 
@@ -313,6 +320,7 @@ func (s *Service) Login(ctx context.Context, email, password string, c Client) (
 	}
 	if !ok {
 		s.log.InfoContext(ctx, "dashboard login rejected", "user_id", user.ID)
+		s.noteEvent(ctx, user.ID, EventLoginFailed, c, nil)
 		return nil, errUnauthorized
 	}
 
@@ -366,6 +374,7 @@ func (s *Service) CompleteMFA(ctx context.Context, mfaToken, code string, c Clie
 	}
 	if attempts > mfaMaxAttempts {
 		s.log.WarnContext(ctx, "mfa challenge exhausted", "user_id", cl.Subject)
+		s.noteEvent(ctx, cl.Subject, EventMFAExhausted, c, nil)
 		return nil, apierr.Unauthorized("too many attempts, sign in again")
 	}
 	user, err := s.q.GetUser(ctx, cl.Subject)
@@ -384,6 +393,7 @@ func (s *Service) CompleteMFA(ctx context.Context, mfaToken, code string, c Clie
 	}
 	if !ok {
 		s.log.InfoContext(ctx, "mfa code rejected", "user_id", user.ID, "attempt", attempts)
+		s.noteEvent(ctx, user.ID, EventMFAFailed, c, map[string]any{"attempt": attempts})
 		return nil, apierr.Unauthorized("invalid code")
 	}
 	if n, err := s.q.MarkMfaChallengeUsed(ctx, jti); err != nil {
@@ -400,6 +410,9 @@ func (s *Service) signInUser(ctx context.Context, user sqlc.User, c Client) (*Se
 	err := s.inTx(ctx, func(q *sqlc.Queries) error {
 		if err := q.TouchUserLogin(ctx, user.ID); err != nil {
 			return fmt.Errorf("auth: touch login: %w", err)
+		}
+		if err := s.recordEvent(ctx, q, user.ID, EventLoginSuccess, c, nil); err != nil {
+			return err
 		}
 		var err error
 		sess, err = s.issueSession(ctx, q, user, uuid.New(), uuid.NullUUID{}, c)
@@ -436,7 +449,7 @@ func (s *Service) LogoutAll(ctx context.Context, userID uuid.UUID) error {
 		if err := q.RevokeUserRefreshTokens(ctx, userID); err != nil {
 			return fmt.Errorf("auth: revoke refresh tokens: %w", err)
 		}
-		return nil
+		return s.recordEvent(ctx, q, userID, EventSessionsEnded, Client{}, nil)
 	})
 	if err == nil {
 		s.log.InfoContext(ctx, "signed out everywhere", "user_id", userID)
@@ -479,6 +492,9 @@ func (s *Service) ChangePassword(ctx context.Context, userID uuid.UUID, current,
 			return fmt.Errorf("auth: revoke refresh tokens: %w", err)
 		}
 		user.PasswordHash = hash
+		if err := s.recordEvent(ctx, q, userID, EventPasswordChanged, c, nil); err != nil {
+			return err
+		}
 		var err error
 		sess, err = s.issueSession(ctx, q, user, uuid.New(), uuid.NullUUID{}, c)
 		return err

@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/hkdf"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,12 +11,16 @@ import (
 	"strings"
 )
 
-// Recovery codes: 10 characters from an alphabet without look-alikes,
-// shown as XXXXX-XXXXX and stored as SHA-256 hex of the normalized form.
+// Recovery codes: 10 characters from an alphabet without look-alikes, shown
+// as XXXXX-XXXXX. They carry about 50 bits of entropy, so the stored form is
+// an HMAC under a server key rather than a plain hash: a database dump alone
+// cannot be brute-forced back into working codes.
 const (
 	recoveryAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 	recoveryCodeLen  = 10
 	recoveryCodes    = 8
+
+	recoveryKeyInfo = "miniloyal/recovery-codes"
 )
 
 func newRecoveryCode() (string, error) {
@@ -37,10 +43,25 @@ func normalizeRecoveryCode(s string) string {
 	return strings.NewReplacer("-", "", " ", "").Replace(s)
 }
 
-// hashRecoveryCode is the stored form.
-func hashRecoveryCode(s string) string {
-	sum := sha256.Sum256([]byte(normalizeRecoveryCode(s)))
-	return hex.EncodeToString(sum[:])
+// deriveRecoveryKey derives the HMAC key for recovery codes from the session
+// signing key, so one configured secret protects both.
+func deriveRecoveryKey(signingKey []byte) ([]byte, error) {
+	key, err := hkdf.Key(sha256.New, signingKey, nil, recoveryKeyInfo, 32)
+	if err != nil {
+		return nil, fmt.Errorf("auth: derive recovery key: %w", err)
+	}
+	return key, nil
+}
+
+// hashRecoveryCodeWith is the stored form of a code under key.
+func hashRecoveryCodeWith(key []byte, code string) string {
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte(normalizeRecoveryCode(code)))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func (s *Service) hashRecoveryCode(code string) string {
+	return hashRecoveryCodeWith(s.recoveryKey, code)
 }
 
 // looksLikeTOTP reports whether code is a six-digit one-time password.

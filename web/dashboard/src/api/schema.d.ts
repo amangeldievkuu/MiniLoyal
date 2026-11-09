@@ -307,14 +307,7 @@ export interface paths {
         /** Team members of the tenant */
         get: operations["listTeam"];
         put?: never;
-        /**
-         * Add an existing dashboard user to the tenant (deprecated, use invitations)
-         * @deprecated
-         * @description The user must already have a dashboard account. Owners can grant any
-         *     role; admins can grant admin or staff. Email invitations arrive in a
-         *     later phase.
-         */
-        post: operations["addTeamMember"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1035,11 +1028,6 @@ export interface components {
             role: components["schemas"]["Role"];
             /** Format: date-time */
             created_at: string;
-        };
-        TeamMemberAdd: {
-            /** Format: email */
-            email: string;
-            role: components["schemas"]["Role"];
         };
         TeamMemberUpdate: {
             role: components["schemas"]["Role"];
@@ -1887,57 +1875,6 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
-        };
-    };
-    addTeamMember: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                tenantId: components["parameters"]["TenantId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TeamMemberAdd"];
-            };
-        };
-        responses: {
-            /** @description Added */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TeamMember"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            /** @description Tenant or user not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Already a member */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            422: components["responses"]["IdempotencyMismatch"];
         };
     };
     removeTeamMember: {
