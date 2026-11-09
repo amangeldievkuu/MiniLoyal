@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -89,5 +90,28 @@ func TestAPIKeyWithoutAuthenticatorIs401(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401", rec.Code)
+	}
+}
+
+func TestCaptureHTTPExposesRequest(t *testing.T) {
+	s := newTestServer(t)
+	var seen *http.Request
+	probe := func(ctx context.Context, _ http.ResponseWriter, _ *http.Request, _ any) (any, error) {
+		seen = httpRequest(ctx)
+		return nil, nil
+	}
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	req.Header.Set("User-Agent", "probe/1.0")
+	_, _ = captureHTTP(probe, "probe")(req.Context(), httptest.NewRecorder(), req, nil)
+	if seen == nil || userAgent(seen.Context()) != "probe/1.0" {
+		t.Fatalf("request not captured: %v", seen)
+	}
+	req.Header.Set("X-Forwarded-Proto", "https")
+	if s.requestIsHTTPS(req) {
+		t.Error("X-Forwarded-Proto must be ignored unless TRUST_PROXY is set")
+	}
+	s.cfg.TrustProxy = true
+	if !s.requestIsHTTPS(req) {
+		t.Error("X-Forwarded-Proto should be honoured behind the trusted proxy")
 	}
 }

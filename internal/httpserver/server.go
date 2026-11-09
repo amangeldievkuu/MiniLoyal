@@ -66,7 +66,7 @@ func New(d Deps) *Server {
 // Handler returns the HTTP handler with every route and middleware.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	strict := api.NewStrictHandlerWithOptions(s, nil, api.StrictHTTPServerOptions{
+	strict := api.NewStrictHandlerWithOptions(s, []api.StrictMiddlewareFunc{captureHTTP}, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  s.requestError,
 		ResponseErrorHandlerFunc: s.responseError,
 	})
