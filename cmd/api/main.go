@@ -14,10 +14,13 @@ import (
 	"time"
 
 	"github.com/amangeldievkuu/miniloyal/internal/httpserver"
+	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
+	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/log"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/otel"
+	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 )
 
 // version is set at build time: -ldflags "-X main.version=...".
@@ -67,11 +70,20 @@ func run() int {
 	}
 	defer pool.Close()
 
+	keyring, err := crypto.FromConfig(cfg)
+	if err != nil {
+		logger.Error("keyring setup failed", "err", err)
+		return 1
+	}
+	tenants := tenant.New(pool, keyring, clock.Real{}, logger)
+
 	srv := &http.Server{
 		Addr: cfg.APIAddr,
 		Handler: httpserver.New(httpserver.Deps{
 			Config: cfg, Log: logger, DB: pool, Version: version,
-			// Dashboard and APIKeys authenticators are wired by the Phase 1 services.
+			APIKeys: tenants,
+			Tenants: tenants,
+			// Dashboard (internal/auth) is wired by the auth service.
 		}).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
