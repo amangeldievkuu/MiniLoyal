@@ -1,5 +1,5 @@
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { api, asApiError, unwrap } from '../api/client';
@@ -14,7 +14,14 @@ export function AcceptInvitePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { token?: unknown };
-  const token = typeof search.token === 'string' ? search.token : '';
+  // The token is read once and removed from the address bar, so it does not
+  // linger in browser history.
+  const [token] = useState(() => (typeof search.token === 'string' ? search.token : ''));
+  useEffect(() => {
+    if (token && typeof window !== 'undefined') {
+      window.history.replaceState(window.history.state, '', '/accept-invite');
+    }
+  }, [token]);
 
   async function onAccepted(session: Session) {
     await sessionStore.start(session);
@@ -85,6 +92,20 @@ export function AcceptInviteForm({
   }
 
   const apiError = asApiError(error);
+  if (apiError?.code === 'sign_in_required') {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-xl font-semibold">{t('auth.acceptInvite.title')}</h1>
+        <Alert tone="neutral">{t('auth.acceptInvite.signInRequired')}</Alert>
+        <Link
+          to="/login"
+          className="block text-center font-medium text-brand-700 hover:underline dark:text-brand-500"
+        >
+          {t('auth.acceptInvite.goSignIn')}
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={submit} className="space-y-4" aria-busy={pending}>

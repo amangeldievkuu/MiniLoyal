@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -21,6 +22,10 @@ import (
 )
 
 // Service handles webhook deliveries.
+// maxEventAge matches the webhook_inbound_events retention (DeleteOldInboundEvents).
+const maxEventAge = 7 * 24 * time.Hour
+
+// Service processes inbound LINE webhooks.
 type Service struct {
 	pool    *pgxpool.Pool
 	tenants *tenant.Service
@@ -82,6 +87,12 @@ func (s *Service) Receive(ctx context.Context, appID uuid.UUID, signature string
 		q := sqlc.New(tx)
 		for _, ev := range req.Events {
 			if ev.WebhookEventID == "" {
+				res.Ignored++
+				continue
+			}
+			// Dedupe rows are kept for a week; an older signed delivery
+			// could otherwise be replayed once its row is gone.
+			if ev.Timestamp > 0 && time.Since(time.UnixMilli(ev.Timestamp)) > maxEventAge {
 				res.Ignored++
 				continue
 			}

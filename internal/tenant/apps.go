@@ -259,7 +259,7 @@ func (s *Service) UpdateApp(ctx context.Context, p principal.Principal, appID uu
 				if err != nil {
 					return sqlc.App{}, err
 				}
-				if in.OABasicID == nil && info.BasicID != "" {
+				if in.OABasicID == nil && info.BasicID != "" && len(info.BasicID) <= 32 && strings.HasPrefix(info.BasicID, "@") {
 					basic := info.BasicID
 					params.OaBasicID = &basic
 				}

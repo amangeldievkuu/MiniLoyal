@@ -113,41 +113,6 @@ func (q *Queries) GetApp(ctx context.Context, id uuid.UUID) (App, error) {
 	return i, err
 }
 
-const getAppChannelsByChannelID = `-- name: GetAppChannelsByChannelID :many
-SELECT id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc, created_at, updated_at, verified_at FROM app_channels WHERE channel_id = $1
-`
-
-func (q *Queries) GetAppChannelsByChannelID(ctx context.Context, channelID string) ([]AppChannel, error) {
-	rows, err := q.db.Query(ctx, getAppChannelsByChannelID, channelID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []AppChannel
-	for rows.Next() {
-		var i AppChannel
-		if err := rows.Scan(
-			&i.ID,
-			&i.TenantID,
-			&i.AppID,
-			&i.Environment,
-			&i.ChannelID,
-			&i.LiffID,
-			&i.ChannelSecretEnc,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.VerifiedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getAppTenant = `-- name: GetAppTenant :one
 SELECT tenant_id FROM apps WHERE id = $1
 `
@@ -273,15 +238,6 @@ func (q *Queries) ListApps(ctx context.Context, tenantID uuid.UUID) ([]App, erro
 		return nil, err
 	}
 	return items, nil
-}
-
-const setAppChannelVerified = `-- name: SetAppChannelVerified :exec
-UPDATE app_channels SET verified_at = now(), updated_at = now() WHERE id = $1
-`
-
-func (q *Queries) SetAppChannelVerified(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, setAppChannelVerified, id)
-	return err
 }
 
 const setAppOAVerified = `-- name: SetAppOAVerified :exec

@@ -813,8 +813,11 @@ export interface paths {
         put?: never;
         /**
          * Accept an invitation link
-         * @description Creates the account when the email has none yet (password required),
-         *     adds the membership and signs the user in. Sets the refresh cookie.
+         * @description Creates the account when the invited email has none yet (password
+         *     required), adds the membership and signs the user in. An email that
+         *     already has an account must be signed in as that account (send its
+         *     dashboard bearer token); a password is never accepted for it, so the
+         *     link cannot bypass TOTP. Sets the refresh cookie.
          */
         post: operations["acceptInvitation"];
         delete?: never;
@@ -1326,7 +1329,7 @@ export interface components {
         };
         AcceptInvitationRequest: {
             token: string;
-            /** @description Required when the invited email has no account yet. */
+            /** @description Required when the invited email has no account yet. Ignored for existing accounts, which must be signed in instead. */
             password?: string;
             display_name?: string;
         };
@@ -2942,7 +2945,7 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
-            /** @description Invalid, expired or already used invitation */
+            /** @description Invalid, expired or already used invitation, or (code sign_in_required) the invited email has an account and the caller is not signed in as it */
             401: {
                 headers: {
                     [name: string]: unknown;

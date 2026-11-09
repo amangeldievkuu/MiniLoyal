@@ -96,3 +96,7 @@ LIMIT sqlc.arg('page_limit');
 
 -- name: CountMembers :one
 SELECT count(*) FROM members WHERE app_id = $1 AND anonymized_at IS NULL;
+
+-- name: AnonymizeMemberConsents :exec
+-- Erasure keeps the consent version and time but drops the device details.
+UPDATE member_consents SET ip = NULL, user_agent = NULL WHERE member_id = $1;

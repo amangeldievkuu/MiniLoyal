@@ -105,7 +105,9 @@ func run() int {
 		tenants.SetChannelVerifier(line.NewChannelVerifier(lineTokens, lineMessaging))
 	}
 	idTokens := line.NewVerifier(line.VerifierOptions{
-		HTTPClient: lineHTTP, Clock: clock.Real{}, Log: logger, VerifyEndpointFallback: true,
+		// No remote verify fallback: LIFF tokens are ES256 and verifiable
+		// locally; an unknown kid after a fresh JWKS is simply a bad token.
+		HTTPClient: lineHTTP, Clock: clock.Real{}, Log: logger, VerifyEndpointFallback: false,
 	})
 	webhooks := webhook.New(pool, tenants, logger)
 
@@ -115,13 +117,13 @@ func run() int {
 		Verifier: lineVerifier{v: idTokens},
 		Clock:    clock.Real{},
 		Log:      logger,
-		Config:   lineauth.Config{SigningKey: cfg.SessionSigningKey},
+		Config:   lineauth.Config{SigningKey: cfg.SessionSigningKey, RequireVerifiedChannels: !cfg.LineSkipCredentialVerification},
 	})
 	if err != nil {
 		logger.Error("line auth setup failed", "err", err)
 		return 1
 	}
-	members := member.New(member.Deps{Pool: pool, Tenants: tenants, Clock: clock.Real{}, Log: logger})
+	members := member.New(member.Deps{Pool: pool, Tenants: tenants, Keyring: keyring, Clock: clock.Real{}, Log: logger})
 
 	srv := &http.Server{
 		Addr: cfg.APIAddr,

@@ -127,7 +127,14 @@ func (s *Service) AuthenticateAPIKey(ctx context.Context, key string) (principal
 			}
 			return fmt.Errorf("tenant: API key lookup: %w", err)
 		}
-		app, err = q.GetApp(ctx, row.AppID)
+		return nil
+	})
+	if err != nil {
+		return principal.Principal{}, err
+	}
+	err = db.WithTenant(ctx, s.pool, row.TenantID, func(ctx context.Context, tx pgx.Tx) error {
+		var err error
+		app, err = sqlc.New(tx).GetApp(ctx, row.AppID)
 		if err != nil {
 			if db.IsNotFound(err) {
 				return apierr.Unauthorized("invalid API key")

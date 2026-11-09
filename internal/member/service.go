@@ -8,8 +8,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
 	"log/slog"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,6 +41,8 @@ type Deps struct {
 	Tenants *tenant.Service
 	Clock   clock.Clock
 	Log     *slog.Logger
+	// Keyring encrypts stored idempotent outcomes, which carry member PII.
+	Keyring crypto.Keyring
 }
 
 // Service is the member domain.
@@ -50,8 +54,8 @@ type Service struct {
 	log     *slog.Logger
 }
 
-// New returns a Service. Member outcomes carry no secrets, so idempotent
-// replays are stored as plain JSON.
+// New returns a Service. Idempotent outcomes hold member profiles, so they
+// are stored encrypted when a keyring is given.
 func New(d Deps) *Service {
 	if d.Clock == nil {
 		d.Clock = clock.Real{}
@@ -59,10 +63,14 @@ func New(d Deps) *Service {
 	if d.Log == nil {
 		d.Log = slog.Default()
 	}
+	var codec idempotency.Codec
+	if d.Keyring != nil {
+		codec = idempotency.NewEncryptedCodec(d.Keyring)
+	}
 	return &Service{
 		pool:    d.Pool,
 		tenants: d.Tenants,
-		idem:    idempotency.New(d.Pool, nil, d.Clock),
+		idem:    idempotency.New(d.Pool, codec, d.Clock),
 		clock:   d.Clock,
 		log:     d.Log,
 	}
@@ -212,6 +220,9 @@ func (s *Service) EraseSelf(ctx context.Context, p principal.Principal) error {
 		if n != 1 {
 			return apierr.NotFound("member")
 		}
+		if err := s.eraseTraces(ctx, q, p.TenantID, p.MemberID); err != nil {
+			return err
+		}
 		s.log.InfoContext(ctx, "member erased their data", "member_id", p.MemberID, "app_id", p.AppID)
 		return nil
 	})
@@ -238,7 +249,7 @@ func (s *Service) List(ctx context.Context, p principal.Principal, appID uuid.UU
 		}
 		params := sqlc.ListMembersParams{AppID: appID, PageLimit: int32(limit + 1)}
 		if in.Q != "" {
-			q := in.Q
+			q := escapeLike(in.Q)
 			params.Q = &q
 		}
 		if cursor != nil {
@@ -273,6 +284,11 @@ func (s *Service) Get(ctx context.Context, p principal.Principal, memberID uuid.
 // Export handles an access request on the member's behalf. Owners and
 // admins only; audited.
 func (s *Service) Export(ctx context.Context, p principal.Principal, memberID uuid.UUID) (Export, error) {
+	// Only dashboard users export on a member's behalf, and every export is
+	// audited; a future server route must not skip that.
+	if !p.IsUser() {
+		return Export{}, apierr.NotFound("member")
+	}
 	var out Export
 	err := s.readMember(ctx, p, memberID, principal.RoleAdmin, func(ctx context.Context, tx pgx.Tx, m sqlc.Member) error {
 		var err error
@@ -295,12 +311,16 @@ func (s *Service) Erase(ctx context.Context, p principal.Principal, memberID uui
 		return apierr.NotFound("member")
 	}
 	return s.readMember(ctx, p, memberID, principal.RoleAdmin, func(ctx context.Context, tx pgx.Tx, m sqlc.Member) error {
-		n, err := sqlc.New(tx).AnonymizeMember(ctx, m.ID)
+		q := sqlc.New(tx)
+		n, err := q.AnonymizeMember(ctx, m.ID)
 		if err != nil {
 			return fmt.Errorf("member: anonymize: %w", err)
 		}
 		if n != 1 {
 			return apierr.NotFound("member")
+		}
+		if err := s.eraseTraces(ctx, q, m.TenantID, m.ID); err != nil {
+			return err
 		}
 		return s.audit(ctx, tx, p, m, ActionErase)
 	})
@@ -450,4 +470,23 @@ func nonEmpty(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// eraseTraces removes what AnonymizeMember cannot: device details on consent
+// records and stored idempotent outcomes that still hold the profile.
+func (s *Service) eraseTraces(ctx context.Context, q *sqlc.Queries, tenantID, memberID uuid.UUID) error {
+	if err := q.AnonymizeMemberConsents(ctx, memberID); err != nil {
+		return fmt.Errorf("member: anonymize consents: %w", err)
+	}
+	if err := q.DeleteIdempotencyScope(ctx, sqlc.DeleteIdempotencyScopeParams{TenantID: tenantID, Scope: idempotency.Scope("member", memberID)}); err != nil {
+		return fmt.Errorf("member: drop idempotent outcomes: %w", err)
+	}
+	return nil
+}
+
+// escapeLike makes %, _ and backslash literal inside the LIKE pattern the
+// list query builds around q (Postgres uses backslash as the escape).
+func escapeLike(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
 }

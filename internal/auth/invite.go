@@ -9,17 +9,27 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
+	"github.com/amangeldievkuu/miniloyal/internal/audit"
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
+	"github.com/amangeldievkuu/miniloyal/internal/principal"
 )
 
-var errBadInvitation = apierr.Unauthorized("invalid, expired or already used invitation")
+var (
+	errBadInvitation = apierr.Unauthorized("invalid, expired or already used invitation")
+	// errSignInRequired tells the dashboard to route through the normal
+	// sign-in (with TOTP) before accepting.
+	errSignInRequired = apierr.New(401, "sign_in_required", "sign in with the invited address to accept this invitation")
+)
 
-// AcceptInvitation redeems an invitation link. Opening the link proves the
-// invitee owns the address. A new address gets an account (the password is
-// required); an existing account confirms its password. Either way the
-// membership is created and the user is signed in.
-func (s *Service) AcceptInvitation(ctx context.Context, token string, password, displayName *string, c Client) (*Session, error) {
+// AcceptInvitation redeems an invitation link.
+//
+// An address without an account gets one: the password is required. An
+// address that already has an account must be signed in as that account
+// (signedIn is its user ID); a password is never accepted for it, so the
+// link can neither bypass TOTP nor serve as a password oracle. Either way
+// the membership is created and a fresh session is issued.
+func (s *Service) AcceptInvitation(ctx context.Context, token string, password, displayName *string, signedIn uuid.UUID, c Client) (*Session, error) {
 	if err := s.allowIP(c.IP); err != nil {
 		return nil, err
 	}
@@ -42,10 +52,19 @@ func (s *Service) AcceptInvitation(ctx context.Context, token string, password, 
 			}
 			return fmt.Errorf("auth: load invitation: %w", err)
 		}
+		// Attempts against one invited address are throttled like sign-ins.
+		if wait, ok := s.emailLimit.Allow("invite:" + inv.Email); !ok {
+			return apierr.RateLimited(wait)
+		}
 
 		user, err := q.GetUserByEmail(ctx, inv.Email)
 		switch {
 		case db.IsNotFound(err):
+			if signedIn != uuid.Nil {
+				// Signed in as someone else: the invitation is for an
+				// address that has no account yet.
+				return errSignInRequired
+			}
 			if password == nil || *password == "" {
 				return apierr.Validation(map[string]string{"password": "is required to create your account"})
 			}
@@ -63,13 +82,8 @@ func (s *Service) AcceptInvitation(ctx context.Context, token string, password, 
 		case err != nil:
 			return fmt.Errorf("auth: load user: %w", err)
 		default:
-			if password == nil || *password == "" {
-				return apierr.Validation(map[string]string{"password": "is required to confirm your account"})
-			}
-			ok, err := VerifyPassword(user.PasswordHash, *password)
-			if err != nil || !ok {
-				s.noteEvent(ctx, user.ID, EventLoginFailed, c, map[string]any{"via": "invitation"})
-				return apierr.Unauthorized("wrong password")
+			if signedIn != user.ID {
+				return errSignInRequired
 			}
 		}
 
@@ -91,6 +105,16 @@ func (s *Service) AcceptInvitation(ctx context.Context, token string, password, 
 		}
 		if err := s.recordEvent(ctx, q, user.ID, EventInviteAccepted, c, map[string]any{"tenant_id": inv.TenantID.String(), "role": inv.Role}); err != nil {
 			return err
+		}
+		if err := audit.Record(ctx, tx, audit.Entry{
+			TenantID:   inv.TenantID,
+			Actor:      principal.Principal{Kind: principal.KindUser, UserID: user.ID},
+			Action:     audit.TeamJoin,
+			TargetType: "user",
+			TargetID:   user.ID.String(),
+			Metadata:   map[string]any{"role": inv.Role, "invitation_id": inv.ID.String()},
+		}); err != nil {
+			return fmt.Errorf("auth: audit join: %w", err)
 		}
 		if err := q.TouchUserLogin(ctx, user.ID); err != nil {
 			return fmt.Errorf("auth: touch login: %w", err)

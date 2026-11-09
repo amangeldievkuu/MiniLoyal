@@ -6,6 +6,3 @@ ON CONFLICT DO NOTHING;
 
 -- name: DeleteOldInboundEvents :execrows
 DELETE FROM webhook_inbound_events WHERE received_at < now() - interval '7 days';
-
--- name: GetAppByOAChannelID :one
-SELECT * FROM apps WHERE oa_channel_id = $1;

@@ -49,8 +49,6 @@ RETURNING *;
 -- name: DeleteAppChannel :execrows
 DELETE FROM app_channels WHERE app_id = $1 AND environment = $2;
 
--- name: GetAppChannelsByChannelID :many
-SELECT * FROM app_channels WHERE channel_id = $1;
 
 -- name: GetAppTenant :one
 SELECT tenant_id FROM apps WHERE id = $1;
@@ -61,8 +59,6 @@ UPDATE apps SET oa_verified_at = now(), updated_at = now() WHERE id = $1;
 -- name: ClearAppOAVerified :exec
 UPDATE apps SET oa_verified_at = NULL, updated_at = now() WHERE id = $1;
 
--- name: SetAppChannelVerified :exec
-UPDATE app_channels SET verified_at = now(), updated_at = now() WHERE id = $1;
 
 -- name: ListAppChannelsForLogin :many
 -- Every configured channel ID of the app is an acceptable ID token audience.

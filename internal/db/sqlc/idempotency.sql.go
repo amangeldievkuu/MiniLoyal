@@ -106,6 +106,21 @@ func (q *Queries) DeleteIdempotencyKey(ctx context.Context, arg DeleteIdempotenc
 	return err
 }
 
+const deleteIdempotencyScope = `-- name: DeleteIdempotencyScope :exec
+DELETE FROM idempotency_keys WHERE tenant_id = $1 AND scope = $2
+`
+
+type DeleteIdempotencyScopeParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Scope    string    `json:"scope"`
+}
+
+// Removes every stored outcome of one principal (used when a member is erased).
+func (q *Queries) DeleteIdempotencyScope(ctx context.Context, arg DeleteIdempotencyScopeParams) error {
+	_, err := q.db.Exec(ctx, deleteIdempotencyScope, arg.TenantID, arg.Scope)
+	return err
+}
+
 const expireIdempotencyKey = `-- name: ExpireIdempotencyKey :exec
 DELETE FROM idempotency_keys
 WHERE tenant_id = $1 AND scope = $2 AND key = $3 AND expires_at <= $4

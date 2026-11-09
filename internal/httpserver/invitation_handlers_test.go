@@ -224,17 +224,21 @@ func TestInvitationAcceptCreatesOrConfirmsTheAccount(t *testing.T) {
 		t.Errorf("login after accept: %d %s", r.status, r.body)
 	}
 
-	// Existing address: the right password is required; no new account.
+	// Existing address: a password is never accepted (it would bypass TOTP);
+	// the account must be signed in to accept.
 	_, otherToken := inviteToken(t, e.invite(owner.AccessToken, tn.Id, "other@example.com", "staff", uuid.NewString()))
 	if r := e.accept(map[string]any{"token": otherToken, "password": "wrong password here"}); r.status != http.StatusUnauthorized {
 		t.Fatalf("wrong password: %d %s", r.status, r.body)
 	}
-	if r := e.accept(map[string]any{"token": otherToken}); r.status != http.StatusBadRequest {
+	if r := e.accept(map[string]any{"token": otherToken}); r.status != http.StatusUnauthorized {
 		t.Fatalf("no password for existing account: %d %s", r.status, r.body)
 	}
-	joined := e.accept(map[string]any{"token": otherToken, "password": "other long password"})
+	if r := e.accept(map[string]any{"token": otherToken, "password": "other long password"}); r.status != http.StatusUnauthorized {
+		t.Fatalf("right password for existing account must still be refused: %d %s", r.status, r.body)
+	}
+	joined := e.do(http.MethodPost, "/v1/dashboard/auth/accept-invite", map[string]any{"token": otherToken}, bearer(other.AccessToken))
 	if joined.status != http.StatusOK {
-		t.Fatalf("accept existing: %d %s", joined.status, joined.body)
+		t.Fatalf("accept existing while signed in: %d %s", joined.status, joined.body)
 	}
 	var joinedSess api.Session
 	joined.into(t, &joinedSess)
@@ -258,7 +262,7 @@ func TestInvitationAcceptCreatesOrConfirmsTheAccount(t *testing.T) {
 	for _, ev := range page.Items {
 		seen[ev.Event] = true
 	}
-	if !seen["invite.accepted"] || !seen["login.failed"] {
+	if !seen["invite.accepted"] {
 		t.Errorf("security events = %v", seen)
 	}
 	for _, tok := range []string{otherToken, newToken} {

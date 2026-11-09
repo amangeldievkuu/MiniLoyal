@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"github.com/amangeldievkuu/miniloyal/internal/audit"
 	"net/url"
 	"strings"
 
@@ -88,7 +89,12 @@ func (s *Server) AcceptInvitation(ctx context.Context, req api.AcceptInvitationR
 	if req.Body == nil {
 		return nil, apierr.BadRequest("request body is required")
 	}
-	sess, err := svc.AcceptInvitation(ctx, req.Body.Token, req.Body.Password, req.Body.DisplayName, s.authClient(ctx))
+	var signedIn uuid.UUID
+	if p, ok := principal.FromContext(ctx); ok && p.IsUser() {
+		signedIn = p.UserID
+	}
+	ctx = audit.WithRequestInfo(ctx, audit.RequestInfo{RequestID: RequestIDFrom(ctx), IP: s.clientIP(httpRequest(ctx))})
+	sess, err := svc.AcceptInvitation(ctx, req.Body.Token, req.Body.Password, req.Body.DisplayName, signedIn, s.authClient(ctx))
 	if err != nil {
 		return nil, err
 	}

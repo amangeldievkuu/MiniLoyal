@@ -90,13 +90,15 @@
     },
     "acceptInvite": {
       "title": "Join the team",
-      "help": "You were invited to a MiniLoyal dashboard. Set a password if you are new, or enter your existing one.",
+      "help": "You were invited to a MiniLoyal dashboard. New here? Set a password to create your account. Already have an account with this email? Sign in first, then open the link again.",
       "password": "Password",
-      "passwordHint": "At least 10 characters. New accounts need one; existing accounts confirm theirs.",
+      "passwordHint": "At least 10 characters. Only needed when you are creating a new account.",
       "displayName": "Display name",
       "submit": "Accept invitation",
       "missingToken": "This invitation link is incomplete. Ask for a new one.",
-      "backToLogin": "Back to sign in"
+      "backToLogin": "Back to sign in",
+      "signInRequired": "This email already has an account. Sign in with it, then open the invitation link again to join the team.",
+      "goSignIn": "Go to sign in"
     }
   },
   "tenant": {

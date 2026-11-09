@@ -90,13 +90,15 @@
     },
     "acceptInvite": {
       "title": "加入團隊",
-      "help": "您受邀加入 MiniLoyal 後台。新使用者請設定密碼，已有帳號者請輸入現有密碼。",
+      "help": "您受邀加入 MiniLoyal 後台。第一次使用請設定密碼建立帳號；若此 Email 已有帳號，請先登入後再開啟邀請連結。",
       "password": "密碼",
-      "passwordHint": "至少 10 個字元。新帳號需要設定；已有帳號者輸入現有密碼。",
+      "passwordHint": "至少 10 個字元，僅建立新帳號時需要。",
       "displayName": "顯示名稱",
       "submit": "接受邀請",
       "missingToken": "這個邀請連結不完整，請重新索取。",
-      "backToLogin": "返回登入"
+      "backToLogin": "返回登入",
+      "signInRequired": "此 Email 已有帳號。請先用它登入，再開啟邀請連結加入團隊。",
+      "goSignIn": "前往登入"
     }
   },
   "tenant": {

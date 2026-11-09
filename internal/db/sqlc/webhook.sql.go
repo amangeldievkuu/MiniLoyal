@@ -23,30 +23,6 @@ func (q *Queries) DeleteOldInboundEvents(ctx context.Context) (int64, error) {
 	return result.RowsAffected(), nil
 }
 
-const getAppByOAChannelID = `-- name: GetAppByOAChannelID :one
-SELECT id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at FROM apps WHERE oa_channel_id = $1
-`
-
-func (q *Queries) GetAppByOAChannelID(ctx context.Context, oaChannelID *string) (App, error) {
-	row := q.db.QueryRow(ctx, getAppByOAChannelID, oaChannelID)
-	var i App
-	err := row.Scan(
-		&i.ID,
-		&i.TenantID,
-		&i.Name,
-		&i.Slug,
-		&i.Locale,
-		&i.Status,
-		&i.OaChannelID,
-		&i.OaBasicID,
-		&i.OaChannelSecretEnc,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OaVerifiedAt,
-	)
-	return i, err
-}
-
 const insertInboundEvent = `-- name: InsertInboundEvent :execrows
 INSERT INTO webhook_inbound_events (tenant_id, app_id, line_webhook_event_id, event_type, redelivery)
 VALUES ($1, $2, $3, $4, $5)

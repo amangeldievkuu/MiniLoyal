@@ -43,6 +43,9 @@ type Config struct {
 	Issuer      string
 	SessionTTL  time.Duration
 	IPPerMinute int
+	// RequireVerifiedChannels accepts an ID token only for channels whose
+	// credentials were proven against LINE. Off only in development.
+	RequireVerifiedChannels bool
 }
 
 // Deps are the service's collaborators. Verifier nil disables sign-in with
@@ -67,6 +70,8 @@ type Service struct {
 	signer     *signer
 	sessionTTL time.Duration
 	ipLimit    *auth.Limiter
+	// requireVerified drops unverified channels from the acceptable audiences.
+	requireVerified bool
 }
 
 // New builds a Service.
@@ -97,15 +102,16 @@ func New(d Deps) (*Service, error) {
 		cfg.IPPerMinute = defaultIPPerMinute
 	}
 	return &Service{
-		pool:       d.Pool,
-		q:          sqlc.New(d.Pool),
-		keyring:    d.Keyring,
-		verifier:   d.Verifier,
-		clock:      d.Clock,
-		log:        d.Log,
-		signer:     &signer{key: cfg.SigningKey, issuer: cfg.Issuer, clock: d.Clock},
-		sessionTTL: cfg.SessionTTL,
-		ipLimit:    auth.NewLimiter(d.Clock, cfg.IPPerMinute, cfg.IPPerMinute),
+		pool:            d.Pool,
+		q:               sqlc.New(d.Pool),
+		keyring:         d.Keyring,
+		verifier:        d.Verifier,
+		clock:           d.Clock,
+		log:             d.Log,
+		signer:          &signer{key: cfg.SigningKey, issuer: cfg.Issuer, clock: d.Clock},
+		requireVerified: cfg.RequireVerifiedChannels,
+		sessionTTL:      cfg.SessionTTL,
+		ipLimit:         auth.NewLimiter(d.Clock, cfg.IPPerMinute, cfg.IPPerMinute),
 	}, nil
 }
 
@@ -188,6 +194,9 @@ func (s *Service) LoginWithLine(ctx context.Context, in LoginInput, c Client) (*
 
 	vin := VerifyInput{ChannelSecrets: map[string]string{}, Nonce: in.Nonce}
 	for _, ch := range channels {
+		if s.requireVerified && !ch.VerifiedAt.Valid {
+			continue
+		}
 		vin.ChannelIDs = append(vin.ChannelIDs, ch.ChannelID)
 		if len(ch.ChannelSecretEnc) == 0 {
 			continue
@@ -197,6 +206,9 @@ func (s *Service) LoginWithLine(ctx context.Context, in LoginInput, c Client) (*
 			return nil, fmt.Errorf("lineauth: decrypt channel secret: %w", err)
 		}
 		vin.ChannelSecrets[ch.ChannelID] = string(secret)
+	}
+	if len(vin.ChannelIDs) == 0 {
+		return nil, errNoChannels
 	}
 	claims, err := s.verifier.Verify(ctx, in.IDToken, vin)
 	if err != nil {
@@ -250,9 +262,14 @@ func (s *Service) AuthenticateMember(ctx context.Context, token string) (princip
 		return principal.Principal{}, errBadSession
 	}
 	var member sqlc.Member
+	var app sqlc.App
 	err = db.WithSystem(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+		q := sqlc.New(tx)
 		var err error
-		member, err = sqlc.New(tx).GetMember(ctx, cl.MemberID)
+		if member, err = q.GetMember(ctx, cl.MemberID); err != nil {
+			return err
+		}
+		app, err = q.GetApp(ctx, member.AppID)
 		return err
 	})
 	if err != nil {
@@ -263,6 +280,10 @@ func (s *Service) AuthenticateMember(ctx context.Context, token string) (princip
 	}
 	if member.AnonymizedAt.Valid {
 		return principal.Principal{}, errMemberErased
+	}
+	// A disabled or suspended app ends its members' sessions at once.
+	if app.Status != "active" {
+		return principal.Principal{}, errBadSession
 	}
 	if member.TenantID != cl.TenantID || member.AppID != cl.AppID {
 		return principal.Principal{}, errBadSession

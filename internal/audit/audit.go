@@ -23,6 +23,7 @@ const (
 	TeamRemove       = "team.remove"
 	TeamInvite       = "team.invite"
 	TeamInviteRevoke = "team.invite_revoke"
+	TeamJoin         = "team.join"
 	AppCreate        = "app.create"
 	AppUpdate        = "app.update"
 	AppChannelPut    = "app.channel.put"

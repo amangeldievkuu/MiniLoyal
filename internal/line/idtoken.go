@@ -38,6 +38,9 @@ const (
 	// jwksRefreshMinInterval bounds how often an unknown key ID may trigger a
 	// JWKS download, so a flood of bad tokens cannot hammer LINE.
 	jwksRefreshMinInterval = time.Minute
+	// jwksMaxAge forces a refresh of a key set this old, so retired keys stop
+	// being trusted even without a restart.
+	jwksMaxAge = 24 * time.Hour
 )
 
 // errBadIDToken is what clients see; the reason is logged at debug level.
@@ -271,13 +274,28 @@ func (v *Verifier) keyFor(ctx context.Context, kid string) (jwk.Key, error) {
 	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	now := v.clock.Now()
 	if v.keys != nil {
 		if key, ok := v.keys.LookupKeyID(kid); ok {
-			return key, nil
+			if now.Sub(v.fetchedAt) <= jwksMaxAge {
+				return key, nil
+			}
+			// A key LINE may have retired: refresh and look again; keep
+			// serving the old set when LINE is unreachable.
+			if err := v.refreshLocked(ctx); err != nil {
+				return key, nil
+			}
+			if key, ok := v.keys.LookupKeyID(kid); ok {
+				return key, nil
+			}
+			return nil, errors.New("kid no longer in JWKS")
 		}
-		if v.clock.Now().Sub(v.fetchedAt) < jwksRefreshMinInterval {
-			return nil, errors.New("unknown kid and JWKS refreshed recently")
-		}
+	}
+	// One download per minute, whether the last one succeeded or not, so a
+	// flood of unknown kids (or a JWKS outage) cannot turn into a flood of
+	// outbound requests.
+	if !v.fetchedAt.IsZero() && now.Sub(v.fetchedAt) < jwksRefreshMinInterval {
+		return nil, errors.New("unknown kid and JWKS refreshed recently")
 	}
 	if err := v.refreshLocked(ctx); err != nil {
 		return nil, err
@@ -290,6 +308,7 @@ func (v *Verifier) keyFor(ctx context.Context, kid string) (jwk.Key, error) {
 }
 
 func (v *Verifier) refreshLocked(ctx context.Context) error {
+	v.fetchedAt = v.clock.Now()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, v.jwksURL, nil)
 	if err != nil {
 		return err

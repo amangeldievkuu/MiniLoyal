@@ -3,12 +3,14 @@ package httpserver
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -54,7 +56,7 @@ func TestReceiveLineWebhookOverHTTP(t *testing.T) {
 		}
 		return res
 	}
-	body := []byte(`{"destination":"U","events":[{"type":"follow","webhookEventId":"http-1","deliveryContext":{"isRedelivery":false},"timestamp":1,"mode":"active","source":{"type":"user","userId":"U77"}}]}`)
+	body := []byte(fmt.Sprintf(`{"destination":"U","events":[{"type":"follow","webhookEventId":"http-1","deliveryContext":{"isRedelivery":false},"timestamp":%d,"mode":"active","source":{"type":"user","userId":"U77"}}]}`, time.Now().UnixMilli()))
 
 	if res := post(appID, body, line.Sign(secret, body)); res.StatusCode != http.StatusOK {
 		t.Fatalf("valid delivery: %d", res.StatusCode)

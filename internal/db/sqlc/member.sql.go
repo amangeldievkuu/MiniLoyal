@@ -42,6 +42,16 @@ func (q *Queries) AnonymizeMember(ctx context.Context, id uuid.UUID) (int64, err
 	return result.RowsAffected(), nil
 }
 
+const anonymizeMemberConsents = `-- name: AnonymizeMemberConsents :exec
+UPDATE member_consents SET ip = NULL, user_agent = NULL WHERE member_id = $1
+`
+
+// Erasure keeps the consent version and time but drops the device details.
+func (q *Queries) AnonymizeMemberConsents(ctx context.Context, memberID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, anonymizeMemberConsents, memberID)
+	return err
+}
+
 const countMembers = `-- name: CountMembers :one
 SELECT count(*) FROM members WHERE app_id = $1 AND anonymized_at IS NULL
 `

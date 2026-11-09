@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -47,7 +48,7 @@ func newFixture(t *testing.T) *fixture {
 }
 
 func event(typ, id, userID string, redelivery bool) []byte {
-	return []byte(fmt.Sprintf(`{"destination":"Ubot","events":[{"type":%q,"webhookEventId":%q,"deliveryContext":{"isRedelivery":%v},"timestamp":1762689600000,"mode":"active","source":{"type":"user","userId":%q}}]}`, typ, id, redelivery, userID))
+	return []byte(fmt.Sprintf(`{"destination":"Ubot","events":[{"type":%q,"webhookEventId":%q,"deliveryContext":{"isRedelivery":%v},"timestamp":%d,"mode":"active","source":{"type":"user","userId":%q}}]}`, typ, id, redelivery, time.Now().UnixMilli(), userID))
 }
 
 func (f *fixture) friend(t *testing.T, userID string) (exists, isFriend bool) {

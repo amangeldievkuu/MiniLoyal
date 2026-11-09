@@ -96,3 +96,15 @@ func TestClientRequestIDIsSanitized(t *testing.T) {
 		}
 	}
 }
+
+func TestWebhookPostsWithoutFetchMetadataAreNotRefusedAsCrossOrigin(t *testing.T) {
+	h := newTestServer(t).Handler()
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/line/00000000-0000-0000-0000-000000000001", strings.NewReader(`{"events":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Line-Signature", "c2ln")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("LINE webhook delivery refused as cross-origin: %s", rec.Body)
+	}
+}

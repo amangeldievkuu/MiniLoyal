@@ -1400,8 +1400,14 @@ paths:
       operationId: acceptInvitation
       summary: Accept an invitation link
       description: |
-        Creates the account when the email has none yet (password required),
-        adds the membership and signs the user in. Sets the refresh cookie.
+        Creates the account when the invited email has none yet (password
+        required), adds the membership and signs the user in. An email that
+        already has an account must be signed in as that account (send its
+        dashboard bearer token); a password is never accepted for it, so the
+        link cannot bypass TOTP. Sets the refresh cookie.
+      security:
+        - {}
+        - dashboardSession: []
       requestBody:
         required: true
         content:
@@ -1418,7 +1424,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          description: Invalid, expired or already used invitation
+          description: Invalid, expired or already used invitation, or (code sign_in_required) the invited email has an account and the caller is not signed in as it
           content:
             application/json:
               schema:
@@ -2499,7 +2505,7 @@ components:
           type: string
           minLength: 10
           maxLength: 200
-          description: Required when the invited email has no account yet.
+          description: Required when the invited email has no account yet. Ignored for existing accounts, which must be signed in instead.
         display_name:
           type: string
           maxLength: 100
