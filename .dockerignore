@@ -11,6 +11,7 @@ docs
 .env
 .env.*
 !.env.example
+secrets
 coverage
 playwright-report
 test-results
