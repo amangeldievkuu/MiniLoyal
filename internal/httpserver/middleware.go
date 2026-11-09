@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"runtime/debug"
+	"strings"
 	"time"
 )
 
@@ -54,12 +55,17 @@ func requestID(next http.Handler) http.Handler {
 }
 
 // limitBody rejects request bodies larger than n bytes; the JSON decoder
-// then fails with *http.MaxBytesError, which requestError maps to 413.
+// then fails with *http.MaxBytesError, which requestError maps to 413. LINE
+// webhook deliveries batch events, so they get webhookMaxBody instead.
 func limitBody(n int64) middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Body != nil {
-				r.Body = http.MaxBytesReader(w, r.Body, n)
+				limit := n
+				if strings.HasPrefix(r.URL.Path, "/webhooks/") {
+					limit = webhookMaxBody
+				}
+				r.Body = http.MaxBytesReader(w, r.Body, limit)
 			}
 			next.ServeHTTP(w, r)
 		})

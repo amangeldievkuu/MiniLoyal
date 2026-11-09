@@ -57,6 +57,11 @@ type Config struct {
 	// TrustProxy makes the API read X-Forwarded-For and X-Forwarded-Proto
 	// from the reverse proxy in front of it (nginx in docker compose).
 	TrustProxy bool
+
+	// LineSkipCredentialVerification stores LINE channel credentials without
+	// proving them against LINE. Development only, for machines without a
+	// LINE channel; refused in staging and production.
+	LineSkipCredentialVerification bool
 }
 
 // Load reads .env (existing environment variables win), then the environment,
@@ -89,7 +94,9 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 		KMSKeyName:      get("KMS_KEY_NAME", ""),
 		OTLPEndpoint:    get("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
 		TrustProxy:      get("TRUST_PROXY", "") == "true",
-		ShutdownTimeout: 15 * time.Second,
+
+		LineSkipCredentialVerification: get("LINE_SKIP_CREDENTIAL_VERIFICATION", "") == "true",
+		ShutdownTimeout:                15 * time.Second,
 	}
 
 	var errs []error
@@ -132,6 +139,10 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 		}
 	} else if cfg.KEKFile == "" && cfg.KMSKeyName == "" {
 		cfg.KEKFile = ".kek"
+	}
+
+	if cfg.LineSkipCredentialVerification && cfg.Env != Development {
+		errs = append(errs, errors.New("LINE_SKIP_CREDENTIAL_VERIFICATION is only allowed in development"))
 	}
 
 	if len(errs) > 0 {

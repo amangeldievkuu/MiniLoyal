@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
 	"github.com/amangeldievkuu/miniloyal/internal/audit"
@@ -33,7 +34,8 @@ type AppUpdate struct {
 	OAChannelSecret *string
 }
 
-// ChannelPut is the input for PutChannel. A nil Secret keeps the stored one.
+// ChannelPut is the input for PutChannel. The secret is required: it proves
+// control of the channel and verifies HS256 tokens.
 type ChannelPut struct {
 	ChannelID string
 	LiffID    string
@@ -216,6 +218,17 @@ func (s *Service) UpdateApp(ctx context.Context, p principal.Principal, appID uu
 				OaBasicID:          app.OaBasicID,
 				OaChannelSecretEnc: app.OaChannelSecretEnc,
 			}
+			// The plaintext secret in effect after this update, for verification.
+			secret := ""
+			if in.OAChannelSecret != nil {
+				secret = *in.OAChannelSecret
+			} else if len(app.OaChannelSecretEnc) > 0 {
+				plain, err := s.keyring.Decrypt(ctx, app.OaChannelSecretEnc, oaSecretAAD(appID))
+				if err != nil {
+					return sqlc.App{}, fmt.Errorf("tenant: decrypt OA secret: %w", err)
+				}
+				secret = string(plain)
+			}
 			if in.OAChannelID != nil {
 				params.OaChannelID = nullIfEmpty(strings.TrimSpace(*in.OAChannelID))
 				changed = append(changed, "oa_channel_id")
@@ -236,12 +249,41 @@ func (s *Service) UpdateApp(ctx context.Context, p principal.Principal, appID uu
 					params.OaChannelSecretEnc = enc
 				}
 			}
+			// Proof of control: LINE must accept the ID and secret pair before
+			// it is trusted. Verification also fills the basic ID when the
+			// caller did not supply one.
+			credentialsChanged := in.OAChannelID != nil || in.OAChannelSecret != nil
+			verified := false
+			if credentialsChanged && params.OaChannelID != nil && secret != "" && s.verifier != nil {
+				info, err := s.verifier.VerifyMessagingChannel(ctx, *params.OaChannelID, secret)
+				if err != nil {
+					return sqlc.App{}, err
+				}
+				if in.OABasicID == nil && info.BasicID != "" {
+					basic := info.BasicID
+					params.OaBasicID = &basic
+				}
+				verified = true
+			}
 			app, err = q.UpdateAppOA(ctx, params)
 			if err != nil {
 				if db.IsUniqueViolation(err, "apps_oa_channel_idx") {
 					return sqlc.App{}, apierr.Conflict("that LINE Official Account is already linked to another app")
 				}
 				return sqlc.App{}, fmt.Errorf("tenant: update OA: %w", err)
+			}
+			if credentialsChanged {
+				if verified {
+					err = q.SetAppOAVerified(ctx, appID)
+				} else {
+					err = q.ClearAppOAVerified(ctx, appID)
+				}
+				if err != nil {
+					return sqlc.App{}, fmt.Errorf("tenant: OA verification stamp: %w", err)
+				}
+				if app, err = q.GetApp(ctx, appID); err != nil {
+					return sqlc.App{}, fmt.Errorf("tenant: reload app: %w", err)
+				}
 			}
 		}
 		if len(changed) == 0 {
@@ -300,7 +342,9 @@ func (s *Service) PutChannel(ctx context.Context, p principal.Principal, appID u
 	if in.LiffID == "" || len(in.LiffID) > 64 {
 		fields["liff_id"] = "is required (at most 64 characters)"
 	}
-	if in.Secret != nil && len(*in.Secret) > 128 {
+	if in.Secret == nil || strings.TrimSpace(*in.Secret) == "" {
+		fields["channel_secret"] = "is required"
+	} else if len(*in.Secret) > 128 {
 		fields["channel_secret"] = "is too long"
 	}
 	if len(fields) > 0 {
@@ -311,28 +355,35 @@ func (s *Service) PutChannel(ctx context.Context, p principal.Principal, appID u
 		return sqlc.AppChannel{}, err
 	}
 	return write(ctx, s, p, tenantID, principal.RoleAdmin, idem, func(ctx context.Context, tx pgx.Tx, _ principal.Role) (sqlc.AppChannel, error) {
-		var enc []byte
-		if in.Secret != nil && *in.Secret != "" {
-			var err error
-			enc, err = s.keyring.Encrypt(ctx, []byte(*in.Secret), channelSecretAAD(appID, environment))
-			if err != nil {
-				return sqlc.AppChannel{}, fmt.Errorf("tenant: encrypt channel secret: %w", err)
+		// Proof of control: LINE must mint a token for this ID and secret.
+		var verified pgtype.Timestamptz
+		if s.verifier != nil {
+			if err := s.verifier.VerifyMiniAppChannel(ctx, in.ChannelID, *in.Secret); err != nil {
+				return sqlc.AppChannel{}, err
 			}
+			verified = pgtype.Timestamptz{Time: s.clock.Now(), Valid: true}
+		}
+		enc, err := s.keyring.Encrypt(ctx, []byte(*in.Secret), channelSecretAAD(appID, environment))
+		if err != nil {
+			return sqlc.AppChannel{}, fmt.Errorf("tenant: encrypt channel secret: %w", err)
 		}
 		ch, err := sqlc.New(tx).UpsertAppChannel(ctx, sqlc.UpsertAppChannelParams{
 			ID: newID(), TenantID: tenantID, AppID: appID, Environment: environment,
-			ChannelID: in.ChannelID, LiffID: in.LiffID, ChannelSecretEnc: enc,
+			ChannelID: in.ChannelID, LiffID: in.LiffID, ChannelSecretEnc: enc, VerifiedAt: verified,
 		})
 		if err != nil {
 			if db.IsUniqueViolation(err, "app_channels_liff_idx") {
 				return sqlc.AppChannel{}, apierr.Conflict("that LIFF ID is already registered")
+			}
+			if db.IsUniqueViolation(err, "app_channels_channel_env_idx") {
+				return sqlc.AppChannel{}, apierr.Conflict("that LINE channel is already registered to another app")
 			}
 			return sqlc.AppChannel{}, fmt.Errorf("tenant: upsert channel: %w", err)
 		}
 		return ch, audit.Record(ctx, tx, audit.Entry{
 			TenantID: tenantID, AppID: &appID, Actor: p, Action: audit.AppChannelPut,
 			TargetType: "app_channel", TargetID: ch.ID.String(),
-			Metadata: map[string]any{"environment": environment, "channel_id": in.ChannelID, "liff_id": in.LiffID, "secret_set": enc != nil || in.Secret == nil},
+			Metadata: map[string]any{"environment": environment, "channel_id": in.ChannelID, "liff_id": in.LiffID, "verified": verified.Valid},
 		})
 	})
 }

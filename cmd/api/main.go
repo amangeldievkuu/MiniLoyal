@@ -15,6 +15,7 @@ import (
 
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/httpserver"
+	"github.com/amangeldievkuu/miniloyal/internal/line"
 	"github.com/amangeldievkuu/miniloyal/internal/lineauth"
 	"github.com/amangeldievkuu/miniloyal/internal/member"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
@@ -24,6 +25,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/platform/log"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/otel"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
+	"github.com/amangeldievkuu/miniloyal/internal/webhook"
 )
 
 // version is set at build time: -ldflags "-X main.version=...".
@@ -90,11 +92,27 @@ func run() int {
 		return 1
 	}
 	tenants := tenant.New(pool, keyring, clock.Real{}, logger)
+
+	// LINE Platform clients. Credentials are proven against LINE before they
+	// are stored, webhooks are verified with the stored secret, and member
+	// sign-in verifies LIFF ID tokens against LINE's JWKS.
+	lineHTTP := &http.Client{Timeout: 5 * time.Second}
+	lineTokens := line.NewTokenSource(line.TokenSourceOptions{HTTPClient: lineHTTP, Clock: clock.Real{}})
+	lineMessaging := line.NewMessaging(line.MessagingOptions{HTTPClient: lineHTTP, Tokens: lineTokens})
+	if cfg.LineSkipCredentialVerification {
+		logger.Warn("LINE credential verification is disabled (LINE_SKIP_CREDENTIAL_VERIFICATION); credentials are stored unverified")
+	} else {
+		tenants.SetChannelVerifier(line.NewChannelVerifier(lineTokens, lineMessaging))
+	}
+	idTokens := line.NewVerifier(line.VerifierOptions{
+		HTTPClient: lineHTTP, Clock: clock.Real{}, Log: logger, VerifyEndpointFallback: true,
+	})
+	webhooks := webhook.New(pool, tenants, logger)
+
 	lineAuth, err := lineauth.New(lineauth.Deps{
-		Pool:    pool,
-		Keyring: keyring,
-		// Verifier: the LINE ID token verifier from internal/line plugs in here; until then sign-in answers 503.
-		Verifier: nil,
+		Pool:     pool,
+		Keyring:  keyring,
+		Verifier: lineVerifier{v: idTokens},
 		Clock:    clock.Real{},
 		Log:      logger,
 		Config:   lineauth.Config{SigningKey: cfg.SessionSigningKey},
@@ -110,9 +128,12 @@ func run() int {
 		Handler: httpserver.New(httpserver.Deps{
 			Config: cfg, Log: logger, DB: pool, Version: version,
 			Auth: authSvc, Dashboard: authSvc,
-			APIKeys: tenants,
-			Tenants: tenants,
-			Members: lineAuth, LineAuth: lineAuth, MemberSvc: members,
+			APIKeys:   tenants,
+			Tenants:   tenants,
+			Members:   lineAuth,
+			LineAuth:  lineAuth,
+			MemberSvc: members,
+			Webhooks:  webhooks,
 		}).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,

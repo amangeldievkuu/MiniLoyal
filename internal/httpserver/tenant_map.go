@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -51,8 +52,10 @@ func teamMemberFromGet(r sqlc.GetTeamMemberRow) api.TeamMember {
 	return m
 }
 
-func toApp(a sqlc.App) api.App {
-	return api.App{
+// toApp renders an app. The webhook URL is derived from PUBLIC_BASE_URL so
+// the dashboard can show what to paste into the LINE console.
+func (s *Server) toApp(a sqlc.App) api.App {
+	out := api.App{
 		Id:                 openapi_types.UUID(a.ID),
 		TenantId:           openapi_types.UUID(a.TenantID),
 		Name:               a.Name,
@@ -62,27 +65,38 @@ func toApp(a sqlc.App) api.App {
 		OaChannelId:        a.OaChannelID,
 		OaBasicId:          a.OaBasicID,
 		OaChannelSecretSet: len(a.OaChannelSecretEnc) > 0,
+		WebhookUrl:         strings.TrimRight(s.cfg.PublicBaseURL, "/") + "/webhooks/line/" + a.ID.String(),
 		CreatedAt:          a.CreatedAt.Time,
 		UpdatedAt:          a.UpdatedAt.Time,
 	}
+	if a.OaVerifiedAt.Valid {
+		t := a.OaVerifiedAt.Time
+		out.OaVerifiedAt = &t
+	}
+	return out
 }
 
-func toApps(rows []sqlc.App) []api.App {
+func (s *Server) toApps(rows []sqlc.App) []api.App {
 	out := make([]api.App, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, toApp(r))
+		out = append(out, s.toApp(r))
 	}
 	return out
 }
 
 func toChannel(c sqlc.AppChannel) api.AppChannel {
-	return api.AppChannel{
+	out := api.AppChannel{
 		Environment:      api.ChannelEnvironment(c.Environment),
 		ChannelId:        c.ChannelID,
 		LiffId:           c.LiffID,
 		ChannelSecretSet: len(c.ChannelSecretEnc) > 0,
 		CreatedAt:        c.CreatedAt.Time,
 	}
+	if c.VerifiedAt.Valid {
+		t := c.VerifiedAt.Time
+		out.VerifiedAt = &t
+	}
+	return out
 }
 
 func toStore(st sqlc.Store) api.Store {

@@ -179,7 +179,7 @@ func (s *Server) ListApps(ctx context.Context, req api.ListAppsRequestObject) (a
 	if err != nil {
 		return nil, err
 	}
-	return api.ListApps200JSONResponse(toApps(apps)), nil
+	return api.ListApps200JSONResponse(s.toApps(apps)), nil
 }
 
 func (s *Server) CreateApp(ctx context.Context, req api.CreateAppRequestObject) (api.CreateAppResponseObject, error) {
@@ -197,7 +197,7 @@ func (s *Server) CreateApp(ctx context.Context, req api.CreateAppRequestObject) 
 	if err != nil {
 		return nil, err
 	}
-	return api.CreateApp201JSONResponse(toApp(app)), nil
+	return api.CreateApp201JSONResponse(s.toApp(app)), nil
 }
 
 func (s *Server) GetApp(ctx context.Context, req api.GetAppRequestObject) (api.GetAppResponseObject, error) {
@@ -209,7 +209,7 @@ func (s *Server) GetApp(ctx context.Context, req api.GetAppRequestObject) (api.G
 	if err != nil {
 		return nil, err
 	}
-	return api.GetApp200JSONResponse(toApp(app)), nil
+	return api.GetApp200JSONResponse(s.toApp(app)), nil
 }
 
 func (s *Server) UpdateApp(ctx context.Context, req api.UpdateAppRequestObject) (api.UpdateAppResponseObject, error) {
@@ -228,7 +228,7 @@ func (s *Server) UpdateApp(ctx context.Context, req api.UpdateAppRequestObject) 
 	if err != nil {
 		return nil, err
 	}
-	return api.UpdateApp200JSONResponse(toApp(app)), nil
+	return api.UpdateApp200JSONResponse(s.toApp(app)), nil
 }
 
 // GetCurrentApp serves API keys: the app the key belongs to.
@@ -244,7 +244,7 @@ func (s *Server) GetCurrentApp(ctx context.Context, _ api.GetCurrentAppRequestOb
 	if err != nil {
 		return nil, err
 	}
-	return api.GetCurrentApp200JSONResponse(toApp(app)), nil
+	return api.GetCurrentApp200JSONResponse(s.toApp(app)), nil
 }
 
 // ---- channels

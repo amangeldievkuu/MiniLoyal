@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -103,7 +104,7 @@ var tenantOps = []opCase{
 	{id: "updateApp", method: http.MethodPatch, path: appPath, body: obj("name", "Cafe Renamed"), alt: obj("name", "Cafe Other"), idem: true, min: principal.RoleAdmin, created: 200},
 	{id: "listAppChannels", method: http.MethodGet, path: func(f *matrixFixtures) string { return appPath(f) + "/channels" }, min: principal.RoleStaff},
 	{id: "putAppChannel", method: http.MethodPut, path: func(f *matrixFixtures) string { return appPath(f) + "/channels/review" },
-		body: obj("channel_id", "2007000002", "liff_id", "2007000002-rev"), alt: obj("channel_id", "2007000002", "liff_id", "2007000002-alt"), idem: true, min: principal.RoleAdmin, created: 200, creates: "app_channels", upsert: true},
+		body: obj("channel_id", "2007000002", "liff_id", "2007000002-rev", "channel_secret", "rev-secret"), alt: obj("channel_id", "2007000002", "liff_id", "2007000002-alt", "channel_secret", "rev-secret"), idem: true, min: principal.RoleAdmin, created: 200, creates: "app_channels", upsert: true},
 	{id: "deleteAppChannel", method: http.MethodDelete, path: func(f *matrixFixtures) string { return appPath(f) + "/channels/" + f.channel }, min: principal.RoleAdmin},
 	// stores
 	{id: "listStores", method: http.MethodGet, path: func(f *matrixFixtures) string { return appPath(f) + "/stores" }, min: principal.RoleStaff},
@@ -335,8 +336,10 @@ func TestCrossTenantMatrix(t *testing.T) {
 				if code := r.errCode(t); code != "not_found" {
 					t.Errorf("code = %s, want not_found", code)
 				}
+				// The random hex request ID can spell a marker such as "cafe".
+				scanned := withoutRequestID(r.body)
 				for _, m := range f.markers() {
-					if bytes.Contains(r.body, []byte(m)) {
+					if bytes.Contains(scanned, []byte(m)) {
 						t.Errorf("body leaks %q: %s", m, r.body)
 					}
 				}
@@ -563,4 +566,12 @@ func TestCredentialKindMatrix(t *testing.T) {
 			t.Errorf("table %s changed by refused requests", tbl.name)
 		}
 	}
+}
+
+var requestIDField = regexp.MustCompile(`"request_id":"[^"]*"`)
+
+// withoutRequestID blanks the request_id value so leak checks never match
+// the random hex identifier.
+func withoutRequestID(body []byte) []byte {
+	return requestIDField.ReplaceAll(body, []byte(`"request_id":""`))
 }
