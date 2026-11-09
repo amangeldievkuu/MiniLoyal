@@ -44,6 +44,570 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/dashboard/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a dashboard account and its first tenant
+         * @description Creates the user, a tenant on the free plan and an owner membership,
+         *     then signs the user in. Sets the refresh cookie.
+         */
+        post: operations["dashboardRegister"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign in with email and password
+         * @description Returns a session, or an MFA challenge when the account has TOTP
+         *     enabled. Wrong credentials answer 401 without saying which part was
+         *     wrong. Sets the refresh cookie when a session is returned.
+         */
+        post: operations["dashboardLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/auth/mfa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete sign-in with a TOTP or recovery code */
+        post: operations["dashboardMfa"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange the refresh cookie for a new session
+         * @description Rotates the refresh token. Reusing an already rotated token revokes
+         *     the whole token family, except for a bounded number of lost
+         *     responses (see the auth service).
+         */
+        post: operations["dashboardRefresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign out this device
+         * @description Revokes the refresh token in the cookie and clears it.
+         */
+        post: operations["dashboardLogout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user and their tenant memberships */
+        get: operations["getDashboardMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change the password and end every other session */
+        post: operations["changeDashboardPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/me/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign out everywhere
+         * @description Invalidates every access token and refresh token of the account.
+         */
+        post: operations["dashboardLogoutAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/me/totp/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start TOTP enrollment
+         * @description Returns a new secret and otpauth URL. Nothing changes until the
+         *     code is confirmed. Calling again replaces the pending secret.
+         */
+        post: operations["enrollTotp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/me/totp/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm TOTP enrollment with a code */
+        post: operations["confirmTotp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/me/totp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Disable TOTP */
+        delete: operations["disableTotp"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/tenants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tenants the signed-in user belongs to */
+        get: operations["listTenants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/tenants/{tenantId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        /** Tenant details */
+        get: operations["getTenant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename the tenant
+         * @description Owners and admins only.
+         */
+        patch: operations["updateTenant"];
+        trace?: never;
+    };
+    "/v1/dashboard/tenants/{tenantId}/team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        /** Team members of the tenant */
+        get: operations["listTeam"];
+        put?: never;
+        /**
+         * Add an existing dashboard user to the tenant
+         * @description The user must already have a dashboard account. Owners can grant any
+         *     role; admins can grant admin or staff. Email invitations arrive in a
+         *     later phase.
+         */
+        post: operations["addTeamMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/tenants/{tenantId}/team/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+                userId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a team member
+         * @description Owners and admins; admins cannot remove owners. The last owner cannot be removed.
+         */
+        delete: operations["removeTeamMember"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a team member's role
+         * @description Owners only. The last owner cannot be demoted.
+         */
+        patch: operations["updateTeamMember"];
+        trace?: never;
+    };
+    "/v1/dashboard/tenants/{tenantId}/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        /** Audit log, newest first */
+        get: operations["listAuditLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/tenants/{tenantId}/apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        /** Apps of the tenant */
+        get: operations["listApps"];
+        put?: never;
+        /**
+         * Create an app
+         * @description One app is one LINE MINI App. Owners and admins only. Plan limits apply.
+         */
+        post: operations["createApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/apps/{appId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        /** App details */
+        get: operations["getApp"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update app settings and LINE Official Account credentials
+         * @description Owners and admins only. The OA channel secret is write-only and is
+         *     stored encrypted; the response only says whether one is set.
+         */
+        patch: operations["updateApp"];
+        trace?: never;
+    };
+    "/v1/dashboard/apps/{appId}/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * LINE MINI App channels of the app
+         * @description One entry per internal channel (developing, review, published).
+         */
+        get: operations["listAppChannels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/apps/{appId}/channels/{environment}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+                environment: components["parameters"]["ChannelEnvironment"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Create or replace the channel for an environment
+         * @description Owners and admins only. The channel secret is write-only and stored encrypted.
+         */
+        put: operations["putAppChannel"];
+        post?: never;
+        /** Remove the channel for an environment */
+        delete: operations["deleteAppChannel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/apps/{appId}/stores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        /** Stores of the app */
+        get: operations["listStores"];
+        put?: never;
+        /** Create a store */
+        post: operations["createStore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/stores/{storeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                storeId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a store
+         * @description Fails while staff are still assigned to it.
+         */
+        delete: operations["deleteStore"];
+        options?: never;
+        head?: never;
+        /** Update a store */
+        patch: operations["updateStore"];
+        trace?: never;
+    };
+    "/v1/dashboard/apps/{appId}/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        /** Staff of the app */
+        get: operations["listStaff"];
+        put?: never;
+        /**
+         * Add a staff member
+         * @description Staff sign in to the staff app with LINE later; the LINE user ID is
+         *     bound on first login using the invite code returned here.
+         */
+        post: operations["createStaff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/staff/{staffId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staffId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a staff member */
+        delete: operations["deleteStaff"];
+        options?: never;
+        head?: never;
+        /** Update a staff member */
+        patch: operations["updateStaff"];
+        trace?: never;
+    };
+    "/v1/dashboard/apps/{appId}/api-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        /** Active API keys of the app */
+        get: operations["listApiKeys"];
+        put?: never;
+        /**
+         * Create an API key
+         * @description Owners and admins only. The key is shown once in the response and stored as a hash.
+         */
+        post: operations["createApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/api-keys/{keyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke an API key */
+        delete: operations["revokeApiKey"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/app": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The app this API key belongs to
+         * @description Useful to verify a key. Requires no scope.
+         */
+        get: operations["getCurrentApp"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -57,7 +621,7 @@ export interface components {
             uptime_seconds: number;
         };
         Error: {
-            /** @description Stable machine-readable code, for example bad_request, unauthorized, not_found, conflict, unavailable, internal. */
+            /** @description Stable machine-readable code, for example bad_request, unauthorized, forbidden, not_found, conflict, idempotency_mismatch, rate_limited, unavailable, internal. */
             code: string;
             message: string;
             request_id: string;
@@ -65,11 +629,358 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        RegisterRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+            display_name?: string;
+            tenant_name: string;
+            tenant_type: components["schemas"]["TenantType"];
+        };
+        LoginRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+        };
+        /** @description Exactly one of session or mfa is present. */
+        LoginResult: {
+            session?: components["schemas"]["Session"];
+            mfa?: components["schemas"]["MfaChallenge"];
+        };
+        MfaChallenge: {
+            /** @description Short-lived token proving the password step; send it with the code. */
+            mfa_token: string;
+            /** @description Seconds until the challenge expires. */
+            expires_in: number;
+        };
+        MfaRequest: {
+            mfa_token: string;
+            /** @description Six-digit TOTP code or a recovery code. */
+            code: string;
+        };
+        Session: {
+            access_token: string;
+            /** @enum {string} */
+            token_type: "Bearer";
+            /** @description Seconds until the access token expires. */
+            expires_in: number;
+            user: components["schemas"]["User"];
+        };
+        User: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+            display_name?: string | null;
+            totp_enabled: boolean;
+            /** Format: date-time */
+            created_at: string;
+        };
+        Me: {
+            user: components["schemas"]["User"];
+            memberships: components["schemas"]["Membership"][];
+        };
+        PasswordChangeRequest: {
+            current_password: string;
+            new_password: string;
+        };
+        TotpEnrollment: {
+            /** @description Base32 secret, for manual entry. */
+            secret: string;
+            /** @description otpauth:// URL to render as a QR code. */
+            otpauth_url: string;
+        };
+        TotpCodeRequest: {
+            code: string;
+        };
+        TotpConfirmed: {
+            /** @description Shown once. Each code works a single time. */
+            recovery_codes: string[];
+        };
+        TotpDisableRequest: {
+            password: string;
+            code: string;
+        };
+        /** @enum {string} */
+        TenantType: "brand" | "agency";
+        /**
+         * @description owner manages everything including billing and the team; admin manages apps and settings; staff has read-only access in the dashboard.
+         * @enum {string}
+         */
+        Role: "owner" | "admin" | "staff";
+        Tenant: {
+            /** Format: uuid */
+            id: string;
+            type: components["schemas"]["TenantType"];
+            name: string;
+            slug: string;
+            /** @description free, starter, pro, agency or enterprise. */
+            plan: string;
+            /**
+             * Format: uuid
+             * @description The agency that manages this brand, if any.
+             */
+            parent_tenant_id?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        TenantUpdate: {
+            name: string;
+        };
+        Membership: {
+            tenant: components["schemas"]["Tenant"];
+            role: components["schemas"]["Role"];
+        };
+        TeamMember: {
+            /** Format: uuid */
+            user_id: string;
+            /** Format: email */
+            email: string;
+            display_name?: string | null;
+            role: components["schemas"]["Role"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        TeamMemberAdd: {
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["Role"];
+        };
+        TeamMemberUpdate: {
+            role: components["schemas"]["Role"];
+        };
+        /** @enum {string} */
+        AppStatus: "active" | "disabled";
+        /**
+         * @description The three internal channels of one LINE MINI App channel.
+         * @enum {string}
+         */
+        ChannelEnvironment: "developing" | "review" | "published";
+        App: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenant_id: string;
+            name: string;
+            slug: string;
+            /** @description BCP 47 tag used for member-facing defaults, for example zh-TW. */
+            locale: string;
+            status: components["schemas"]["AppStatus"];
+            /** @description Messaging API channel ID of the brand's LINE Official Account. */
+            oa_channel_id?: string | null;
+            /** @description The Official Account's basic ID, for example @123abcd, used for add-friend links. */
+            oa_basic_id?: string | null;
+            oa_channel_secret_set: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        AppCreate: {
+            name: string;
+            /** @description URL-safe identifier, derived from the name when omitted. */
+            slug?: string;
+            /** @default zh-TW */
+            locale: string;
+        };
+        AppUpdate: {
+            name?: string;
+            locale?: string;
+            status?: components["schemas"]["AppStatus"];
+            oa_channel_id?: string | null;
+            oa_basic_id?: string | null;
+            /** @description Stored encrypted. Send an empty string to clear it. */
+            oa_channel_secret?: string;
+        };
+        AppChannel: {
+            environment: components["schemas"]["ChannelEnvironment"];
+            /** @description LINE MINI App channel ID; the ID token audience. */
+            channel_id: string;
+            /** @description LIFF ID of this internal channel. */
+            liff_id: string;
+            channel_secret_set: boolean;
+            /** Format: date-time */
+            created_at: string;
+        };
+        AppChannelPut: {
+            channel_id: string;
+            liff_id: string;
+            /** @description Needed only for HS256 tokens and webhook signatures; stored encrypted. */
+            channel_secret?: string;
+        };
+        Store: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            app_id: string;
+            name: string;
+            /** @description Short code shown to staff, unique within the app. */
+            code?: string | null;
+            address?: string | null;
+            status: components["schemas"]["AppStatus"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        StoreCreate: {
+            name: string;
+            code?: string;
+            address?: string;
+        };
+        StoreUpdate: {
+            name?: string;
+            code?: string | null;
+            address?: string | null;
+            status?: components["schemas"]["AppStatus"];
+        };
+        /** @enum {string} */
+        StaffRole: "cashier" | "manager";
+        Staff: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            app_id: string;
+            /** Format: uuid */
+            store_id?: string | null;
+            display_name: string;
+            role: components["schemas"]["StaffRole"];
+            status: components["schemas"]["AppStatus"];
+            /** @description Whether the staff member has signed in to the staff app with LINE. */
+            line_linked: boolean;
+            /** Format: date-time */
+            created_at: string;
+        };
+        StaffCreate: {
+            display_name: string;
+            /** Format: uuid */
+            store_id?: string;
+            role?: components["schemas"]["StaffRole"];
+        };
+        StaffCreated: components["schemas"]["Staff"] & {
+            /** @description One-time code the staff member enters in the staff app to bind their LINE account. Shown once. */
+            invite_code: string;
+        };
+        StaffUpdate: {
+            display_name?: string;
+            /** Format: uuid */
+            store_id?: string | null;
+            role?: components["schemas"]["StaffRole"];
+            status?: components["schemas"]["AppStatus"];
+        };
+        /** @enum {string} */
+        ApiKeyScope: "members:read" | "members:write" | "points:write" | "coupons:write" | "messages:send" | "webhooks:manage" | "config:read";
+        ApiKey: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            app_id: string;
+            name: string;
+            /** @description The first characters of the key, to recognise it. */
+            prefix: string;
+            scopes: components["schemas"]["ApiKeyScope"][];
+            /** Format: date-time */
+            last_used_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ApiKeyCreate: {
+            name: string;
+            scopes: components["schemas"]["ApiKeyScope"][];
+        };
+        ApiKeyCreated: components["schemas"]["ApiKey"] & {
+            /** @description The full key. Shown once; only its hash is stored. */
+            key: string;
+        };
+        /** @enum {string} */
+        AuditActorType: "user" | "staff" | "api_key" | "system";
+        AuditEntry: {
+            /** Format: int64 */
+            id: number;
+            /** Format: uuid */
+            app_id?: string | null;
+            actor_type: components["schemas"]["AuditActorType"];
+            /** Format: uuid */
+            actor_id?: string | null;
+            /** @description Dotted verb, for example app.update, api_key.create, team.remove. */
+            action: string;
+            target_type: string;
+            target_id?: string | null;
+            metadata?: {
+                [key: string]: unknown;
+            };
+            request_id?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        AuditPage: {
+            items: components["schemas"]["AuditEntry"][];
+            next_cursor?: string | null;
+        };
     };
-    responses: never;
+    responses: {
+        /** @description Malformed request or validation failure */
+        BadRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Missing, expired or invalid credentials */
+        Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The caller's role does not allow this */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Not found, or not visible to this tenant */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Rate limit exceeded; retry after the Retry-After seconds */
+        TooManyRequests: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Idempotency-Key was already used with a different payload */
+        IdempotencyMismatch: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+    };
     parameters: {
         /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
         IdempotencyKey: string;
+        TenantId: string;
+        AppId: string;
+        ChannelEnvironment: components["schemas"]["ChannelEnvironment"];
+        Limit: number;
+        /** @description Opaque cursor from a previous page's next_cursor. */
+        Cursor: string;
     };
     requestBodies: never;
     headers: never;
@@ -124,6 +1035,1135 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    dashboardRegister: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Email already registered */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    dashboardLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Session or MFA challenge */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    dashboardMfa: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    dashboardRefresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description New session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    dashboardLogout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getDashboardMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    changeDashboardPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description New session for this device */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description Current password is wrong */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    dashboardLogoutAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out everywhere */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    enrollTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending enrollment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TotpEnrollment"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description TOTP is already enabled */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    confirmTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description TOTP enabled; recovery codes shown once */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TotpConfirmed"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description No pending enrollment, or already enabled */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    disableTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpDisableRequest"];
+            };
+        };
+        responses: {
+            /** @description Disabled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description Password or code is wrong */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listTenants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenants with the caller's role in each */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Membership"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getTenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tenant"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateTenant: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated tenant */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tenant"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    listTeam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Team members */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamMember"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addTeamMember: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamMemberAdd"];
+            };
+        };
+        responses: {
+            /** @description Added */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamMember"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description Tenant or user not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Already a member */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    removeTeamMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Would leave the tenant without an owner */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateTeamMember: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamMemberUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamMember"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Would leave the tenant without an owner */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    listAuditLog: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: components["parameters"]["Cursor"];
+                app_id?: string;
+            };
+            header?: never;
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of audit entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listApps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Apps */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["App"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createApp: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                tenantId: components["parameters"]["TenantId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppCreate"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["App"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Slug already used in this tenant, or plan limit reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    getApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description App */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["App"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateApp: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["App"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    listAppChannels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Channels */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppChannel"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putAppChannel: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                appId: components["parameters"]["AppId"];
+                environment: components["parameters"]["ChannelEnvironment"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppChannelPut"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppChannel"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    deleteAppChannel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+                environment: components["parameters"]["ChannelEnvironment"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listStores: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stores */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Store"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createStore: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoreCreate"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Store"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Store code already used in this app */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    deleteStore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                storeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Staff are still assigned to this store */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    updateStore: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                storeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoreUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Store"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    listStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Staff */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Staff"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createStaff: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffCreate"];
+            };
+        };
+        responses: {
+            /** @description Created, with a one-time invite code */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffCreated"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description App or store not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    deleteStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staffId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateStaff: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                staffId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Staff"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    listApiKeys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Keys (never the secret) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKey"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createApiKey: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApiKeyCreate"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyCreated"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    revokeApiKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getCurrentApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description App */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["App"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
         };
     };
 }

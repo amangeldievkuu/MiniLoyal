@@ -27,9 +27,15 @@ const (
 // Config holds every setting the services read. Fields are plain values so
 // they can be constructed directly in tests.
 type Config struct {
-	Env             Env
-	APIAddr         string
-	DatabaseURL     string
+	Env         Env
+	APIAddr     string
+	DatabaseURL string
+	// MigrateDatabaseURL connects as the schema owner for migrations and role
+	// management. Defaults to DatabaseURL.
+	MigrateDatabaseURL string
+	// AppDBPassword is the password "migrate up" sets on the miniloyal_api login
+	// role. Development defaults to miniloyal_api.
+	AppDBPassword   string
 	LogLevel        string
 	LogFormat       string
 	PublicBaseURL   string
@@ -70,6 +76,7 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 		Env:             Env(get("ENV", string(Development))),
 		APIAddr:         get("API_ADDR", ":8080"),
 		DatabaseURL:     get("DATABASE_URL", ""),
+		AppDBPassword:   get("APP_DB_PASSWORD", ""),
 		LogLevel:        get("LOG_LEVEL", "info"),
 		LogFormat:       get("LOG_FORMAT", "json"),
 		PublicBaseURL:   get("PUBLIC_BASE_URL", "http://localhost:8080"),
@@ -88,6 +95,10 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 	}
 	if cfg.DatabaseURL == "" {
 		errs = append(errs, errors.New("DATABASE_URL is required"))
+	}
+	cfg.MigrateDatabaseURL = get("MIGRATE_DATABASE_URL", cfg.DatabaseURL)
+	if cfg.AppDBPassword == "" && cfg.Env == Development {
+		cfg.AppDBPassword = "miniloyal_api"
 	}
 
 	n, err := strconv.Atoi(get("WORKER_CONCURRENCY", "4"))

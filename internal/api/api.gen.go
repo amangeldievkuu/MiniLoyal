@@ -11,14 +11,114 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for ApiKeyScope.
+const (
+	ConfigRead     ApiKeyScope = "config:read"
+	CouponsWrite   ApiKeyScope = "coupons:write"
+	MembersRead    ApiKeyScope = "members:read"
+	MembersWrite   ApiKeyScope = "members:write"
+	MessagesSend   ApiKeyScope = "messages:send"
+	PointsWrite    ApiKeyScope = "points:write"
+	WebhooksManage ApiKeyScope = "webhooks:manage"
+)
+
+// Valid indicates whether the value is a known member of the ApiKeyScope enum.
+func (e ApiKeyScope) Valid() bool {
+	switch e {
+	case ConfigRead:
+		return true
+	case CouponsWrite:
+		return true
+	case MembersRead:
+		return true
+	case MembersWrite:
+		return true
+	case MessagesSend:
+		return true
+	case PointsWrite:
+		return true
+	case WebhooksManage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AppStatus.
+const (
+	Active   AppStatus = "active"
+	Disabled AppStatus = "disabled"
+)
+
+// Valid indicates whether the value is a known member of the AppStatus enum.
+func (e AppStatus) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case Disabled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditActorType.
+const (
+	AuditActorTypeApiKey AuditActorType = "api_key"
+	AuditActorTypeStaff  AuditActorType = "staff"
+	AuditActorTypeSystem AuditActorType = "system"
+	AuditActorTypeUser   AuditActorType = "user"
+)
+
+// Valid indicates whether the value is a known member of the AuditActorType enum.
+func (e AuditActorType) Valid() bool {
+	switch e {
+	case AuditActorTypeApiKey:
+		return true
+	case AuditActorTypeStaff:
+		return true
+	case AuditActorTypeSystem:
+		return true
+	case AuditActorTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChannelEnvironment.
+const (
+	Developing ChannelEnvironment = "developing"
+	Published  ChannelEnvironment = "published"
+	Review     ChannelEnvironment = "review"
+)
+
+// Valid indicates whether the value is a known member of the ChannelEnvironment enum.
+func (e ChannelEnvironment) Valid() bool {
+	switch e {
+	case Developing:
+		return true
+	case Published:
+		return true
+	case Review:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for HealthStatus.
 const (
@@ -35,9 +135,214 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// Defines values for Role.
+const (
+	RoleAdmin Role = "admin"
+	RoleOwner Role = "owner"
+	RoleStaff Role = "staff"
+)
+
+// Valid indicates whether the value is a known member of the Role enum.
+func (e Role) Valid() bool {
+	switch e {
+	case RoleAdmin:
+		return true
+	case RoleOwner:
+		return true
+	case RoleStaff:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SessionTokenType.
+const (
+	Bearer SessionTokenType = "Bearer"
+)
+
+// Valid indicates whether the value is a known member of the SessionTokenType enum.
+func (e SessionTokenType) Valid() bool {
+	switch e {
+	case Bearer:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StaffRole.
+const (
+	Cashier StaffRole = "cashier"
+	Manager StaffRole = "manager"
+)
+
+// Valid indicates whether the value is a known member of the StaffRole enum.
+func (e StaffRole) Valid() bool {
+	switch e {
+	case Cashier:
+		return true
+	case Manager:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TenantType.
+const (
+	Agency TenantType = "agency"
+	Brand  TenantType = "brand"
+)
+
+// Valid indicates whether the value is a known member of the TenantType enum.
+func (e TenantType) Valid() bool {
+	switch e {
+	case Agency:
+		return true
+	case Brand:
+		return true
+	default:
+		return false
+	}
+}
+
+// ApiKey defines model for ApiKey.
+type ApiKey struct {
+	AppId      openapi_types.UUID `json:"app_id"`
+	CreatedAt  time.Time          `json:"created_at"`
+	Id         openapi_types.UUID `json:"id"`
+	LastUsedAt *time.Time         `json:"last_used_at,omitempty"`
+	Name       string             `json:"name"`
+
+	// Prefix The first characters of the key, to recognise it.
+	Prefix string        `json:"prefix"`
+	Scopes []ApiKeyScope `json:"scopes"`
+}
+
+// ApiKeyCreate defines model for ApiKeyCreate.
+type ApiKeyCreate struct {
+	Name   string        `json:"name"`
+	Scopes []ApiKeyScope `json:"scopes"`
+}
+
+// ApiKeyCreated defines model for ApiKeyCreated.
+type ApiKeyCreated struct {
+	AppId     openapi_types.UUID `json:"app_id"`
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// Key The full key. Shown once; only its hash is stored.
+	Key        string     `json:"key"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	Name       string     `json:"name"`
+
+	// Prefix The first characters of the key, to recognise it.
+	Prefix string        `json:"prefix"`
+	Scopes []ApiKeyScope `json:"scopes"`
+}
+
+// ApiKeyScope defines model for ApiKeyScope.
+type ApiKeyScope string
+
+// App defines model for App.
+type App struct {
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// Locale BCP 47 tag used for member-facing defaults, for example zh-TW.
+	Locale string `json:"locale"`
+	Name   string `json:"name"`
+
+	// OaBasicId The Official Account's basic ID, for example @123abcd, used for add-friend links.
+	OaBasicId *string `json:"oa_basic_id,omitempty"`
+
+	// OaChannelId Messaging API channel ID of the brand's LINE Official Account.
+	OaChannelId        *string            `json:"oa_channel_id,omitempty"`
+	OaChannelSecretSet bool               `json:"oa_channel_secret_set"`
+	Slug               string             `json:"slug"`
+	Status             AppStatus          `json:"status"`
+	TenantId           openapi_types.UUID `json:"tenant_id"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+}
+
+// AppChannel defines model for AppChannel.
+type AppChannel struct {
+	// ChannelId LINE MINI App channel ID; the ID token audience.
+	ChannelId        string    `json:"channel_id"`
+	ChannelSecretSet bool      `json:"channel_secret_set"`
+	CreatedAt        time.Time `json:"created_at"`
+
+	// Environment The three internal channels of one LINE MINI App channel.
+	Environment ChannelEnvironment `json:"environment"`
+
+	// LiffId LIFF ID of this internal channel.
+	LiffId string `json:"liff_id"`
+}
+
+// AppChannelPut defines model for AppChannelPut.
+type AppChannelPut struct {
+	ChannelId string `json:"channel_id"`
+
+	// ChannelSecret Needed only for HS256 tokens and webhook signatures; stored encrypted.
+	ChannelSecret *string `json:"channel_secret,omitempty"`
+	LiffId        string  `json:"liff_id"`
+}
+
+// AppCreate defines model for AppCreate.
+type AppCreate struct {
+	Locale *string `json:"locale,omitempty"`
+	Name   string  `json:"name"`
+
+	// Slug URL-safe identifier, derived from the name when omitted.
+	Slug *string `json:"slug,omitempty"`
+}
+
+// AppStatus defines model for AppStatus.
+type AppStatus string
+
+// AppUpdate defines model for AppUpdate.
+type AppUpdate struct {
+	Locale      *string `json:"locale,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	OaBasicId   *string `json:"oa_basic_id,omitempty"`
+	OaChannelId *string `json:"oa_channel_id,omitempty"`
+
+	// OaChannelSecret Stored encrypted. Send an empty string to clear it.
+	OaChannelSecret *string    `json:"oa_channel_secret,omitempty"`
+	Status          *AppStatus `json:"status,omitempty"`
+}
+
+// AuditActorType defines model for AuditActorType.
+type AuditActorType string
+
+// AuditEntry defines model for AuditEntry.
+type AuditEntry struct {
+	// Action Dotted verb, for example app.update, api_key.create, team.remove.
+	Action     string                  `json:"action"`
+	ActorId    *openapi_types.UUID     `json:"actor_id,omitempty"`
+	ActorType  AuditActorType          `json:"actor_type"`
+	AppId      *openapi_types.UUID     `json:"app_id,omitempty"`
+	CreatedAt  time.Time               `json:"created_at"`
+	Id         int64                   `json:"id"`
+	Metadata   *map[string]interface{} `json:"metadata,omitempty"`
+	RequestId  *string                 `json:"request_id,omitempty"`
+	TargetId   *string                 `json:"target_id,omitempty"`
+	TargetType string                  `json:"target_type"`
+}
+
+// AuditPage defines model for AuditPage.
+type AuditPage struct {
+	Items      []AuditEntry `json:"items"`
+	NextCursor *string      `json:"next_cursor,omitempty"`
+}
+
+// ChannelEnvironment The three internal channels of one LINE MINI App channel.
+type ChannelEnvironment string
+
 // Error defines model for Error.
 type Error struct {
-	// Code Stable machine-readable code, for example bad_request, unauthorized, not_found, conflict, unavailable, internal.
+	// Code Stable machine-readable code, for example bad_request, unauthorized, forbidden, not_found, conflict, idempotency_mismatch, rate_limited, unavailable, internal.
 	Code      string                  `json:"code"`
 	Details   *map[string]interface{} `json:"details,omitempty"`
 	Message   string                  `json:"message"`
@@ -56,6 +361,397 @@ type Health struct {
 // HealthStatus defines model for Health.Status.
 type HealthStatus string
 
+// LoginRequest defines model for LoginRequest.
+type LoginRequest struct {
+	Email    openapi_types.Email `json:"email"`
+	Password string              `json:"password"`
+}
+
+// LoginResult Exactly one of session or mfa is present.
+type LoginResult struct {
+	Mfa     *MfaChallenge `json:"mfa,omitempty"`
+	Session *Session      `json:"session,omitempty"`
+}
+
+// Me defines model for Me.
+type Me struct {
+	Memberships []Membership `json:"memberships"`
+	User        User         `json:"user"`
+}
+
+// Membership defines model for Membership.
+type Membership struct {
+	// Role owner manages everything including billing and the team; admin manages apps and settings; staff has read-only access in the dashboard.
+	Role   Role   `json:"role"`
+	Tenant Tenant `json:"tenant"`
+}
+
+// MfaChallenge defines model for MfaChallenge.
+type MfaChallenge struct {
+	// ExpiresIn Seconds until the challenge expires.
+	ExpiresIn int `json:"expires_in"`
+
+	// MfaToken Short-lived token proving the password step; send it with the code.
+	MfaToken string `json:"mfa_token"`
+}
+
+// MfaRequest defines model for MfaRequest.
+type MfaRequest struct {
+	// Code Six-digit TOTP code or a recovery code.
+	Code     string `json:"code"`
+	MfaToken string `json:"mfa_token"`
+}
+
+// PasswordChangeRequest defines model for PasswordChangeRequest.
+type PasswordChangeRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// RegisterRequest defines model for RegisterRequest.
+type RegisterRequest struct {
+	DisplayName *string             `json:"display_name,omitempty"`
+	Email       openapi_types.Email `json:"email"`
+	Password    string              `json:"password"`
+	TenantName  string              `json:"tenant_name"`
+	TenantType  TenantType          `json:"tenant_type"`
+}
+
+// Role owner manages everything including billing and the team; admin manages apps and settings; staff has read-only access in the dashboard.
+type Role string
+
+// Session defines model for Session.
+type Session struct {
+	AccessToken string `json:"access_token"`
+
+	// ExpiresIn Seconds until the access token expires.
+	ExpiresIn int              `json:"expires_in"`
+	TokenType SessionTokenType `json:"token_type"`
+	User      User             `json:"user"`
+}
+
+// SessionTokenType defines model for Session.TokenType.
+type SessionTokenType string
+
+// Staff defines model for Staff.
+type Staff struct {
+	AppId       openapi_types.UUID `json:"app_id"`
+	CreatedAt   time.Time          `json:"created_at"`
+	DisplayName string             `json:"display_name"`
+	Id          openapi_types.UUID `json:"id"`
+
+	// LineLinked Whether the staff member has signed in to the staff app with LINE.
+	LineLinked bool                `json:"line_linked"`
+	Role       StaffRole           `json:"role"`
+	Status     AppStatus           `json:"status"`
+	StoreId    *openapi_types.UUID `json:"store_id,omitempty"`
+}
+
+// StaffCreate defines model for StaffCreate.
+type StaffCreate struct {
+	DisplayName string              `json:"display_name"`
+	Role        *StaffRole          `json:"role,omitempty"`
+	StoreId     *openapi_types.UUID `json:"store_id,omitempty"`
+}
+
+// StaffCreated defines model for StaffCreated.
+type StaffCreated struct {
+	AppId       openapi_types.UUID `json:"app_id"`
+	CreatedAt   time.Time          `json:"created_at"`
+	DisplayName string             `json:"display_name"`
+	Id          openapi_types.UUID `json:"id"`
+
+	// InviteCode One-time code the staff member enters in the staff app to bind their LINE account. Shown once.
+	InviteCode string `json:"invite_code"`
+
+	// LineLinked Whether the staff member has signed in to the staff app with LINE.
+	LineLinked bool                `json:"line_linked"`
+	Role       StaffRole           `json:"role"`
+	Status     AppStatus           `json:"status"`
+	StoreId    *openapi_types.UUID `json:"store_id,omitempty"`
+}
+
+// StaffRole defines model for StaffRole.
+type StaffRole string
+
+// StaffUpdate defines model for StaffUpdate.
+type StaffUpdate struct {
+	DisplayName *string             `json:"display_name,omitempty"`
+	Role        *StaffRole          `json:"role,omitempty"`
+	Status      *AppStatus          `json:"status,omitempty"`
+	StoreId     *openapi_types.UUID `json:"store_id,omitempty"`
+}
+
+// Store defines model for Store.
+type Store struct {
+	Address *string            `json:"address,omitempty"`
+	AppId   openapi_types.UUID `json:"app_id"`
+
+	// Code Short code shown to staff, unique within the app.
+	Code      *string            `json:"code,omitempty"`
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+	Name      string             `json:"name"`
+	Status    AppStatus          `json:"status"`
+}
+
+// StoreCreate defines model for StoreCreate.
+type StoreCreate struct {
+	Address *string `json:"address,omitempty"`
+	Code    *string `json:"code,omitempty"`
+	Name    string  `json:"name"`
+}
+
+// StoreUpdate defines model for StoreUpdate.
+type StoreUpdate struct {
+	Address *string    `json:"address,omitempty"`
+	Code    *string    `json:"code,omitempty"`
+	Name    *string    `json:"name,omitempty"`
+	Status  *AppStatus `json:"status,omitempty"`
+}
+
+// TeamMember defines model for TeamMember.
+type TeamMember struct {
+	CreatedAt   time.Time           `json:"created_at"`
+	DisplayName *string             `json:"display_name,omitempty"`
+	Email       openapi_types.Email `json:"email"`
+
+	// Role owner manages everything including billing and the team; admin manages apps and settings; staff has read-only access in the dashboard.
+	Role   Role               `json:"role"`
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// TeamMemberAdd defines model for TeamMemberAdd.
+type TeamMemberAdd struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Role owner manages everything including billing and the team; admin manages apps and settings; staff has read-only access in the dashboard.
+	Role Role `json:"role"`
+}
+
+// TeamMemberUpdate defines model for TeamMemberUpdate.
+type TeamMemberUpdate struct {
+	// Role owner manages everything including billing and the team; admin manages apps and settings; staff has read-only access in the dashboard.
+	Role Role `json:"role"`
+}
+
+// Tenant defines model for Tenant.
+type Tenant struct {
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+	Name      string             `json:"name"`
+
+	// ParentTenantId The agency that manages this brand, if any.
+	ParentTenantId *openapi_types.UUID `json:"parent_tenant_id,omitempty"`
+
+	// Plan free, starter, pro, agency or enterprise.
+	Plan string     `json:"plan"`
+	Slug string     `json:"slug"`
+	Type TenantType `json:"type"`
+}
+
+// TenantType defines model for TenantType.
+type TenantType string
+
+// TenantUpdate defines model for TenantUpdate.
+type TenantUpdate struct {
+	Name string `json:"name"`
+}
+
+// TotpCodeRequest defines model for TotpCodeRequest.
+type TotpCodeRequest struct {
+	Code string `json:"code"`
+}
+
+// TotpConfirmed defines model for TotpConfirmed.
+type TotpConfirmed struct {
+	// RecoveryCodes Shown once. Each code works a single time.
+	RecoveryCodes []string `json:"recovery_codes"`
+}
+
+// TotpDisableRequest defines model for TotpDisableRequest.
+type TotpDisableRequest struct {
+	Code     string `json:"code"`
+	Password string `json:"password"`
+}
+
+// TotpEnrollment defines model for TotpEnrollment.
+type TotpEnrollment struct {
+	// OtpauthUrl otpauth:// URL to render as a QR code.
+	OtpauthUrl string `json:"otpauth_url"`
+
+	// Secret Base32 secret, for manual entry.
+	Secret string `json:"secret"`
+}
+
+// User defines model for User.
+type User struct {
+	CreatedAt   time.Time           `json:"created_at"`
+	DisplayName *string             `json:"display_name,omitempty"`
+	Email       openapi_types.Email `json:"email"`
+	Id          openapi_types.UUID  `json:"id"`
+	TotpEnabled bool                `json:"totp_enabled"`
+}
+
+// AppId defines model for AppId.
+type AppId = openapi_types.UUID
+
+// Cursor defines model for Cursor.
+type Cursor = string
+
+// IdempotencyKey defines model for IdempotencyKey.
+type IdempotencyKey = string
+
+// Limit defines model for Limit.
+type Limit = int
+
+// TenantId defines model for TenantId.
+type TenantId = openapi_types.UUID
+
+// BadRequest defines model for BadRequest.
+type BadRequest = Error
+
+// Forbidden defines model for Forbidden.
+type Forbidden = Error
+
+// IdempotencyMismatch defines model for IdempotencyMismatch.
+type IdempotencyMismatch = Error
+
+// NotFound defines model for NotFound.
+type NotFound = Error
+
+// TooManyRequests defines model for TooManyRequests.
+type TooManyRequests = Error
+
+// Unauthorized defines model for Unauthorized.
+type Unauthorized = Error
+
+// UpdateAppParams defines parameters for UpdateApp.
+type UpdateAppParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// CreateApiKeyParams defines parameters for CreateApiKey.
+type CreateApiKeyParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PutAppChannelParams defines parameters for PutAppChannel.
+type PutAppChannelParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// CreateStaffParams defines parameters for CreateStaff.
+type CreateStaffParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// CreateStoreParams defines parameters for CreateStore.
+type CreateStoreParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// UpdateStaffParams defines parameters for UpdateStaff.
+type UpdateStaffParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// UpdateStoreParams defines parameters for UpdateStore.
+type UpdateStoreParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// UpdateTenantParams defines parameters for UpdateTenant.
+type UpdateTenantParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// CreateAppParams defines parameters for CreateApp.
+type CreateAppParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ListAuditLogParams defines parameters for ListAuditLog.
+type ListAuditLogParams struct {
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous page's next_cursor.
+	Cursor *Cursor             `form:"cursor,omitempty" json:"cursor,omitempty"`
+	AppId  *openapi_types.UUID `form:"app_id,omitempty" json:"app_id,omitempty"`
+}
+
+// AddTeamMemberParams defines parameters for AddTeamMember.
+type AddTeamMemberParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// UpdateTeamMemberParams defines parameters for UpdateTeamMember.
+type UpdateTeamMemberParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// UpdateAppJSONRequestBody defines body for UpdateApp for application/json ContentType.
+type UpdateAppJSONRequestBody = AppUpdate
+
+// CreateApiKeyJSONRequestBody defines body for CreateApiKey for application/json ContentType.
+type CreateApiKeyJSONRequestBody = ApiKeyCreate
+
+// PutAppChannelJSONRequestBody defines body for PutAppChannel for application/json ContentType.
+type PutAppChannelJSONRequestBody = AppChannelPut
+
+// CreateStaffJSONRequestBody defines body for CreateStaff for application/json ContentType.
+type CreateStaffJSONRequestBody = StaffCreate
+
+// CreateStoreJSONRequestBody defines body for CreateStore for application/json ContentType.
+type CreateStoreJSONRequestBody = StoreCreate
+
+// DashboardLoginJSONRequestBody defines body for DashboardLogin for application/json ContentType.
+type DashboardLoginJSONRequestBody = LoginRequest
+
+// DashboardMfaJSONRequestBody defines body for DashboardMfa for application/json ContentType.
+type DashboardMfaJSONRequestBody = MfaRequest
+
+// DashboardRegisterJSONRequestBody defines body for DashboardRegister for application/json ContentType.
+type DashboardRegisterJSONRequestBody = RegisterRequest
+
+// ChangeDashboardPasswordJSONRequestBody defines body for ChangeDashboardPassword for application/json ContentType.
+type ChangeDashboardPasswordJSONRequestBody = PasswordChangeRequest
+
+// DisableTotpJSONRequestBody defines body for DisableTotp for application/json ContentType.
+type DisableTotpJSONRequestBody = TotpDisableRequest
+
+// ConfirmTotpJSONRequestBody defines body for ConfirmTotp for application/json ContentType.
+type ConfirmTotpJSONRequestBody = TotpCodeRequest
+
+// UpdateStaffJSONRequestBody defines body for UpdateStaff for application/json ContentType.
+type UpdateStaffJSONRequestBody = StaffUpdate
+
+// UpdateStoreJSONRequestBody defines body for UpdateStore for application/json ContentType.
+type UpdateStoreJSONRequestBody = StoreUpdate
+
+// UpdateTenantJSONRequestBody defines body for UpdateTenant for application/json ContentType.
+type UpdateTenantJSONRequestBody = TenantUpdate
+
+// CreateAppJSONRequestBody defines body for CreateApp for application/json ContentType.
+type CreateAppJSONRequestBody = AppCreate
+
+// AddTeamMemberJSONRequestBody defines body for AddTeamMember for application/json ContentType.
+type AddTeamMemberJSONRequestBody = TeamMemberAdd
+
+// UpdateTeamMemberJSONRequestBody defines body for UpdateTeamMember for application/json ContentType.
+type UpdateTeamMemberJSONRequestBody = TeamMemberUpdate
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// GetHealthz Liveness probe
@@ -64,6 +760,120 @@ type ServerInterface interface {
 	// GetReadyz Readiness probe
 	// (GET /readyz)
 	GetReadyz(w http.ResponseWriter, r *http.Request)
+	// GetCurrentApp The app this API key belongs to
+	// (GET /v1/app)
+	GetCurrentApp(w http.ResponseWriter, r *http.Request)
+	// RevokeApiKey Revoke an API key
+	// (DELETE /v1/dashboard/api-keys/{keyId})
+	RevokeApiKey(w http.ResponseWriter, r *http.Request, keyId openapi_types.UUID)
+	// GetApp App details
+	// (GET /v1/dashboard/apps/{appId})
+	GetApp(w http.ResponseWriter, r *http.Request, appId AppId)
+	// UpdateApp Update app settings and LINE Official Account credentials
+	// (PATCH /v1/dashboard/apps/{appId})
+	UpdateApp(w http.ResponseWriter, r *http.Request, appId AppId, params UpdateAppParams)
+	// ListApiKeys Active API keys of the app
+	// (GET /v1/dashboard/apps/{appId}/api-keys)
+	ListApiKeys(w http.ResponseWriter, r *http.Request, appId AppId)
+	// CreateApiKey Create an API key
+	// (POST /v1/dashboard/apps/{appId}/api-keys)
+	CreateApiKey(w http.ResponseWriter, r *http.Request, appId AppId, params CreateApiKeyParams)
+	// ListAppChannels LINE MINI App channels of the app
+	// (GET /v1/dashboard/apps/{appId}/channels)
+	ListAppChannels(w http.ResponseWriter, r *http.Request, appId AppId)
+	// DeleteAppChannel Remove the channel for an environment
+	// (DELETE /v1/dashboard/apps/{appId}/channels/{environment})
+	DeleteAppChannel(w http.ResponseWriter, r *http.Request, appId AppId, environment ChannelEnvironment)
+	// PutAppChannel Create or replace the channel for an environment
+	// (PUT /v1/dashboard/apps/{appId}/channels/{environment})
+	PutAppChannel(w http.ResponseWriter, r *http.Request, appId AppId, environment ChannelEnvironment, params PutAppChannelParams)
+	// ListStaff Staff of the app
+	// (GET /v1/dashboard/apps/{appId}/staff)
+	ListStaff(w http.ResponseWriter, r *http.Request, appId AppId)
+	// CreateStaff Add a staff member
+	// (POST /v1/dashboard/apps/{appId}/staff)
+	CreateStaff(w http.ResponseWriter, r *http.Request, appId AppId, params CreateStaffParams)
+	// ListStores Stores of the app
+	// (GET /v1/dashboard/apps/{appId}/stores)
+	ListStores(w http.ResponseWriter, r *http.Request, appId AppId)
+	// CreateStore Create a store
+	// (POST /v1/dashboard/apps/{appId}/stores)
+	CreateStore(w http.ResponseWriter, r *http.Request, appId AppId, params CreateStoreParams)
+	// DashboardLogin Sign in with email and password
+	// (POST /v1/dashboard/auth/login)
+	DashboardLogin(w http.ResponseWriter, r *http.Request)
+	// DashboardLogout Sign out this device
+	// (POST /v1/dashboard/auth/logout)
+	DashboardLogout(w http.ResponseWriter, r *http.Request)
+	// DashboardMfa Complete sign-in with a TOTP or recovery code
+	// (POST /v1/dashboard/auth/mfa)
+	DashboardMfa(w http.ResponseWriter, r *http.Request)
+	// DashboardRefresh Exchange the refresh cookie for a new session
+	// (POST /v1/dashboard/auth/refresh)
+	DashboardRefresh(w http.ResponseWriter, r *http.Request)
+	// DashboardRegister Create a dashboard account and its first tenant
+	// (POST /v1/dashboard/auth/register)
+	DashboardRegister(w http.ResponseWriter, r *http.Request)
+	// GetDashboardMe The signed-in user and their tenant memberships
+	// (GET /v1/dashboard/me)
+	GetDashboardMe(w http.ResponseWriter, r *http.Request)
+	// DashboardLogoutAll Sign out everywhere
+	// (POST /v1/dashboard/me/logout-all)
+	DashboardLogoutAll(w http.ResponseWriter, r *http.Request)
+	// ChangeDashboardPassword Change the password and end every other session
+	// (POST /v1/dashboard/me/password)
+	ChangeDashboardPassword(w http.ResponseWriter, r *http.Request)
+	// DisableTotp Disable TOTP
+	// (DELETE /v1/dashboard/me/totp)
+	DisableTotp(w http.ResponseWriter, r *http.Request)
+	// ConfirmTotp Confirm TOTP enrollment with a code
+	// (POST /v1/dashboard/me/totp/confirm)
+	ConfirmTotp(w http.ResponseWriter, r *http.Request)
+	// EnrollTotp Start TOTP enrollment
+	// (POST /v1/dashboard/me/totp/enroll)
+	EnrollTotp(w http.ResponseWriter, r *http.Request)
+	// DeleteStaff Remove a staff member
+	// (DELETE /v1/dashboard/staff/{staffId})
+	DeleteStaff(w http.ResponseWriter, r *http.Request, staffId openapi_types.UUID)
+	// UpdateStaff Update a staff member
+	// (PATCH /v1/dashboard/staff/{staffId})
+	UpdateStaff(w http.ResponseWriter, r *http.Request, staffId openapi_types.UUID, params UpdateStaffParams)
+	// DeleteStore Delete a store
+	// (DELETE /v1/dashboard/stores/{storeId})
+	DeleteStore(w http.ResponseWriter, r *http.Request, storeId openapi_types.UUID)
+	// UpdateStore Update a store
+	// (PATCH /v1/dashboard/stores/{storeId})
+	UpdateStore(w http.ResponseWriter, r *http.Request, storeId openapi_types.UUID, params UpdateStoreParams)
+	// ListTenants Tenants the signed-in user belongs to
+	// (GET /v1/dashboard/tenants)
+	ListTenants(w http.ResponseWriter, r *http.Request)
+	// GetTenant Tenant details
+	// (GET /v1/dashboard/tenants/{tenantId})
+	GetTenant(w http.ResponseWriter, r *http.Request, tenantId TenantId)
+	// UpdateTenant Rename the tenant
+	// (PATCH /v1/dashboard/tenants/{tenantId})
+	UpdateTenant(w http.ResponseWriter, r *http.Request, tenantId TenantId, params UpdateTenantParams)
+	// ListApps Apps of the tenant
+	// (GET /v1/dashboard/tenants/{tenantId}/apps)
+	ListApps(w http.ResponseWriter, r *http.Request, tenantId TenantId)
+	// CreateApp Create an app
+	// (POST /v1/dashboard/tenants/{tenantId}/apps)
+	CreateApp(w http.ResponseWriter, r *http.Request, tenantId TenantId, params CreateAppParams)
+	// ListAuditLog Audit log, newest first
+	// (GET /v1/dashboard/tenants/{tenantId}/audit-log)
+	ListAuditLog(w http.ResponseWriter, r *http.Request, tenantId TenantId, params ListAuditLogParams)
+	// ListTeam Team members of the tenant
+	// (GET /v1/dashboard/tenants/{tenantId}/team)
+	ListTeam(w http.ResponseWriter, r *http.Request, tenantId TenantId)
+	// AddTeamMember Add an existing dashboard user to the tenant
+	// (POST /v1/dashboard/tenants/{tenantId}/team)
+	AddTeamMember(w http.ResponseWriter, r *http.Request, tenantId TenantId, params AddTeamMemberParams)
+	// RemoveTeamMember Remove a team member
+	// (DELETE /v1/dashboard/tenants/{tenantId}/team/{userId})
+	RemoveTeamMember(w http.ResponseWriter, r *http.Request, tenantId TenantId, userId openapi_types.UUID)
+	// UpdateTeamMember Change a team member's role
+	// (PATCH /v1/dashboard/tenants/{tenantId}/team/{userId})
+	UpdateTeamMember(w http.ResponseWriter, r *http.Request, tenantId TenantId, userId openapi_types.UUID, params UpdateTeamMemberParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -94,6 +904,1224 @@ func (siw *ServerInterfaceWrapper) GetReadyz(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetReadyz(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCurrentApp operation middleware
+func (siw *ServerInterfaceWrapper) GetCurrentApp(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCurrentApp(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokeApiKey operation middleware
+func (siw *ServerInterfaceWrapper) RevokeApiKey(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "keyId" -------------
+	var keyId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "keyId", r.PathValue("keyId"), &keyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "keyId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeApiKey(w, r, keyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetApp operation middleware
+func (siw *ServerInterfaceWrapper) GetApp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetApp(w, r, appId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateApp operation middleware
+func (siw *ServerInterfaceWrapper) UpdateApp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateAppParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateApp(w, r, appId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListApiKeys operation middleware
+func (siw *ServerInterfaceWrapper) ListApiKeys(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListApiKeys(w, r, appId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateApiKey operation middleware
+func (siw *ServerInterfaceWrapper) CreateApiKey(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateApiKeyParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateApiKey(w, r, appId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAppChannels operation middleware
+func (siw *ServerInterfaceWrapper) ListAppChannels(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAppChannels(w, r, appId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAppChannel operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAppChannel(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "environment" -------------
+	var environment ChannelEnvironment
+
+	err = runtime.BindStyledParameterWithOptions("simple", "environment", r.PathValue("environment"), &environment, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "environment", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAppChannel(w, r, appId, environment)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutAppChannel operation middleware
+func (siw *ServerInterfaceWrapper) PutAppChannel(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "environment" -------------
+	var environment ChannelEnvironment
+
+	err = runtime.BindStyledParameterWithOptions("simple", "environment", r.PathValue("environment"), &environment, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "environment", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutAppChannelParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutAppChannel(w, r, appId, environment, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListStaff operation middleware
+func (siw *ServerInterfaceWrapper) ListStaff(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListStaff(w, r, appId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateStaff operation middleware
+func (siw *ServerInterfaceWrapper) CreateStaff(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateStaffParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateStaff(w, r, appId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListStores operation middleware
+func (siw *ServerInterfaceWrapper) ListStores(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListStores(w, r, appId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateStore operation middleware
+func (siw *ServerInterfaceWrapper) CreateStore(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateStoreParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateStore(w, r, appId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DashboardLogin operation middleware
+func (siw *ServerInterfaceWrapper) DashboardLogin(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DashboardLogin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DashboardLogout operation middleware
+func (siw *ServerInterfaceWrapper) DashboardLogout(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DashboardLogout(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DashboardMfa operation middleware
+func (siw *ServerInterfaceWrapper) DashboardMfa(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DashboardMfa(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DashboardRefresh operation middleware
+func (siw *ServerInterfaceWrapper) DashboardRefresh(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DashboardRefresh(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DashboardRegister operation middleware
+func (siw *ServerInterfaceWrapper) DashboardRegister(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DashboardRegister(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDashboardMe operation middleware
+func (siw *ServerInterfaceWrapper) GetDashboardMe(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDashboardMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DashboardLogoutAll operation middleware
+func (siw *ServerInterfaceWrapper) DashboardLogoutAll(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DashboardLogoutAll(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ChangeDashboardPassword operation middleware
+func (siw *ServerInterfaceWrapper) ChangeDashboardPassword(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ChangeDashboardPassword(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DisableTotp operation middleware
+func (siw *ServerInterfaceWrapper) DisableTotp(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DisableTotp(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmTotp operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmTotp(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmTotp(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EnrollTotp operation middleware
+func (siw *ServerInterfaceWrapper) EnrollTotp(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EnrollTotp(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteStaff operation middleware
+func (siw *ServerInterfaceWrapper) DeleteStaff(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "staffId" -------------
+	var staffId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "staffId", r.PathValue("staffId"), &staffId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "staffId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteStaff(w, r, staffId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateStaff operation middleware
+func (siw *ServerInterfaceWrapper) UpdateStaff(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "staffId" -------------
+	var staffId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "staffId", r.PathValue("staffId"), &staffId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "staffId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateStaffParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateStaff(w, r, staffId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteStore operation middleware
+func (siw *ServerInterfaceWrapper) DeleteStore(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "storeId" -------------
+	var storeId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "storeId", r.PathValue("storeId"), &storeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "storeId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteStore(w, r, storeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateStore operation middleware
+func (siw *ServerInterfaceWrapper) UpdateStore(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "storeId" -------------
+	var storeId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "storeId", r.PathValue("storeId"), &storeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "storeId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateStoreParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateStore(w, r, storeId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListTenants operation middleware
+func (siw *ServerInterfaceWrapper) ListTenants(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTenants(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTenant operation middleware
+func (siw *ServerInterfaceWrapper) GetTenant(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tenantId" -------------
+	var tenantId TenantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tenantId", r.PathValue("tenantId"), &tenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tenantId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTenant(w, r, tenantId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateTenant operation middleware
+func (siw *ServerInterfaceWrapper) UpdateTenant(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tenantId" -------------
+	var tenantId TenantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tenantId", r.PathValue("tenantId"), &tenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tenantId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateTenantParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateTenant(w, r, tenantId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListApps operation middleware
+func (siw *ServerInterfaceWrapper) ListApps(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tenantId" -------------
+	var tenantId TenantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tenantId", r.PathValue("tenantId"), &tenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tenantId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListApps(w, r, tenantId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateApp operation middleware
+func (siw *ServerInterfaceWrapper) CreateApp(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tenantId" -------------
+	var tenantId TenantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tenantId", r.PathValue("tenantId"), &tenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tenantId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateAppParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateApp(w, r, tenantId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAuditLog operation middleware
+func (siw *ServerInterfaceWrapper) ListAuditLog(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tenantId" -------------
+	var tenantId TenantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tenantId", r.PathValue("tenantId"), &tenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tenantId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAuditLogParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "app_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "app_id", r.URL.Query(), &params.AppId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "app_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "app_id", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAuditLog(w, r, tenantId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListTeam operation middleware
+func (siw *ServerInterfaceWrapper) ListTeam(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tenantId" -------------
+	var tenantId TenantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tenantId", r.PathValue("tenantId"), &tenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tenantId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTeam(w, r, tenantId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddTeamMember operation middleware
+func (siw *ServerInterfaceWrapper) AddTeamMember(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tenantId" -------------
+	var tenantId TenantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tenantId", r.PathValue("tenantId"), &tenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tenantId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AddTeamMemberParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddTeamMember(w, r, tenantId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RemoveTeamMember operation middleware
+func (siw *ServerInterfaceWrapper) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tenantId" -------------
+	var tenantId TenantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tenantId", r.PathValue("tenantId"), &tenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tenantId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "userId" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", r.PathValue("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RemoveTeamMember(w, r, tenantId, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateTeamMember operation middleware
+func (siw *ServerInterfaceWrapper) UpdateTeamMember(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tenantId" -------------
+	var tenantId TenantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tenantId", r.PathValue("tenantId"), &tenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tenantId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "userId" -------------
+	var userId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", r.PathValue("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "userId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateTeamMemberParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateTeamMember(w, r, tenantId, userId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -225,9 +2253,59 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/healthz", wrapper.GetHealthz)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/readyz", wrapper.GetReadyz)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/auth/register", wrapper.DashboardRegister)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/auth/login", wrapper.DashboardLogin)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/auth/mfa", wrapper.DashboardMfa)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/auth/refresh", wrapper.DashboardRefresh)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/auth/logout", wrapper.DashboardLogout)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/me", wrapper.GetDashboardMe)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/me/password", wrapper.ChangeDashboardPassword)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/me/logout-all", wrapper.DashboardLogoutAll)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/me/totp/enroll", wrapper.EnrollTotp)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/me/totp/confirm", wrapper.ConfirmTotp)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/dashboard/me/totp", wrapper.DisableTotp)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/tenants", wrapper.ListTenants)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/tenants/{tenantId}", wrapper.GetTenant)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/dashboard/tenants/{tenantId}", wrapper.UpdateTenant)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/tenants/{tenantId}/team", wrapper.ListTeam)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/tenants/{tenantId}/team", wrapper.AddTeamMember)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/dashboard/tenants/{tenantId}/team/{userId}", wrapper.RemoveTeamMember)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/dashboard/tenants/{tenantId}/team/{userId}", wrapper.UpdateTeamMember)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/tenants/{tenantId}/audit-log", wrapper.ListAuditLog)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/tenants/{tenantId}/apps", wrapper.ListApps)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/tenants/{tenantId}/apps", wrapper.CreateApp)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/apps/{appId}", wrapper.GetApp)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/dashboard/apps/{appId}", wrapper.UpdateApp)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/channels", wrapper.ListAppChannels)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/channels/{environment}", wrapper.DeleteAppChannel)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/channels/{environment}", wrapper.PutAppChannel)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/stores", wrapper.ListStores)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/stores", wrapper.CreateStore)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/dashboard/stores/{storeId}", wrapper.DeleteStore)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/dashboard/stores/{storeId}", wrapper.UpdateStore)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/staff", wrapper.ListStaff)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/staff", wrapper.CreateStaff)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/dashboard/staff/{staffId}", wrapper.DeleteStaff)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/dashboard/staff/{staffId}", wrapper.UpdateStaff)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/api-keys", wrapper.ListApiKeys)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/api-keys", wrapper.CreateApiKey)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/dashboard/api-keys/{keyId}", wrapper.RevokeApiKey)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/app", wrapper.GetCurrentApp)
 
 	return m
 }
+
+type BadRequestJSONResponse Error
+
+type ForbiddenJSONResponse Error
+
+type IdempotencyMismatchJSONResponse Error
+
+type NotFoundJSONResponse Error
+
+type TooManyRequestsJSONResponse Error
+
+type UnauthorizedJSONResponse Error
 
 type GetHealthzRequestObject struct {
 }
@@ -285,6 +2363,2530 @@ func (response GetReadyz503JSONResponse) VisitGetReadyzResponse(w http.ResponseW
 	return err
 }
 
+type GetCurrentAppRequestObject struct {
+}
+
+type GetCurrentAppResponseObject interface {
+	VisitGetCurrentAppResponse(w http.ResponseWriter) error
+}
+
+type GetCurrentApp200JSONResponse App
+
+func (response GetCurrentApp200JSONResponse) VisitGetCurrentAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCurrentApp401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetCurrentApp401JSONResponse) VisitGetCurrentAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeApiKeyRequestObject struct {
+	KeyId openapi_types.UUID `json:"keyId"`
+}
+
+type RevokeApiKeyResponseObject interface {
+	VisitRevokeApiKeyResponse(w http.ResponseWriter) error
+}
+
+type RevokeApiKey204Response struct {
+}
+
+func (response RevokeApiKey204Response) VisitRevokeApiKeyResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RevokeApiKey401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RevokeApiKey401JSONResponse) VisitRevokeApiKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeApiKey403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RevokeApiKey403JSONResponse) VisitRevokeApiKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeApiKey404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RevokeApiKey404JSONResponse) VisitRevokeApiKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAppRequestObject struct {
+	AppId AppId `json:"appId"`
+}
+
+type GetAppResponseObject interface {
+	VisitGetAppResponse(w http.ResponseWriter) error
+}
+
+type GetApp200JSONResponse App
+
+func (response GetApp200JSONResponse) VisitGetAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetApp401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetApp401JSONResponse) VisitGetAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetApp404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetApp404JSONResponse) VisitGetAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAppRequestObject struct {
+	AppId  AppId `json:"appId"`
+	Params UpdateAppParams
+	Body   *UpdateAppJSONRequestBody
+}
+
+type UpdateAppResponseObject interface {
+	VisitUpdateAppResponse(w http.ResponseWriter) error
+}
+
+type UpdateApp200JSONResponse App
+
+func (response UpdateApp200JSONResponse) VisitUpdateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateApp400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateApp400JSONResponse) VisitUpdateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateApp401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateApp401JSONResponse) VisitUpdateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateApp403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateApp403JSONResponse) VisitUpdateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateApp404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateApp404JSONResponse) VisitUpdateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateApp422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response UpdateApp422JSONResponse) VisitUpdateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListApiKeysRequestObject struct {
+	AppId AppId `json:"appId"`
+}
+
+type ListApiKeysResponseObject interface {
+	VisitListApiKeysResponse(w http.ResponseWriter) error
+}
+
+type ListApiKeys200JSONResponse []ApiKey
+
+func (response ListApiKeys200JSONResponse) VisitListApiKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListApiKeys401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListApiKeys401JSONResponse) VisitListApiKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListApiKeys404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListApiKeys404JSONResponse) VisitListApiKeysResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateApiKeyRequestObject struct {
+	AppId  AppId `json:"appId"`
+	Params CreateApiKeyParams
+	Body   *CreateApiKeyJSONRequestBody
+}
+
+type CreateApiKeyResponseObject interface {
+	VisitCreateApiKeyResponse(w http.ResponseWriter) error
+}
+
+type CreateApiKey201JSONResponse ApiKeyCreated
+
+func (response CreateApiKey201JSONResponse) VisitCreateApiKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateApiKey400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateApiKey400JSONResponse) VisitCreateApiKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateApiKey401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateApiKey401JSONResponse) VisitCreateApiKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateApiKey403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateApiKey403JSONResponse) VisitCreateApiKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateApiKey404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateApiKey404JSONResponse) VisitCreateApiKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateApiKey422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response CreateApiKey422JSONResponse) VisitCreateApiKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAppChannelsRequestObject struct {
+	AppId AppId `json:"appId"`
+}
+
+type ListAppChannelsResponseObject interface {
+	VisitListAppChannelsResponse(w http.ResponseWriter) error
+}
+
+type ListAppChannels200JSONResponse []AppChannel
+
+func (response ListAppChannels200JSONResponse) VisitListAppChannelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAppChannels401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListAppChannels401JSONResponse) VisitListAppChannelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAppChannels404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListAppChannels404JSONResponse) VisitListAppChannelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAppChannelRequestObject struct {
+	AppId       AppId              `json:"appId"`
+	Environment ChannelEnvironment `json:"environment"`
+}
+
+type DeleteAppChannelResponseObject interface {
+	VisitDeleteAppChannelResponse(w http.ResponseWriter) error
+}
+
+type DeleteAppChannel204Response struct {
+}
+
+func (response DeleteAppChannel204Response) VisitDeleteAppChannelResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAppChannel401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteAppChannel401JSONResponse) VisitDeleteAppChannelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAppChannel403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteAppChannel403JSONResponse) VisitDeleteAppChannelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAppChannel404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteAppChannel404JSONResponse) VisitDeleteAppChannelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAppChannelRequestObject struct {
+	AppId       AppId              `json:"appId"`
+	Environment ChannelEnvironment `json:"environment"`
+	Params      PutAppChannelParams
+	Body        *PutAppChannelJSONRequestBody
+}
+
+type PutAppChannelResponseObject interface {
+	VisitPutAppChannelResponse(w http.ResponseWriter) error
+}
+
+type PutAppChannel200JSONResponse AppChannel
+
+func (response PutAppChannel200JSONResponse) VisitPutAppChannelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAppChannel400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PutAppChannel400JSONResponse) VisitPutAppChannelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAppChannel401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PutAppChannel401JSONResponse) VisitPutAppChannelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAppChannel403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response PutAppChannel403JSONResponse) VisitPutAppChannelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAppChannel404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PutAppChannel404JSONResponse) VisitPutAppChannelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutAppChannel422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response PutAppChannel422JSONResponse) VisitPutAppChannelResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStaffRequestObject struct {
+	AppId AppId `json:"appId"`
+}
+
+type ListStaffResponseObject interface {
+	VisitListStaffResponse(w http.ResponseWriter) error
+}
+
+type ListStaff200JSONResponse []Staff
+
+func (response ListStaff200JSONResponse) VisitListStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStaff401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListStaff401JSONResponse) VisitListStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStaff404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListStaff404JSONResponse) VisitListStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStaffRequestObject struct {
+	AppId  AppId `json:"appId"`
+	Params CreateStaffParams
+	Body   *CreateStaffJSONRequestBody
+}
+
+type CreateStaffResponseObject interface {
+	VisitCreateStaffResponse(w http.ResponseWriter) error
+}
+
+type CreateStaff201JSONResponse StaffCreated
+
+func (response CreateStaff201JSONResponse) VisitCreateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStaff400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateStaff400JSONResponse) VisitCreateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStaff401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateStaff401JSONResponse) VisitCreateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStaff403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateStaff403JSONResponse) VisitCreateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStaff404JSONResponse Error
+
+func (response CreateStaff404JSONResponse) VisitCreateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStaff422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response CreateStaff422JSONResponse) VisitCreateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStoresRequestObject struct {
+	AppId AppId `json:"appId"`
+}
+
+type ListStoresResponseObject interface {
+	VisitListStoresResponse(w http.ResponseWriter) error
+}
+
+type ListStores200JSONResponse []Store
+
+func (response ListStores200JSONResponse) VisitListStoresResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStores401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListStores401JSONResponse) VisitListStoresResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStores404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListStores404JSONResponse) VisitListStoresResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStoreRequestObject struct {
+	AppId  AppId `json:"appId"`
+	Params CreateStoreParams
+	Body   *CreateStoreJSONRequestBody
+}
+
+type CreateStoreResponseObject interface {
+	VisitCreateStoreResponse(w http.ResponseWriter) error
+}
+
+type CreateStore201JSONResponse Store
+
+func (response CreateStore201JSONResponse) VisitCreateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStore400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateStore400JSONResponse) VisitCreateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStore401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateStore401JSONResponse) VisitCreateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStore403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateStore403JSONResponse) VisitCreateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStore404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateStore404JSONResponse) VisitCreateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStore409JSONResponse Error
+
+func (response CreateStore409JSONResponse) VisitCreateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStore422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response CreateStore422JSONResponse) VisitCreateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardLoginRequestObject struct {
+	Body *DashboardLoginJSONRequestBody
+}
+
+type DashboardLoginResponseObject interface {
+	VisitDashboardLoginResponse(w http.ResponseWriter) error
+}
+
+type DashboardLogin200JSONResponse LoginResult
+
+func (response DashboardLogin200JSONResponse) VisitDashboardLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardLogin400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response DashboardLogin400JSONResponse) VisitDashboardLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardLogin401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DashboardLogin401JSONResponse) VisitDashboardLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardLogin429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response DashboardLogin429JSONResponse) VisitDashboardLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardLogoutRequestObject struct {
+}
+
+type DashboardLogoutResponseObject interface {
+	VisitDashboardLogoutResponse(w http.ResponseWriter) error
+}
+
+type DashboardLogout204Response struct {
+}
+
+func (response DashboardLogout204Response) VisitDashboardLogoutResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DashboardMfaRequestObject struct {
+	Body *DashboardMfaJSONRequestBody
+}
+
+type DashboardMfaResponseObject interface {
+	VisitDashboardMfaResponse(w http.ResponseWriter) error
+}
+
+type DashboardMfa200JSONResponse Session
+
+func (response DashboardMfa200JSONResponse) VisitDashboardMfaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardMfa400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response DashboardMfa400JSONResponse) VisitDashboardMfaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardMfa401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DashboardMfa401JSONResponse) VisitDashboardMfaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardMfa429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response DashboardMfa429JSONResponse) VisitDashboardMfaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardRefreshRequestObject struct {
+}
+
+type DashboardRefreshResponseObject interface {
+	VisitDashboardRefreshResponse(w http.ResponseWriter) error
+}
+
+type DashboardRefresh200JSONResponse Session
+
+func (response DashboardRefresh200JSONResponse) VisitDashboardRefreshResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardRefresh401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DashboardRefresh401JSONResponse) VisitDashboardRefreshResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardRefresh429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response DashboardRefresh429JSONResponse) VisitDashboardRefreshResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardRegisterRequestObject struct {
+	Body *DashboardRegisterJSONRequestBody
+}
+
+type DashboardRegisterResponseObject interface {
+	VisitDashboardRegisterResponse(w http.ResponseWriter) error
+}
+
+type DashboardRegister201JSONResponse Session
+
+func (response DashboardRegister201JSONResponse) VisitDashboardRegisterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardRegister400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response DashboardRegister400JSONResponse) VisitDashboardRegisterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardRegister409JSONResponse Error
+
+func (response DashboardRegister409JSONResponse) VisitDashboardRegisterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardRegister429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response DashboardRegister429JSONResponse) VisitDashboardRegisterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDashboardMeRequestObject struct {
+}
+
+type GetDashboardMeResponseObject interface {
+	VisitGetDashboardMeResponse(w http.ResponseWriter) error
+}
+
+type GetDashboardMe200JSONResponse Me
+
+func (response GetDashboardMe200JSONResponse) VisitGetDashboardMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDashboardMe401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetDashboardMe401JSONResponse) VisitGetDashboardMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DashboardLogoutAllRequestObject struct {
+}
+
+type DashboardLogoutAllResponseObject interface {
+	VisitDashboardLogoutAllResponse(w http.ResponseWriter) error
+}
+
+type DashboardLogoutAll204Response struct {
+}
+
+func (response DashboardLogoutAll204Response) VisitDashboardLogoutAllResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DashboardLogoutAll401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DashboardLogoutAll401JSONResponse) VisitDashboardLogoutAllResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeDashboardPasswordRequestObject struct {
+	Body *ChangeDashboardPasswordJSONRequestBody
+}
+
+type ChangeDashboardPasswordResponseObject interface {
+	VisitChangeDashboardPasswordResponse(w http.ResponseWriter) error
+}
+
+type ChangeDashboardPassword200JSONResponse Session
+
+func (response ChangeDashboardPassword200JSONResponse) VisitChangeDashboardPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeDashboardPassword400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ChangeDashboardPassword400JSONResponse) VisitChangeDashboardPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeDashboardPassword401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ChangeDashboardPassword401JSONResponse) VisitChangeDashboardPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ChangeDashboardPassword403JSONResponse Error
+
+func (response ChangeDashboardPassword403JSONResponse) VisitChangeDashboardPasswordResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DisableTotpRequestObject struct {
+	Body *DisableTotpJSONRequestBody
+}
+
+type DisableTotpResponseObject interface {
+	VisitDisableTotpResponse(w http.ResponseWriter) error
+}
+
+type DisableTotp204Response struct {
+}
+
+func (response DisableTotp204Response) VisitDisableTotpResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DisableTotp400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response DisableTotp400JSONResponse) VisitDisableTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DisableTotp401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DisableTotp401JSONResponse) VisitDisableTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DisableTotp403JSONResponse Error
+
+func (response DisableTotp403JSONResponse) VisitDisableTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmTotpRequestObject struct {
+	Body *ConfirmTotpJSONRequestBody
+}
+
+type ConfirmTotpResponseObject interface {
+	VisitConfirmTotpResponse(w http.ResponseWriter) error
+}
+
+type ConfirmTotp200JSONResponse TotpConfirmed
+
+func (response ConfirmTotp200JSONResponse) VisitConfirmTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmTotp400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ConfirmTotp400JSONResponse) VisitConfirmTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmTotp401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ConfirmTotp401JSONResponse) VisitConfirmTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmTotp409JSONResponse Error
+
+func (response ConfirmTotp409JSONResponse) VisitConfirmTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnrollTotpRequestObject struct {
+}
+
+type EnrollTotpResponseObject interface {
+	VisitEnrollTotpResponse(w http.ResponseWriter) error
+}
+
+type EnrollTotp200JSONResponse TotpEnrollment
+
+func (response EnrollTotp200JSONResponse) VisitEnrollTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnrollTotp401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response EnrollTotp401JSONResponse) VisitEnrollTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnrollTotp409JSONResponse Error
+
+func (response EnrollTotp409JSONResponse) VisitEnrollTotpResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteStaffRequestObject struct {
+	StaffId openapi_types.UUID `json:"staffId"`
+}
+
+type DeleteStaffResponseObject interface {
+	VisitDeleteStaffResponse(w http.ResponseWriter) error
+}
+
+type DeleteStaff204Response struct {
+}
+
+func (response DeleteStaff204Response) VisitDeleteStaffResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteStaff401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteStaff401JSONResponse) VisitDeleteStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteStaff403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteStaff403JSONResponse) VisitDeleteStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteStaff404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteStaff404JSONResponse) VisitDeleteStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStaffRequestObject struct {
+	StaffId openapi_types.UUID `json:"staffId"`
+	Params  UpdateStaffParams
+	Body    *UpdateStaffJSONRequestBody
+}
+
+type UpdateStaffResponseObject interface {
+	VisitUpdateStaffResponse(w http.ResponseWriter) error
+}
+
+type UpdateStaff200JSONResponse Staff
+
+func (response UpdateStaff200JSONResponse) VisitUpdateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStaff400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateStaff400JSONResponse) VisitUpdateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStaff401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateStaff401JSONResponse) VisitUpdateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStaff403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateStaff403JSONResponse) VisitUpdateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStaff404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateStaff404JSONResponse) VisitUpdateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStaff422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response UpdateStaff422JSONResponse) VisitUpdateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteStoreRequestObject struct {
+	StoreId openapi_types.UUID `json:"storeId"`
+}
+
+type DeleteStoreResponseObject interface {
+	VisitDeleteStoreResponse(w http.ResponseWriter) error
+}
+
+type DeleteStore204Response struct {
+}
+
+func (response DeleteStore204Response) VisitDeleteStoreResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteStore401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteStore401JSONResponse) VisitDeleteStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteStore403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteStore403JSONResponse) VisitDeleteStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteStore404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteStore404JSONResponse) VisitDeleteStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteStore409JSONResponse Error
+
+func (response DeleteStore409JSONResponse) VisitDeleteStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStoreRequestObject struct {
+	StoreId openapi_types.UUID `json:"storeId"`
+	Params  UpdateStoreParams
+	Body    *UpdateStoreJSONRequestBody
+}
+
+type UpdateStoreResponseObject interface {
+	VisitUpdateStoreResponse(w http.ResponseWriter) error
+}
+
+type UpdateStore200JSONResponse Store
+
+func (response UpdateStore200JSONResponse) VisitUpdateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStore400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateStore400JSONResponse) VisitUpdateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStore401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateStore401JSONResponse) VisitUpdateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStore403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateStore403JSONResponse) VisitUpdateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStore404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateStore404JSONResponse) VisitUpdateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStore422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response UpdateStore422JSONResponse) VisitUpdateStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTenantsRequestObject struct {
+}
+
+type ListTenantsResponseObject interface {
+	VisitListTenantsResponse(w http.ResponseWriter) error
+}
+
+type ListTenants200JSONResponse []Membership
+
+func (response ListTenants200JSONResponse) VisitListTenantsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTenants401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListTenants401JSONResponse) VisitListTenantsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTenantRequestObject struct {
+	TenantId TenantId `json:"tenantId"`
+}
+
+type GetTenantResponseObject interface {
+	VisitGetTenantResponse(w http.ResponseWriter) error
+}
+
+type GetTenant200JSONResponse Tenant
+
+func (response GetTenant200JSONResponse) VisitGetTenantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTenant401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetTenant401JSONResponse) VisitGetTenantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTenant404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetTenant404JSONResponse) VisitGetTenantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTenantRequestObject struct {
+	TenantId TenantId `json:"tenantId"`
+	Params   UpdateTenantParams
+	Body     *UpdateTenantJSONRequestBody
+}
+
+type UpdateTenantResponseObject interface {
+	VisitUpdateTenantResponse(w http.ResponseWriter) error
+}
+
+type UpdateTenant200JSONResponse Tenant
+
+func (response UpdateTenant200JSONResponse) VisitUpdateTenantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTenant400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateTenant400JSONResponse) VisitUpdateTenantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTenant401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateTenant401JSONResponse) VisitUpdateTenantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTenant403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateTenant403JSONResponse) VisitUpdateTenantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTenant404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateTenant404JSONResponse) VisitUpdateTenantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTenant422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response UpdateTenant422JSONResponse) VisitUpdateTenantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAppsRequestObject struct {
+	TenantId TenantId `json:"tenantId"`
+}
+
+type ListAppsResponseObject interface {
+	VisitListAppsResponse(w http.ResponseWriter) error
+}
+
+type ListApps200JSONResponse []App
+
+func (response ListApps200JSONResponse) VisitListAppsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListApps401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListApps401JSONResponse) VisitListAppsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListApps404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListApps404JSONResponse) VisitListAppsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAppRequestObject struct {
+	TenantId TenantId `json:"tenantId"`
+	Params   CreateAppParams
+	Body     *CreateAppJSONRequestBody
+}
+
+type CreateAppResponseObject interface {
+	VisitCreateAppResponse(w http.ResponseWriter) error
+}
+
+type CreateApp201JSONResponse App
+
+func (response CreateApp201JSONResponse) VisitCreateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateApp400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateApp400JSONResponse) VisitCreateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateApp401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateApp401JSONResponse) VisitCreateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateApp403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateApp403JSONResponse) VisitCreateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateApp404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateApp404JSONResponse) VisitCreateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateApp409JSONResponse Error
+
+func (response CreateApp409JSONResponse) VisitCreateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateApp422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response CreateApp422JSONResponse) VisitCreateAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAuditLogRequestObject struct {
+	TenantId TenantId `json:"tenantId"`
+	Params   ListAuditLogParams
+}
+
+type ListAuditLogResponseObject interface {
+	VisitListAuditLogResponse(w http.ResponseWriter) error
+}
+
+type ListAuditLog200JSONResponse AuditPage
+
+func (response ListAuditLog200JSONResponse) VisitListAuditLogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAuditLog400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListAuditLog400JSONResponse) VisitListAuditLogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAuditLog401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListAuditLog401JSONResponse) VisitListAuditLogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAuditLog404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListAuditLog404JSONResponse) VisitListAuditLogResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTeamRequestObject struct {
+	TenantId TenantId `json:"tenantId"`
+}
+
+type ListTeamResponseObject interface {
+	VisitListTeamResponse(w http.ResponseWriter) error
+}
+
+type ListTeam200JSONResponse []TeamMember
+
+func (response ListTeam200JSONResponse) VisitListTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTeam401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListTeam401JSONResponse) VisitListTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTeam404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListTeam404JSONResponse) VisitListTeamResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddTeamMemberRequestObject struct {
+	TenantId TenantId `json:"tenantId"`
+	Params   AddTeamMemberParams
+	Body     *AddTeamMemberJSONRequestBody
+}
+
+type AddTeamMemberResponseObject interface {
+	VisitAddTeamMemberResponse(w http.ResponseWriter) error
+}
+
+type AddTeamMember201JSONResponse TeamMember
+
+func (response AddTeamMember201JSONResponse) VisitAddTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddTeamMember400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AddTeamMember400JSONResponse) VisitAddTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddTeamMember401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AddTeamMember401JSONResponse) VisitAddTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddTeamMember403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response AddTeamMember403JSONResponse) VisitAddTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddTeamMember404JSONResponse Error
+
+func (response AddTeamMember404JSONResponse) VisitAddTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddTeamMember409JSONResponse Error
+
+func (response AddTeamMember409JSONResponse) VisitAddTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddTeamMember422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response AddTeamMember422JSONResponse) VisitAddTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveTeamMemberRequestObject struct {
+	TenantId TenantId           `json:"tenantId"`
+	UserId   openapi_types.UUID `json:"userId"`
+}
+
+type RemoveTeamMemberResponseObject interface {
+	VisitRemoveTeamMemberResponse(w http.ResponseWriter) error
+}
+
+type RemoveTeamMember204Response struct {
+}
+
+func (response RemoveTeamMember204Response) VisitRemoveTeamMemberResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RemoveTeamMember401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RemoveTeamMember401JSONResponse) VisitRemoveTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveTeamMember403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RemoveTeamMember403JSONResponse) VisitRemoveTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveTeamMember404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RemoveTeamMember404JSONResponse) VisitRemoveTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveTeamMember409JSONResponse Error
+
+func (response RemoveTeamMember409JSONResponse) VisitRemoveTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTeamMemberRequestObject struct {
+	TenantId TenantId           `json:"tenantId"`
+	UserId   openapi_types.UUID `json:"userId"`
+	Params   UpdateTeamMemberParams
+	Body     *UpdateTeamMemberJSONRequestBody
+}
+
+type UpdateTeamMemberResponseObject interface {
+	VisitUpdateTeamMemberResponse(w http.ResponseWriter) error
+}
+
+type UpdateTeamMember200JSONResponse TeamMember
+
+func (response UpdateTeamMember200JSONResponse) VisitUpdateTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTeamMember400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateTeamMember400JSONResponse) VisitUpdateTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTeamMember401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateTeamMember401JSONResponse) VisitUpdateTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTeamMember403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateTeamMember403JSONResponse) VisitUpdateTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTeamMember404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateTeamMember404JSONResponse) VisitUpdateTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTeamMember409JSONResponse Error
+
+func (response UpdateTeamMember409JSONResponse) VisitUpdateTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateTeamMember422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response UpdateTeamMember422JSONResponse) VisitUpdateTeamMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetHealthz Liveness probe
@@ -293,6 +4895,120 @@ type StrictServerInterface interface {
 	// GetReadyz Readiness probe
 	// (GET /readyz)
 	GetReadyz(ctx context.Context, request GetReadyzRequestObject) (GetReadyzResponseObject, error)
+	// GetCurrentApp The app this API key belongs to
+	// (GET /v1/app)
+	GetCurrentApp(ctx context.Context, request GetCurrentAppRequestObject) (GetCurrentAppResponseObject, error)
+	// RevokeApiKey Revoke an API key
+	// (DELETE /v1/dashboard/api-keys/{keyId})
+	RevokeApiKey(ctx context.Context, request RevokeApiKeyRequestObject) (RevokeApiKeyResponseObject, error)
+	// GetApp App details
+	// (GET /v1/dashboard/apps/{appId})
+	GetApp(ctx context.Context, request GetAppRequestObject) (GetAppResponseObject, error)
+	// UpdateApp Update app settings and LINE Official Account credentials
+	// (PATCH /v1/dashboard/apps/{appId})
+	UpdateApp(ctx context.Context, request UpdateAppRequestObject) (UpdateAppResponseObject, error)
+	// ListApiKeys Active API keys of the app
+	// (GET /v1/dashboard/apps/{appId}/api-keys)
+	ListApiKeys(ctx context.Context, request ListApiKeysRequestObject) (ListApiKeysResponseObject, error)
+	// CreateApiKey Create an API key
+	// (POST /v1/dashboard/apps/{appId}/api-keys)
+	CreateApiKey(ctx context.Context, request CreateApiKeyRequestObject) (CreateApiKeyResponseObject, error)
+	// ListAppChannels LINE MINI App channels of the app
+	// (GET /v1/dashboard/apps/{appId}/channels)
+	ListAppChannels(ctx context.Context, request ListAppChannelsRequestObject) (ListAppChannelsResponseObject, error)
+	// DeleteAppChannel Remove the channel for an environment
+	// (DELETE /v1/dashboard/apps/{appId}/channels/{environment})
+	DeleteAppChannel(ctx context.Context, request DeleteAppChannelRequestObject) (DeleteAppChannelResponseObject, error)
+	// PutAppChannel Create or replace the channel for an environment
+	// (PUT /v1/dashboard/apps/{appId}/channels/{environment})
+	PutAppChannel(ctx context.Context, request PutAppChannelRequestObject) (PutAppChannelResponseObject, error)
+	// ListStaff Staff of the app
+	// (GET /v1/dashboard/apps/{appId}/staff)
+	ListStaff(ctx context.Context, request ListStaffRequestObject) (ListStaffResponseObject, error)
+	// CreateStaff Add a staff member
+	// (POST /v1/dashboard/apps/{appId}/staff)
+	CreateStaff(ctx context.Context, request CreateStaffRequestObject) (CreateStaffResponseObject, error)
+	// ListStores Stores of the app
+	// (GET /v1/dashboard/apps/{appId}/stores)
+	ListStores(ctx context.Context, request ListStoresRequestObject) (ListStoresResponseObject, error)
+	// CreateStore Create a store
+	// (POST /v1/dashboard/apps/{appId}/stores)
+	CreateStore(ctx context.Context, request CreateStoreRequestObject) (CreateStoreResponseObject, error)
+	// DashboardLogin Sign in with email and password
+	// (POST /v1/dashboard/auth/login)
+	DashboardLogin(ctx context.Context, request DashboardLoginRequestObject) (DashboardLoginResponseObject, error)
+	// DashboardLogout Sign out this device
+	// (POST /v1/dashboard/auth/logout)
+	DashboardLogout(ctx context.Context, request DashboardLogoutRequestObject) (DashboardLogoutResponseObject, error)
+	// DashboardMfa Complete sign-in with a TOTP or recovery code
+	// (POST /v1/dashboard/auth/mfa)
+	DashboardMfa(ctx context.Context, request DashboardMfaRequestObject) (DashboardMfaResponseObject, error)
+	// DashboardRefresh Exchange the refresh cookie for a new session
+	// (POST /v1/dashboard/auth/refresh)
+	DashboardRefresh(ctx context.Context, request DashboardRefreshRequestObject) (DashboardRefreshResponseObject, error)
+	// DashboardRegister Create a dashboard account and its first tenant
+	// (POST /v1/dashboard/auth/register)
+	DashboardRegister(ctx context.Context, request DashboardRegisterRequestObject) (DashboardRegisterResponseObject, error)
+	// GetDashboardMe The signed-in user and their tenant memberships
+	// (GET /v1/dashboard/me)
+	GetDashboardMe(ctx context.Context, request GetDashboardMeRequestObject) (GetDashboardMeResponseObject, error)
+	// DashboardLogoutAll Sign out everywhere
+	// (POST /v1/dashboard/me/logout-all)
+	DashboardLogoutAll(ctx context.Context, request DashboardLogoutAllRequestObject) (DashboardLogoutAllResponseObject, error)
+	// ChangeDashboardPassword Change the password and end every other session
+	// (POST /v1/dashboard/me/password)
+	ChangeDashboardPassword(ctx context.Context, request ChangeDashboardPasswordRequestObject) (ChangeDashboardPasswordResponseObject, error)
+	// DisableTotp Disable TOTP
+	// (DELETE /v1/dashboard/me/totp)
+	DisableTotp(ctx context.Context, request DisableTotpRequestObject) (DisableTotpResponseObject, error)
+	// ConfirmTotp Confirm TOTP enrollment with a code
+	// (POST /v1/dashboard/me/totp/confirm)
+	ConfirmTotp(ctx context.Context, request ConfirmTotpRequestObject) (ConfirmTotpResponseObject, error)
+	// EnrollTotp Start TOTP enrollment
+	// (POST /v1/dashboard/me/totp/enroll)
+	EnrollTotp(ctx context.Context, request EnrollTotpRequestObject) (EnrollTotpResponseObject, error)
+	// DeleteStaff Remove a staff member
+	// (DELETE /v1/dashboard/staff/{staffId})
+	DeleteStaff(ctx context.Context, request DeleteStaffRequestObject) (DeleteStaffResponseObject, error)
+	// UpdateStaff Update a staff member
+	// (PATCH /v1/dashboard/staff/{staffId})
+	UpdateStaff(ctx context.Context, request UpdateStaffRequestObject) (UpdateStaffResponseObject, error)
+	// DeleteStore Delete a store
+	// (DELETE /v1/dashboard/stores/{storeId})
+	DeleteStore(ctx context.Context, request DeleteStoreRequestObject) (DeleteStoreResponseObject, error)
+	// UpdateStore Update a store
+	// (PATCH /v1/dashboard/stores/{storeId})
+	UpdateStore(ctx context.Context, request UpdateStoreRequestObject) (UpdateStoreResponseObject, error)
+	// ListTenants Tenants the signed-in user belongs to
+	// (GET /v1/dashboard/tenants)
+	ListTenants(ctx context.Context, request ListTenantsRequestObject) (ListTenantsResponseObject, error)
+	// GetTenant Tenant details
+	// (GET /v1/dashboard/tenants/{tenantId})
+	GetTenant(ctx context.Context, request GetTenantRequestObject) (GetTenantResponseObject, error)
+	// UpdateTenant Rename the tenant
+	// (PATCH /v1/dashboard/tenants/{tenantId})
+	UpdateTenant(ctx context.Context, request UpdateTenantRequestObject) (UpdateTenantResponseObject, error)
+	// ListApps Apps of the tenant
+	// (GET /v1/dashboard/tenants/{tenantId}/apps)
+	ListApps(ctx context.Context, request ListAppsRequestObject) (ListAppsResponseObject, error)
+	// CreateApp Create an app
+	// (POST /v1/dashboard/tenants/{tenantId}/apps)
+	CreateApp(ctx context.Context, request CreateAppRequestObject) (CreateAppResponseObject, error)
+	// ListAuditLog Audit log, newest first
+	// (GET /v1/dashboard/tenants/{tenantId}/audit-log)
+	ListAuditLog(ctx context.Context, request ListAuditLogRequestObject) (ListAuditLogResponseObject, error)
+	// ListTeam Team members of the tenant
+	// (GET /v1/dashboard/tenants/{tenantId}/team)
+	ListTeam(ctx context.Context, request ListTeamRequestObject) (ListTeamResponseObject, error)
+	// AddTeamMember Add an existing dashboard user to the tenant
+	// (POST /v1/dashboard/tenants/{tenantId}/team)
+	AddTeamMember(ctx context.Context, request AddTeamMemberRequestObject) (AddTeamMemberResponseObject, error)
+	// RemoveTeamMember Remove a team member
+	// (DELETE /v1/dashboard/tenants/{tenantId}/team/{userId})
+	RemoveTeamMember(ctx context.Context, request RemoveTeamMemberRequestObject) (RemoveTeamMemberResponseObject, error)
+	// UpdateTeamMember Change a team member's role
+	// (PATCH /v1/dashboard/tenants/{tenantId}/team/{userId})
+	UpdateTeamMember(ctx context.Context, request UpdateTeamMemberRequestObject) (UpdateTeamMemberResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -382,27 +5098,1216 @@ func (sh *strictHandler) GetReadyz(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetCurrentApp operation middleware
+func (sh *strictHandler) GetCurrentApp(w http.ResponseWriter, r *http.Request) {
+	var request GetCurrentAppRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCurrentApp(ctx, request.(GetCurrentAppRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCurrentApp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCurrentAppResponseObject); ok {
+		if err := validResponse.VisitGetCurrentAppResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RevokeApiKey operation middleware
+func (sh *strictHandler) RevokeApiKey(w http.ResponseWriter, r *http.Request, keyId openapi_types.UUID) {
+	var request RevokeApiKeyRequestObject
+
+	request.KeyId = keyId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokeApiKey(ctx, request.(RevokeApiKeyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokeApiKey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokeApiKeyResponseObject); ok {
+		if err := validResponse.VisitRevokeApiKeyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetApp operation middleware
+func (sh *strictHandler) GetApp(w http.ResponseWriter, r *http.Request, appId AppId) {
+	var request GetAppRequestObject
+
+	request.AppId = appId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetApp(ctx, request.(GetAppRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetApp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAppResponseObject); ok {
+		if err := validResponse.VisitGetAppResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateApp operation middleware
+func (sh *strictHandler) UpdateApp(w http.ResponseWriter, r *http.Request, appId AppId, params UpdateAppParams) {
+	var request UpdateAppRequestObject
+
+	request.AppId = appId
+	request.Params = params
+
+	var body UpdateAppJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateApp(ctx, request.(UpdateAppRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateApp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAppResponseObject); ok {
+		if err := validResponse.VisitUpdateAppResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListApiKeys operation middleware
+func (sh *strictHandler) ListApiKeys(w http.ResponseWriter, r *http.Request, appId AppId) {
+	var request ListApiKeysRequestObject
+
+	request.AppId = appId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListApiKeys(ctx, request.(ListApiKeysRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListApiKeys")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListApiKeysResponseObject); ok {
+		if err := validResponse.VisitListApiKeysResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateApiKey operation middleware
+func (sh *strictHandler) CreateApiKey(w http.ResponseWriter, r *http.Request, appId AppId, params CreateApiKeyParams) {
+	var request CreateApiKeyRequestObject
+
+	request.AppId = appId
+	request.Params = params
+
+	var body CreateApiKeyJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateApiKey(ctx, request.(CreateApiKeyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateApiKey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateApiKeyResponseObject); ok {
+		if err := validResponse.VisitCreateApiKeyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAppChannels operation middleware
+func (sh *strictHandler) ListAppChannels(w http.ResponseWriter, r *http.Request, appId AppId) {
+	var request ListAppChannelsRequestObject
+
+	request.AppId = appId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAppChannels(ctx, request.(ListAppChannelsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAppChannels")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAppChannelsResponseObject); ok {
+		if err := validResponse.VisitListAppChannelsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAppChannel operation middleware
+func (sh *strictHandler) DeleteAppChannel(w http.ResponseWriter, r *http.Request, appId AppId, environment ChannelEnvironment) {
+	var request DeleteAppChannelRequestObject
+
+	request.AppId = appId
+	request.Environment = environment
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAppChannel(ctx, request.(DeleteAppChannelRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAppChannel")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAppChannelResponseObject); ok {
+		if err := validResponse.VisitDeleteAppChannelResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutAppChannel operation middleware
+func (sh *strictHandler) PutAppChannel(w http.ResponseWriter, r *http.Request, appId AppId, environment ChannelEnvironment, params PutAppChannelParams) {
+	var request PutAppChannelRequestObject
+
+	request.AppId = appId
+	request.Environment = environment
+	request.Params = params
+
+	var body PutAppChannelJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutAppChannel(ctx, request.(PutAppChannelRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutAppChannel")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutAppChannelResponseObject); ok {
+		if err := validResponse.VisitPutAppChannelResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListStaff operation middleware
+func (sh *strictHandler) ListStaff(w http.ResponseWriter, r *http.Request, appId AppId) {
+	var request ListStaffRequestObject
+
+	request.AppId = appId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListStaff(ctx, request.(ListStaffRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListStaff")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListStaffResponseObject); ok {
+		if err := validResponse.VisitListStaffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateStaff operation middleware
+func (sh *strictHandler) CreateStaff(w http.ResponseWriter, r *http.Request, appId AppId, params CreateStaffParams) {
+	var request CreateStaffRequestObject
+
+	request.AppId = appId
+	request.Params = params
+
+	var body CreateStaffJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateStaff(ctx, request.(CreateStaffRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateStaff")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateStaffResponseObject); ok {
+		if err := validResponse.VisitCreateStaffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListStores operation middleware
+func (sh *strictHandler) ListStores(w http.ResponseWriter, r *http.Request, appId AppId) {
+	var request ListStoresRequestObject
+
+	request.AppId = appId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListStores(ctx, request.(ListStoresRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListStores")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListStoresResponseObject); ok {
+		if err := validResponse.VisitListStoresResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateStore operation middleware
+func (sh *strictHandler) CreateStore(w http.ResponseWriter, r *http.Request, appId AppId, params CreateStoreParams) {
+	var request CreateStoreRequestObject
+
+	request.AppId = appId
+	request.Params = params
+
+	var body CreateStoreJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateStore(ctx, request.(CreateStoreRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateStore")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateStoreResponseObject); ok {
+		if err := validResponse.VisitCreateStoreResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DashboardLogin operation middleware
+func (sh *strictHandler) DashboardLogin(w http.ResponseWriter, r *http.Request) {
+	var request DashboardLoginRequestObject
+
+	var body DashboardLoginJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DashboardLogin(ctx, request.(DashboardLoginRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DashboardLogin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DashboardLoginResponseObject); ok {
+		if err := validResponse.VisitDashboardLoginResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DashboardLogout operation middleware
+func (sh *strictHandler) DashboardLogout(w http.ResponseWriter, r *http.Request) {
+	var request DashboardLogoutRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DashboardLogout(ctx, request.(DashboardLogoutRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DashboardLogout")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DashboardLogoutResponseObject); ok {
+		if err := validResponse.VisitDashboardLogoutResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DashboardMfa operation middleware
+func (sh *strictHandler) DashboardMfa(w http.ResponseWriter, r *http.Request) {
+	var request DashboardMfaRequestObject
+
+	var body DashboardMfaJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DashboardMfa(ctx, request.(DashboardMfaRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DashboardMfa")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DashboardMfaResponseObject); ok {
+		if err := validResponse.VisitDashboardMfaResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DashboardRefresh operation middleware
+func (sh *strictHandler) DashboardRefresh(w http.ResponseWriter, r *http.Request) {
+	var request DashboardRefreshRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DashboardRefresh(ctx, request.(DashboardRefreshRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DashboardRefresh")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DashboardRefreshResponseObject); ok {
+		if err := validResponse.VisitDashboardRefreshResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DashboardRegister operation middleware
+func (sh *strictHandler) DashboardRegister(w http.ResponseWriter, r *http.Request) {
+	var request DashboardRegisterRequestObject
+
+	var body DashboardRegisterJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DashboardRegister(ctx, request.(DashboardRegisterRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DashboardRegister")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DashboardRegisterResponseObject); ok {
+		if err := validResponse.VisitDashboardRegisterResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetDashboardMe operation middleware
+func (sh *strictHandler) GetDashboardMe(w http.ResponseWriter, r *http.Request) {
+	var request GetDashboardMeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDashboardMe(ctx, request.(GetDashboardMeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDashboardMe")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetDashboardMeResponseObject); ok {
+		if err := validResponse.VisitGetDashboardMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DashboardLogoutAll operation middleware
+func (sh *strictHandler) DashboardLogoutAll(w http.ResponseWriter, r *http.Request) {
+	var request DashboardLogoutAllRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DashboardLogoutAll(ctx, request.(DashboardLogoutAllRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DashboardLogoutAll")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DashboardLogoutAllResponseObject); ok {
+		if err := validResponse.VisitDashboardLogoutAllResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ChangeDashboardPassword operation middleware
+func (sh *strictHandler) ChangeDashboardPassword(w http.ResponseWriter, r *http.Request) {
+	var request ChangeDashboardPasswordRequestObject
+
+	var body ChangeDashboardPasswordJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ChangeDashboardPassword(ctx, request.(ChangeDashboardPasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ChangeDashboardPassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ChangeDashboardPasswordResponseObject); ok {
+		if err := validResponse.VisitChangeDashboardPasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DisableTotp operation middleware
+func (sh *strictHandler) DisableTotp(w http.ResponseWriter, r *http.Request) {
+	var request DisableTotpRequestObject
+
+	var body DisableTotpJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DisableTotp(ctx, request.(DisableTotpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DisableTotp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DisableTotpResponseObject); ok {
+		if err := validResponse.VisitDisableTotpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmTotp operation middleware
+func (sh *strictHandler) ConfirmTotp(w http.ResponseWriter, r *http.Request) {
+	var request ConfirmTotpRequestObject
+
+	var body ConfirmTotpJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmTotp(ctx, request.(ConfirmTotpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmTotp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfirmTotpResponseObject); ok {
+		if err := validResponse.VisitConfirmTotpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EnrollTotp operation middleware
+func (sh *strictHandler) EnrollTotp(w http.ResponseWriter, r *http.Request) {
+	var request EnrollTotpRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EnrollTotp(ctx, request.(EnrollTotpRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EnrollTotp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EnrollTotpResponseObject); ok {
+		if err := validResponse.VisitEnrollTotpResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteStaff operation middleware
+func (sh *strictHandler) DeleteStaff(w http.ResponseWriter, r *http.Request, staffId openapi_types.UUID) {
+	var request DeleteStaffRequestObject
+
+	request.StaffId = staffId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteStaff(ctx, request.(DeleteStaffRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteStaff")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteStaffResponseObject); ok {
+		if err := validResponse.VisitDeleteStaffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateStaff operation middleware
+func (sh *strictHandler) UpdateStaff(w http.ResponseWriter, r *http.Request, staffId openapi_types.UUID, params UpdateStaffParams) {
+	var request UpdateStaffRequestObject
+
+	request.StaffId = staffId
+	request.Params = params
+
+	var body UpdateStaffJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateStaff(ctx, request.(UpdateStaffRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateStaff")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateStaffResponseObject); ok {
+		if err := validResponse.VisitUpdateStaffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteStore operation middleware
+func (sh *strictHandler) DeleteStore(w http.ResponseWriter, r *http.Request, storeId openapi_types.UUID) {
+	var request DeleteStoreRequestObject
+
+	request.StoreId = storeId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteStore(ctx, request.(DeleteStoreRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteStore")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteStoreResponseObject); ok {
+		if err := validResponse.VisitDeleteStoreResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateStore operation middleware
+func (sh *strictHandler) UpdateStore(w http.ResponseWriter, r *http.Request, storeId openapi_types.UUID, params UpdateStoreParams) {
+	var request UpdateStoreRequestObject
+
+	request.StoreId = storeId
+	request.Params = params
+
+	var body UpdateStoreJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateStore(ctx, request.(UpdateStoreRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateStore")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateStoreResponseObject); ok {
+		if err := validResponse.VisitUpdateStoreResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListTenants operation middleware
+func (sh *strictHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
+	var request ListTenantsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTenants(ctx, request.(ListTenantsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTenants")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListTenantsResponseObject); ok {
+		if err := validResponse.VisitListTenantsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTenant operation middleware
+func (sh *strictHandler) GetTenant(w http.ResponseWriter, r *http.Request, tenantId TenantId) {
+	var request GetTenantRequestObject
+
+	request.TenantId = tenantId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTenant(ctx, request.(GetTenantRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTenant")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetTenantResponseObject); ok {
+		if err := validResponse.VisitGetTenantResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateTenant operation middleware
+func (sh *strictHandler) UpdateTenant(w http.ResponseWriter, r *http.Request, tenantId TenantId, params UpdateTenantParams) {
+	var request UpdateTenantRequestObject
+
+	request.TenantId = tenantId
+	request.Params = params
+
+	var body UpdateTenantJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateTenant(ctx, request.(UpdateTenantRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateTenant")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateTenantResponseObject); ok {
+		if err := validResponse.VisitUpdateTenantResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListApps operation middleware
+func (sh *strictHandler) ListApps(w http.ResponseWriter, r *http.Request, tenantId TenantId) {
+	var request ListAppsRequestObject
+
+	request.TenantId = tenantId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListApps(ctx, request.(ListAppsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListApps")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAppsResponseObject); ok {
+		if err := validResponse.VisitListAppsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateApp operation middleware
+func (sh *strictHandler) CreateApp(w http.ResponseWriter, r *http.Request, tenantId TenantId, params CreateAppParams) {
+	var request CreateAppRequestObject
+
+	request.TenantId = tenantId
+	request.Params = params
+
+	var body CreateAppJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateApp(ctx, request.(CreateAppRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateApp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateAppResponseObject); ok {
+		if err := validResponse.VisitCreateAppResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAuditLog operation middleware
+func (sh *strictHandler) ListAuditLog(w http.ResponseWriter, r *http.Request, tenantId TenantId, params ListAuditLogParams) {
+	var request ListAuditLogRequestObject
+
+	request.TenantId = tenantId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAuditLog(ctx, request.(ListAuditLogRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAuditLog")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAuditLogResponseObject); ok {
+		if err := validResponse.VisitListAuditLogResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListTeam operation middleware
+func (sh *strictHandler) ListTeam(w http.ResponseWriter, r *http.Request, tenantId TenantId) {
+	var request ListTeamRequestObject
+
+	request.TenantId = tenantId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTeam(ctx, request.(ListTeamRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTeam")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListTeamResponseObject); ok {
+		if err := validResponse.VisitListTeamResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddTeamMember operation middleware
+func (sh *strictHandler) AddTeamMember(w http.ResponseWriter, r *http.Request, tenantId TenantId, params AddTeamMemberParams) {
+	var request AddTeamMemberRequestObject
+
+	request.TenantId = tenantId
+	request.Params = params
+
+	var body AddTeamMemberJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddTeamMember(ctx, request.(AddTeamMemberRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddTeamMember")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddTeamMemberResponseObject); ok {
+		if err := validResponse.VisitAddTeamMemberResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RemoveTeamMember operation middleware
+func (sh *strictHandler) RemoveTeamMember(w http.ResponseWriter, r *http.Request, tenantId TenantId, userId openapi_types.UUID) {
+	var request RemoveTeamMemberRequestObject
+
+	request.TenantId = tenantId
+	request.UserId = userId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RemoveTeamMember(ctx, request.(RemoveTeamMemberRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RemoveTeamMember")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RemoveTeamMemberResponseObject); ok {
+		if err := validResponse.VisitRemoveTeamMemberResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateTeamMember operation middleware
+func (sh *strictHandler) UpdateTeamMember(w http.ResponseWriter, r *http.Request, tenantId TenantId, userId openapi_types.UUID, params UpdateTeamMemberParams) {
+	var request UpdateTeamMemberRequestObject
+
+	request.TenantId = tenantId
+	request.UserId = userId
+	request.Params = params
+
+	var body UpdateTeamMemberJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateTeamMember(ctx, request.(UpdateTeamMemberRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateTeamMember")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateTeamMemberResponseObject); ok {
+		if err := validResponse.VisitUpdateTeamMemberResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
+	"Ohw9RY/B/w8A",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

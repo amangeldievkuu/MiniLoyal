@@ -23,7 +23,9 @@ jobs:
           --health-cmd "pg_isready -U miniloyal -d miniloyal_test"
           --health-interval 5s --health-timeout 3s --health-retries 10
     env:
-      DATABASE_URL: postgres://miniloyal:miniloyal@localhost:5432/miniloyal_test?sslmode=disable
+      DATABASE_URL: postgres://miniloyal_api:miniloyal_api@localhost:5432/miniloyal_test?sslmode=disable
+      MIGRATE_DATABASE_URL: postgres://miniloyal:miniloyal@localhost:5432/miniloyal_test?sslmode=disable
+      APP_DB_PASSWORD: miniloyal_api
       TEST_DATABASE_URL: postgres://miniloyal:miniloyal@localhost:5432/miniloyal_test?sslmode=disable
     steps:
       - uses: actions/checkout@v7

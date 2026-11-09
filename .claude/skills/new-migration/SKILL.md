@@ -13,7 +13,7 @@ argument-hint: '[short_snake_case_name] [what changes]'
 - Every tenant table has `tenant_id uuid NOT NULL`. Member-scoped tables also have `app_id uuid NOT NULL`.
 - Every table has `id`, `created_at timestamptz NOT NULL DEFAULT now()`, and `updated_at` when rows change.
 - Enable and force RLS on every tenant table. Add the tenant policy.
-- Ledger and event tables are append-only: revoke `UPDATE` and `DELETE` from the application role `miniloyal_app`.
+- Every table gets explicit grants to `miniloyal_app`; ledger and event tables are append-only, so grant only `SELECT, INSERT`.
 - Indexes start with `tenant_id` or `app_id`.
 - Secrets are `bytea` columns named `*_enc` holding envelope-encrypted data.
 
@@ -40,10 +40,10 @@ CREATE INDEX stamp_events_member_idx ON stamp_events (app_id, member_id, created
 ALTER TABLE stamp_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stamp_events FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON stamp_events
-  USING (tenant_id = current_setting('app.tenant_id', true)::uuid)
-  WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid);
+  USING (app_is_system() OR tenant_id = app_tenant_id())
+  WITH CHECK (app_is_system() OR tenant_id = app_tenant_id());
 
-REVOKE UPDATE, DELETE ON stamp_events FROM miniloyal_app;
+GRANT SELECT, INSERT ON stamp_events TO miniloyal_app; -- append-only: no UPDATE or DELETE grant
 
 -- +goose Down
 DROP TABLE stamp_events;

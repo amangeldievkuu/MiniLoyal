@@ -1,24 +1,44 @@
 openapi: 3.0.3
 info:
   title: MiniLoyal API
-  version: 0.1.0
+  version: 0.2.0
   description: |
     Membership and loyalty backend for LINE MINI Apps: LINE login, member
     cards, points, coupons, stamp cards, messaging and webhooks.
 
-    Authentication (added per endpoint as features land):
-    - memberSession: JWT issued by POST /v1/auth/line to a MINI App user.
-    - staffSession: JWT issued to store staff in the staff LIFF app.
-    - dashboardSession: JWT issued to dashboard users.
-    - apiKey: server key (prefix ml_) for brand backends and POS systems.
+    Authentication:
+    - dashboardSession: JWT for dashboard users (15 minutes). Refresh tokens
+      travel in an httpOnly cookie scoped to /v1/dashboard/auth.
+    - apiKey: server key (prefix ml_) for brand backends and POS systems,
+      sent as X-API-Key.
+    - memberSession and staffSession arrive with the member and staff APIs.
 
-    Every write endpoint requires an Idempotency-Key header.
+    Every write endpoint outside /v1/dashboard/auth requires an
+    Idempotency-Key header. Errors use the Error envelope.
 servers:
   - url: http://localhost:8080
     description: Local development
 tags:
   - name: system
     description: Liveness and readiness
+  - name: dashboard-auth
+    description: Dashboard sign-in, sessions and multi-factor authentication
+  - name: dashboard-me
+    description: The signed-in dashboard user
+  - name: tenants
+    description: Tenants (agencies and brands) and their teams
+  - name: apps
+    description: Apps (one LINE MINI App each) and their LINE channels
+  - name: stores
+    description: Stores and branches used for staff redemption
+  - name: staff
+    description: Store staff who scan member cards
+  - name: api-keys
+    description: Server API keys for brand backends and POS systems
+  - name: audit
+    description: Audit log of admin and staff actions
+  - name: server
+    description: Server-to-server API (API key)
 paths:
   /healthz:
     get:
@@ -27,12 +47,12 @@ paths:
       summary: Liveness probe
       description: The process is up and serving requests.
       responses:
-        '200':
+        "200":
           description: Alive
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Health'
+                $ref: "#/components/schemas/Health"
   /readyz:
     get:
       tags: [system]
@@ -40,18 +60,1040 @@ paths:
       summary: Readiness probe
       description: The process can reach its database.
       responses:
-        '200':
+        "200":
           description: Ready
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Health'
-        '503':
+                $ref: "#/components/schemas/Health"
+        "503":
           description: Not ready
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
+
+  # ----------------------------------------------------------------- auth
+  /v1/dashboard/auth/register:
+    post:
+      tags: [dashboard-auth]
+      operationId: dashboardRegister
+      summary: Create a dashboard account and its first tenant
+      description: |
+        Creates the user, a tenant on the free plan and an owner membership,
+        then signs the user in. Sets the refresh cookie.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/dashboard/auth/login:
+    post:
+      tags: [dashboard-auth]
+      operationId: dashboardLogin
+      summary: Sign in with email and password
+      description: |
+        Returns a session, or an MFA challenge when the account has TOTP
+        enabled. Wrong credentials answer 401 without saying which part was
+        wrong. Sets the refresh cookie when a session is returned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Session or MFA challenge
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/dashboard/auth/mfa:
+    post:
+      tags: [dashboard-auth]
+      operationId: dashboardMfa
+      summary: Complete sign-in with a TOTP or recovery code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MfaRequest"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/dashboard/auth/refresh:
+    post:
+      tags: [dashboard-auth]
+      operationId: dashboardRefresh
+      summary: Exchange the refresh cookie for a new session
+      description: |
+        Rotates the refresh token. Reusing an already rotated token revokes
+        the whole token family, except for a bounded number of lost
+        responses (see the auth service).
+      responses:
+        "200":
+          description: New session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/dashboard/auth/logout:
+    post:
+      tags: [dashboard-auth]
+      operationId: dashboardLogout
+      summary: Sign out this device
+      description: Revokes the refresh token in the cookie and clears it.
+      responses:
+        "204":
+          description: Signed out
+
+  # ------------------------------------------------------------------- me
+  /v1/dashboard/me:
+    get:
+      tags: [dashboard-me]
+      operationId: getDashboardMe
+      summary: The signed-in user and their tenant memberships
+      security:
+        - dashboardSession: []
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/dashboard/me/password:
+    post:
+      tags: [dashboard-me]
+      operationId: changeDashboardPassword
+      summary: Change the password and end every other session
+      security:
+        - dashboardSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordChangeRequest"
+      responses:
+        "200":
+          description: New session for this device
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Current password is wrong
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/dashboard/me/logout-all:
+    post:
+      tags: [dashboard-me]
+      operationId: dashboardLogoutAll
+      summary: Sign out everywhere
+      description: Invalidates every access token and refresh token of the account.
+      security:
+        - dashboardSession: []
+      responses:
+        "204":
+          description: Signed out everywhere
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/dashboard/me/totp/enroll:
+    post:
+      tags: [dashboard-me]
+      operationId: enrollTotp
+      summary: Start TOTP enrollment
+      description: |
+        Returns a new secret and otpauth URL. Nothing changes until the
+        code is confirmed. Calling again replaces the pending secret.
+      security:
+        - dashboardSession: []
+      responses:
+        "200":
+          description: Pending enrollment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TotpEnrollment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: TOTP is already enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/dashboard/me/totp/confirm:
+    post:
+      tags: [dashboard-me]
+      operationId: confirmTotp
+      summary: Confirm TOTP enrollment with a code
+      security:
+        - dashboardSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TotpCodeRequest"
+      responses:
+        "200":
+          description: TOTP enabled; recovery codes shown once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TotpConfirmed"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: No pending enrollment, or already enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/dashboard/me/totp:
+    delete:
+      tags: [dashboard-me]
+      operationId: disableTotp
+      summary: Disable TOTP
+      security:
+        - dashboardSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TotpDisableRequest"
+      responses:
+        "204":
+          description: Disabled
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Password or code is wrong
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # -------------------------------------------------------------- tenants
+  /v1/dashboard/tenants:
+    get:
+      tags: [tenants]
+      operationId: listTenants
+      summary: Tenants the signed-in user belongs to
+      security:
+        - dashboardSession: []
+      responses:
+        "200":
+          description: Tenants with the caller's role in each
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Membership"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/dashboard/tenants/{tenantId}:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+    get:
+      tags: [tenants]
+      operationId: getTenant
+      summary: Tenant details
+      security:
+        - dashboardSession: []
+      responses:
+        "200":
+          description: Tenant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [tenants]
+      operationId: updateTenant
+      summary: Rename the tenant
+      description: Owners and admins only.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantUpdate"
+      responses:
+        "200":
+          description: Updated tenant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/IdempotencyMismatch"
+  /v1/dashboard/tenants/{tenantId}/team:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+    get:
+      tags: [tenants]
+      operationId: listTeam
+      summary: Team members of the tenant
+      security:
+        - dashboardSession: []
+      responses:
+        "200":
+          description: Team members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamMember"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [tenants]
+      operationId: addTeamMember
+      summary: Add an existing dashboard user to the tenant
+      description: |
+        The user must already have a dashboard account. Owners can grant any
+        role; admins can grant admin or staff. Email invitations arrive in a
+        later phase.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeamMemberAdd"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamMember"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Tenant or user not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Already a member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          $ref: "#/components/responses/IdempotencyMismatch"
+  /v1/dashboard/tenants/{tenantId}/team/{userId}:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      tags: [tenants]
+      operationId: updateTeamMember
+      summary: Change a team member's role
+      description: Owners only. The last owner cannot be demoted.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeamMemberUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamMember"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Would leave the tenant without an owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          $ref: "#/components/responses/IdempotencyMismatch"
+    delete:
+      tags: [tenants]
+      operationId: removeTeamMember
+      summary: Remove a team member
+      description: Owners and admins; admins cannot remove owners. The last owner cannot be removed.
+      security:
+        - dashboardSession: []
+      responses:
+        "204":
+          description: Removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Would leave the tenant without an owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/dashboard/tenants/{tenantId}/audit-log:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+    get:
+      tags: [audit]
+      operationId: listAuditLog
+      summary: Audit log, newest first
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: app_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: A page of audit entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ----------------------------------------------------------------- apps
+  /v1/dashboard/tenants/{tenantId}/apps:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+    get:
+      tags: [apps]
+      operationId: listApps
+      summary: Apps of the tenant
+      security:
+        - dashboardSession: []
+      responses:
+        "200":
+          description: Apps
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/App"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [apps]
+      operationId: createApp
+      summary: Create an app
+      description: One app is one LINE MINI App. Owners and admins only. Plan limits apply.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/App"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Slug already used in this tenant, or plan limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          $ref: "#/components/responses/IdempotencyMismatch"
+  /v1/dashboard/apps/{appId}:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      tags: [apps]
+      operationId: getApp
+      summary: App details
+      security:
+        - dashboardSession: []
+      responses:
+        "200":
+          description: App
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/App"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [apps]
+      operationId: updateApp
+      summary: Update app settings and LINE Official Account credentials
+      description: |
+        Owners and admins only. The OA channel secret is write-only and is
+        stored encrypted; the response only says whether one is set.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/App"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/IdempotencyMismatch"
+  /v1/dashboard/apps/{appId}/channels:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      tags: [apps]
+      operationId: listAppChannels
+      summary: LINE MINI App channels of the app
+      description: One entry per internal channel (developing, review, published).
+      security:
+        - dashboardSession: []
+      responses:
+        "200":
+          description: Channels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AppChannel"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/dashboard/apps/{appId}/channels/{environment}:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+      - $ref: "#/components/parameters/ChannelEnvironment"
+    put:
+      tags: [apps]
+      operationId: putAppChannel
+      summary: Create or replace the channel for an environment
+      description: Owners and admins only. The channel secret is write-only and stored encrypted.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppChannelPut"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppChannel"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/IdempotencyMismatch"
+    delete:
+      tags: [apps]
+      operationId: deleteAppChannel
+      summary: Remove the channel for an environment
+      security:
+        - dashboardSession: []
+      responses:
+        "204":
+          description: Removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # --------------------------------------------------------------- stores
+  /v1/dashboard/apps/{appId}/stores:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      tags: [stores]
+      operationId: listStores
+      summary: Stores of the app
+      security:
+        - dashboardSession: []
+      responses:
+        "200":
+          description: Stores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Store"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [stores]
+      operationId: createStore
+      summary: Create a store
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StoreCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Store"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Store code already used in this app
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          $ref: "#/components/responses/IdempotencyMismatch"
+  /v1/dashboard/stores/{storeId}:
+    parameters:
+      - name: storeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      tags: [stores]
+      operationId: updateStore
+      summary: Update a store
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StoreUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Store"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/IdempotencyMismatch"
+    delete:
+      tags: [stores]
+      operationId: deleteStore
+      summary: Delete a store
+      description: Fails while staff are still assigned to it.
+      security:
+        - dashboardSession: []
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Staff are still assigned to this store
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ---------------------------------------------------------------- staff
+  /v1/dashboard/apps/{appId}/staff:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      tags: [staff]
+      operationId: listStaff
+      summary: Staff of the app
+      security:
+        - dashboardSession: []
+      responses:
+        "200":
+          description: Staff
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Staff"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [staff]
+      operationId: createStaff
+      summary: Add a staff member
+      description: |
+        Staff sign in to the staff app with LINE later; the LINE user ID is
+        bound on first login using the invite code returned here.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffCreate"
+      responses:
+        "201":
+          description: Created, with a one-time invite code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: App or store not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          $ref: "#/components/responses/IdempotencyMismatch"
+  /v1/dashboard/staff/{staffId}:
+    parameters:
+      - name: staffId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      tags: [staff]
+      operationId: updateStaff
+      summary: Update a staff member
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Staff"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/IdempotencyMismatch"
+    delete:
+      tags: [staff]
+      operationId: deleteStaff
+      summary: Remove a staff member
+      security:
+        - dashboardSession: []
+      responses:
+        "204":
+          description: Removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ------------------------------------------------------------- api keys
+  /v1/dashboard/apps/{appId}/api-keys:
+    parameters:
+      - $ref: "#/components/parameters/AppId"
+    get:
+      tags: [api-keys]
+      operationId: listApiKeys
+      summary: Active API keys of the app
+      security:
+        - dashboardSession: []
+      responses:
+        "200":
+          description: Keys (never the secret)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiKey"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [api-keys]
+      operationId: createApiKey
+      summary: Create an API key
+      description: Owners and admins only. The key is shown once in the response and stored as a hash.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApiKeyCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/IdempotencyMismatch"
+  /v1/dashboard/api-keys/{keyId}:
+    parameters:
+      - name: keyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags: [api-keys]
+      operationId: revokeApiKey
+      summary: Revoke an API key
+      security:
+        - dashboardSession: []
+      responses:
+        "204":
+          description: Revoked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # --------------------------------------------------------------- server
+  /v1/app:
+    get:
+      tags: [server]
+      operationId: getCurrentApp
+      summary: The app this API key belongs to
+      description: Useful to verify a key. Requires no scope.
+      security:
+        - apiKey: []
+      responses:
+        "200":
+          description: App
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/App"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
   parameters:
     IdempotencyKey:
@@ -63,6 +1105,79 @@ components:
         type: string
         minLength: 1
         maxLength: 255
+    TenantId:
+      name: tenantId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AppId:
+      name: appId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ChannelEnvironment:
+      name: environment
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/ChannelEnvironment"
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque cursor from a previous page's next_cursor.
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Malformed request or validation failure
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing, expired or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: The caller's role does not allow this
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Not found, or not visible to this tenant
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooManyRequests:
+      description: Rate limit exceeded; retry after the Retry-After seconds
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    IdempotencyMismatch:
+      description: Idempotency-Key was already used with a different payload
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
   securitySchemes:
     memberSession:
       type: http
@@ -90,7 +1205,7 @@ components:
           enum: [ok]
         version:
           type: string
-          example: '0.1.0'
+          example: "0.1.0"
         uptime_seconds:
           type: integer
           format: int64
@@ -100,7 +1215,7 @@ components:
       properties:
         code:
           type: string
-          description: Stable machine-readable code, for example bad_request, unauthorized, not_found, conflict, unavailable, internal.
+          description: Stable machine-readable code, for example bad_request, unauthorized, forbidden, not_found, conflict, idempotency_mismatch, rate_limited, unavailable, internal.
         message:
           type: string
         request_id:
@@ -108,3 +1223,593 @@ components:
         details:
           type: object
           additionalProperties: true
+
+    # ---- auth
+    RegisterRequest:
+      type: object
+      required: [email, password, tenant_name, tenant_type]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 10
+          maxLength: 200
+        display_name:
+          type: string
+          maxLength: 100
+        tenant_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        tenant_type:
+          $ref: "#/components/schemas/TenantType"
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          maxLength: 200
+    LoginResult:
+      type: object
+      description: Exactly one of session or mfa is present.
+      properties:
+        session:
+          $ref: "#/components/schemas/Session"
+        mfa:
+          $ref: "#/components/schemas/MfaChallenge"
+    MfaChallenge:
+      type: object
+      required: [mfa_token, expires_in]
+      properties:
+        mfa_token:
+          type: string
+          description: Short-lived token proving the password step; send it with the code.
+        expires_in:
+          type: integer
+          description: Seconds until the challenge expires.
+    MfaRequest:
+      type: object
+      required: [mfa_token, code]
+      properties:
+        mfa_token:
+          type: string
+        code:
+          type: string
+          description: Six-digit TOTP code or a recovery code.
+          minLength: 6
+          maxLength: 32
+    Session:
+      type: object
+      required: [access_token, token_type, expires_in, user]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Seconds until the access token expires.
+        user:
+          $ref: "#/components/schemas/User"
+    User:
+      type: object
+      required: [id, email, totp_enabled, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+          nullable: true
+        totp_enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+    Me:
+      type: object
+      required: [user, memberships]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        memberships:
+          type: array
+          items:
+            $ref: "#/components/schemas/Membership"
+    PasswordChangeRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          type: string
+          maxLength: 200
+        new_password:
+          type: string
+          minLength: 10
+          maxLength: 200
+    TotpEnrollment:
+      type: object
+      required: [secret, otpauth_url]
+      properties:
+        secret:
+          type: string
+          description: Base32 secret, for manual entry.
+        otpauth_url:
+          type: string
+          description: otpauth:// URL to render as a QR code.
+    TotpCodeRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          minLength: 6
+          maxLength: 8
+    TotpConfirmed:
+      type: object
+      required: [recovery_codes]
+      properties:
+        recovery_codes:
+          type: array
+          description: Shown once. Each code works a single time.
+          items:
+            type: string
+    TotpDisableRequest:
+      type: object
+      required: [password, code]
+      properties:
+        password:
+          type: string
+          maxLength: 200
+        code:
+          type: string
+          minLength: 6
+          maxLength: 32
+
+    # ---- tenants
+    TenantType:
+      type: string
+      enum: [brand, agency]
+    Role:
+      type: string
+      enum: [owner, admin, staff]
+      description: owner manages everything including billing and the team; admin manages apps and settings; staff has read-only access in the dashboard.
+    Tenant:
+      type: object
+      required: [id, type, name, slug, plan, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: "#/components/schemas/TenantType"
+        name:
+          type: string
+        slug:
+          type: string
+        plan:
+          type: string
+          description: free, starter, pro, agency or enterprise.
+        parent_tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: The agency that manages this brand, if any.
+        created_at:
+          type: string
+          format: date-time
+    TenantUpdate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+    Membership:
+      type: object
+      required: [tenant, role]
+      properties:
+        tenant:
+          $ref: "#/components/schemas/Tenant"
+        role:
+          $ref: "#/components/schemas/Role"
+    TeamMember:
+      type: object
+      required: [user_id, email, role, created_at]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+          nullable: true
+        role:
+          $ref: "#/components/schemas/Role"
+        created_at:
+          type: string
+          format: date-time
+    TeamMemberAdd:
+      type: object
+      required: [email, role]
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          $ref: "#/components/schemas/Role"
+    TeamMemberUpdate:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: "#/components/schemas/Role"
+
+    # ---- apps
+    AppStatus:
+      type: string
+      enum: [active, disabled]
+    ChannelEnvironment:
+      type: string
+      enum: [developing, review, published]
+      description: The three internal channels of one LINE MINI App channel.
+    App:
+      type: object
+      required: [id, tenant_id, name, slug, locale, status, oa_channel_secret_set, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        locale:
+          type: string
+          description: BCP 47 tag used for member-facing defaults, for example zh-TW.
+        status:
+          $ref: "#/components/schemas/AppStatus"
+        oa_channel_id:
+          type: string
+          nullable: true
+          description: Messaging API channel ID of the brand's LINE Official Account.
+        oa_basic_id:
+          type: string
+          nullable: true
+          description: The Official Account's basic ID, for example @123abcd, used for add-friend links.
+        oa_channel_secret_set:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AppCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        slug:
+          type: string
+          pattern: "^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$"
+          description: URL-safe identifier, derived from the name when omitted.
+        locale:
+          type: string
+          default: zh-TW
+          maxLength: 16
+    AppUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        locale:
+          type: string
+          maxLength: 16
+        status:
+          $ref: "#/components/schemas/AppStatus"
+        oa_channel_id:
+          type: string
+          maxLength: 32
+          nullable: true
+        oa_basic_id:
+          type: string
+          maxLength: 32
+          nullable: true
+        oa_channel_secret:
+          type: string
+          writeOnly: true
+          maxLength: 128
+          description: Stored encrypted. Send an empty string to clear it.
+    AppChannel:
+      type: object
+      required: [environment, channel_id, liff_id, channel_secret_set, created_at]
+      properties:
+        environment:
+          $ref: "#/components/schemas/ChannelEnvironment"
+        channel_id:
+          type: string
+          description: LINE MINI App channel ID; the ID token audience.
+        liff_id:
+          type: string
+          description: LIFF ID of this internal channel.
+        channel_secret_set:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+    AppChannelPut:
+      type: object
+      required: [channel_id, liff_id]
+      properties:
+        channel_id:
+          type: string
+          minLength: 1
+          maxLength: 32
+        liff_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        channel_secret:
+          type: string
+          writeOnly: true
+          maxLength: 128
+          description: Needed only for HS256 tokens and webhook signatures; stored encrypted.
+
+    # ---- stores
+    Store:
+      type: object
+      required: [id, app_id, name, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+          nullable: true
+          description: Short code shown to staff, unique within the app.
+        address:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/AppStatus"
+        created_at:
+          type: string
+          format: date-time
+    StoreCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        code:
+          type: string
+          maxLength: 32
+        address:
+          type: string
+          maxLength: 300
+    StoreUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        code:
+          type: string
+          maxLength: 32
+          nullable: true
+        address:
+          type: string
+          maxLength: 300
+          nullable: true
+        status:
+          $ref: "#/components/schemas/AppStatus"
+
+    # ---- staff
+    StaffRole:
+      type: string
+      enum: [cashier, manager]
+    Staff:
+      type: object
+      required: [id, app_id, display_name, role, status, line_linked, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          format: uuid
+        store_id:
+          type: string
+          format: uuid
+          nullable: true
+        display_name:
+          type: string
+        role:
+          $ref: "#/components/schemas/StaffRole"
+        status:
+          $ref: "#/components/schemas/AppStatus"
+        line_linked:
+          type: boolean
+          description: Whether the staff member has signed in to the staff app with LINE.
+        created_at:
+          type: string
+          format: date-time
+    StaffCreate:
+      type: object
+      required: [display_name]
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        store_id:
+          type: string
+          format: uuid
+        role:
+          $ref: "#/components/schemas/StaffRole"
+    StaffCreated:
+      allOf:
+        - $ref: "#/components/schemas/Staff"
+        - type: object
+          required: [invite_code]
+          properties:
+            invite_code:
+              type: string
+              description: One-time code the staff member enters in the staff app to bind their LINE account. Shown once.
+    StaffUpdate:
+      type: object
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        store_id:
+          type: string
+          format: uuid
+          nullable: true
+        role:
+          $ref: "#/components/schemas/StaffRole"
+        status:
+          $ref: "#/components/schemas/AppStatus"
+
+    # ---- api keys
+    ApiKeyScope:
+      type: string
+      enum:
+        - members:read
+        - members:write
+        - points:write
+        - coupons:write
+        - messages:send
+        - webhooks:manage
+        - config:read
+    ApiKey:
+      type: object
+      required: [id, app_id, name, prefix, scopes, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        prefix:
+          type: string
+          description: The first characters of the key, to recognise it.
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiKeyScope"
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    ApiKeyCreate:
+      type: object
+      required: [name, scopes]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        scopes:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ApiKeyScope"
+    ApiKeyCreated:
+      allOf:
+        - $ref: "#/components/schemas/ApiKey"
+        - type: object
+          required: [key]
+          properties:
+            key:
+              type: string
+              description: The full key. Shown once; only its hash is stored.
+
+    # ---- audit
+    AuditActorType:
+      type: string
+      enum: [user, staff, api_key, system]
+    AuditEntry:
+      type: object
+      required: [id, actor_type, action, target_type, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        app_id:
+          type: string
+          format: uuid
+          nullable: true
+        actor_type:
+          $ref: "#/components/schemas/AuditActorType"
+        actor_id:
+          type: string
+          format: uuid
+          nullable: true
+        action:
+          type: string
+          description: Dotted verb, for example app.update, api_key.create, team.remove.
+        target_type:
+          type: string
+        target_id:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        request_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    AuditPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEntry"
+        next_cursor:
+          type: string
+          nullable: true

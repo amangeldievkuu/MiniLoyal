@@ -21,8 +21,15 @@ func (s *Server) requestError(w http.ResponseWriter, r *http.Request, err error)
 	writeError(w, r, status, "bad_request", err.Error())
 }
 
+// errNotImplemented marks a stubbed operation; it answers 501.
+var errNotImplemented = errors.New("not implemented")
+
 // responseError answers handler failures. The cause is logged, never shown.
 func (s *Server) responseError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, errNotImplemented) {
+		writeError(w, r, http.StatusNotImplemented, "not_implemented", "this operation is not available yet")
+		return
+	}
 	s.log.ErrorContext(r.Context(), "handler failed", "err", err, "path", r.URL.Path)
 	writeError(w, r, http.StatusInternalServerError, "internal", "internal server error")
 }

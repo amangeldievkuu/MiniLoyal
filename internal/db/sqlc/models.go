@@ -3,3 +3,153 @@
 //   sqlc v1.31.1
 
 package sqlc
+
+import (
+	"net/netip"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type ApiKey struct {
+	ID              uuid.UUID          `json:"id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	AppID           uuid.UUID          `json:"app_id"`
+	Name            string             `json:"name"`
+	Prefix          string             `json:"prefix"`
+	KeyHash         string             `json:"key_hash"`
+	Scopes          []string           `json:"scopes"`
+	LastUsedAt      pgtype.Timestamptz `json:"last_used_at"`
+	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
+	CreatedByUserID uuid.NullUUID      `json:"created_by_user_id"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type App struct {
+	ID                 uuid.UUID          `json:"id"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	Name               string             `json:"name"`
+	Slug               string             `json:"slug"`
+	Locale             string             `json:"locale"`
+	Status             string             `json:"status"`
+	OaChannelID        *string            `json:"oa_channel_id"`
+	OaBasicID          *string            `json:"oa_basic_id"`
+	OaChannelSecretEnc []byte             `json:"oa_channel_secret_enc"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AppChannel struct {
+	ID               uuid.UUID          `json:"id"`
+	TenantID         uuid.UUID          `json:"tenant_id"`
+	AppID            uuid.UUID          `json:"app_id"`
+	Environment      string             `json:"environment"`
+	ChannelID        string             `json:"channel_id"`
+	LiffID           string             `json:"liff_id"`
+	ChannelSecretEnc []byte             `json:"channel_secret_enc"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type AuditLog struct {
+	ID         int64              `json:"id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	AppID      uuid.NullUUID      `json:"app_id"`
+	ActorType  string             `json:"actor_type"`
+	ActorID    uuid.NullUUID      `json:"actor_id"`
+	Action     string             `json:"action"`
+	TargetType string             `json:"target_type"`
+	TargetID   *string            `json:"target_id"`
+	Metadata   []byte             `json:"metadata"`
+	RequestID  *string            `json:"request_id"`
+	Ip         *netip.Addr        `json:"ip"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type IdempotencyKey struct {
+	TenantID     uuid.UUID          `json:"tenant_id"`
+	Scope        string             `json:"scope"`
+	Key          string             `json:"key"`
+	RequestHash  []byte             `json:"request_hash"`
+	StatusCode   *int32             `json:"status_code"`
+	ResponseBody []byte             `json:"response_body"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+}
+
+type RefreshToken struct {
+	ID        uuid.UUID          `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	TokenHash string             `json:"token_hash"`
+	Family    uuid.UUID          `json:"family"`
+	ParentID  uuid.NullUUID      `json:"parent_id"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
+	UserAgent *string            `json:"user_agent"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type Staff struct {
+	ID              uuid.UUID          `json:"id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	AppID           uuid.UUID          `json:"app_id"`
+	StoreID         uuid.NullUUID      `json:"store_id"`
+	DisplayName     string             `json:"display_name"`
+	Role            string             `json:"role"`
+	Status          string             `json:"status"`
+	LineUserID      *string            `json:"line_user_id"`
+	InviteCodeHash  *string            `json:"invite_code_hash"`
+	InviteExpiresAt pgtype.Timestamptz `json:"invite_expires_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Store struct {
+	ID        uuid.UUID          `json:"id"`
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	AppID     uuid.UUID          `json:"app_id"`
+	Name      string             `json:"name"`
+	Code      *string            `json:"code"`
+	Address   *string            `json:"address"`
+	Status    string             `json:"status"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Tenant struct {
+	ID             uuid.UUID          `json:"id"`
+	Type           string             `json:"type"`
+	Name           string             `json:"name"`
+	Slug           string             `json:"slug"`
+	Plan           string             `json:"plan"`
+	ParentTenantID uuid.NullUUID      `json:"parent_tenant_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TenantUser struct {
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	Role      string             `json:"role"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type TotpRecoveryCode struct {
+	UserID    uuid.UUID          `json:"user_id"`
+	CodeHash  string             `json:"code_hash"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type User struct {
+	ID                uuid.UUID          `json:"id"`
+	Email             string             `json:"email"`
+	PasswordHash      string             `json:"password_hash"`
+	DisplayName       *string            `json:"display_name"`
+	TotpSecretEnc     []byte             `json:"totp_secret_enc"`
+	TotpEnabledAt     pgtype.Timestamptz `json:"totp_enabled_at"`
+	SessionsValidFrom pgtype.Timestamptz `json:"sessions_valid_from"`
+	LastLoginAt       pgtype.Timestamptz `json:"last_login_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
