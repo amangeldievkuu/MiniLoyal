@@ -101,10 +101,19 @@ func TestConcurrentRefreshWithTheSameCookie(t *testing.T) {
 	if ok > auth.MaxChildren {
 		t.Errorf("%d successes exceed MaxChildren %d", ok, auth.MaxChildren)
 	}
-	// Each issued token is a real session: it refreshes exactly once.
+	// Each issued token is a real session. Once one branch moves on, the
+	// other is a fork of the family (two live branches cannot come from one
+	// browser) and is refused, revoking the family.
+	var issued []string
 	for raw := range seen {
-		if _, err := svc.Refresh(context.Background(), raw, client); err != nil {
-			t.Errorf("issued token does not refresh: %v", err)
+		issued = append(issued, raw)
+	}
+	if _, err := svc.Refresh(context.Background(), issued[0], client); err != nil {
+		t.Errorf("first issued token does not refresh: %v", err)
+	}
+	for _, raw := range issued[1:] {
+		if _, err := svc.Refresh(context.Background(), raw, client); status(t, err) != 401 {
+			t.Errorf("second branch should be refused as a fork: %v", err)
 		}
 	}
 	// The original token is now a replay (its replacements were used).

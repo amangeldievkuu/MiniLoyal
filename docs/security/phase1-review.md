@@ -18,6 +18,12 @@ Date: 2026-11-09. Scope: `main` after the platform, auth and dashboard merges. R
 | P4       | Client `X-Request-ID` flowed into logs unfiltered.                                                                                              | Only `[A-Za-z0-9_-]{1,64}` is accepted; anything else is replaced.                                                                                                                                                                                                                                            |
 | P4       | argon2 parameters were read from the stored hash without bounds.                                                                                | Memory, iterations and parallelism are clamped; out-of-range hashes are refused.                                                                                                                                                                                                                              |
 
+| P2 (test-engineer) | Under parallel replay of one rotated refresh token the allowance was unbounded: the children check ran outside the insert transaction. | The rotated row is locked (`SELECT ... FOR UPDATE`) and children are counted inside the transaction that inserts the replacement; a race-loser also re-reads the token before the window check so a concurrent rotation is not mistaken for a late replay. Covered by `TestConcurrentRefreshAllowanceIsBounded` (8 goroutines). |
+
+## Test-engineer pass
+
+A separate agent built a spec-driven coverage matrix (`internal/httpserver/coverage_*_test.go`): every one of the 40 operations is checked for cross-tenant 404 with no state change, role rules, idempotent replay and mismatch, and wrong-credential-kind rejection; every tenant table is proven isolated and its grants checked; 21 forged-token shapes, cookie attributes, log hygiene (no credential ever appears in debug logs) and concurrency races are covered. Test functions went from 89 to 117 and the suite runs clean under `-race`.
+
 ## Deferred, with owner
 
 | Severity | Finding                                                                                                                    | Plan                                                                                                                                                                                                                                                                                                 |

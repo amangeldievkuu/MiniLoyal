@@ -29,3 +29,7 @@ WHERE expires_at < now() OR revoked_at < now() - interval '60 days';
 -- name: DeleteSpentRefreshTokensForUser :execrows
 DELETE FROM refresh_tokens
 WHERE user_id = $1 AND (expires_at < now() OR revoked_at < now() - interval '60 days');
+
+-- name: LockRefreshToken :exec
+-- Serializes concurrent replays of one rotated token inside a transaction.
+SELECT id FROM refresh_tokens WHERE id = $1 FOR UPDATE;

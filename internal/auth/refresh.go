@@ -94,6 +94,16 @@ func (s *Service) Refresh(ctx context.Context, rawRefresh string, c Client) (*Se
 		}
 	}
 
+	// A parallel refresh may have rotated this token after we read it: reload
+	// so the window check sees the real revocation time.
+	stored, err = s.q.GetRefreshTokenByHash(ctx, tokenHash(rawRefresh))
+	if err != nil {
+		if db.IsNotFound(err) {
+			return nil, errSessionExpired
+		}
+		return nil, fmt.Errorf("auth: reload refresh token: %w", err)
+	}
+
 	// Already rotated. Outside the allowance window this can only be a replay.
 	if !stored.RevokedAt.Valid || s.clock.Now().Sub(stored.RevokedAt.Time) > lostResponseWindow {
 		if err := s.q.RevokeRefreshTokenFamily(ctx, stored.Family); err != nil {
@@ -104,21 +114,27 @@ func (s *Service) Refresh(ctx context.Context, rawRefresh string, c Client) (*Se
 	}
 
 	// Already rotated: a replacement the client never got (or another tab),
-	// or a replayed stolen token.
-	unused, err := s.replacementUnused(ctx, stored.ID)
+	// or a replayed stolen token. The rotated row is locked for the check and
+	// the insert, so parallel replays queue up and each one sees the
+	// replacements the previous one made; MaxChildren then really bounds them.
+	var sess *Session
+	allowed := false
+	err = s.inTx(ctx, func(q *sqlc.Queries) error {
+		if err := q.LockRefreshToken(ctx, stored.ID); err != nil {
+			return fmt.Errorf("auth: lock refresh token: %w", err)
+		}
+		unused, err := s.replacementUnused(ctx, q, stored.ID)
+		if err != nil || !unused {
+			return err
+		}
+		allowed = true
+		sess, err = s.issueSession(ctx, q, user, stored.Family, parent, c)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
-	if unused {
-		var sess *Session
-		err := s.inTx(ctx, func(q *sqlc.Queries) error {
-			var err error
-			sess, err = s.issueSession(ctx, q, user, stored.Family, parent, c)
-			return err
-		})
-		if err != nil {
-			return nil, err
-		}
+	if allowed {
 		s.log.InfoContext(ctx, "refresh token reused after a lost response", "user_id", user.ID)
 		return sess, nil
 	}
@@ -133,8 +149,8 @@ func (s *Service) Refresh(ctx context.Context, rawRefresh string, c Client) (*Se
 // still unused, so the client plainly never received one. A replacement that
 // was itself rotated or revoked means the client did move on and this is a
 // replay; so does a token replaced too many times.
-func (s *Service) replacementUnused(ctx context.Context, id uuid.UUID) (bool, error) {
-	children, err := s.q.ListRefreshTokenChildren(ctx, uuid.NullUUID{UUID: id, Valid: true})
+func (s *Service) replacementUnused(ctx context.Context, q *sqlc.Queries, id uuid.UUID) (bool, error) {
+	children, err := q.ListRefreshTokenChildren(ctx, uuid.NullUUID{UUID: id, Valid: true})
 	if err != nil {
 		return false, fmt.Errorf("auth: list replacements: %w", err)
 	}

@@ -226,6 +226,11 @@ func (e *fullEnv) enrollTOTP(access string, now time.Time) (string, []string) {
 	}
 	var confirmed api.TotpConfirmed
 	r.into(e.t, &confirmed)
+	// The confirmation code consumed its 30-second step (replay protection),
+	// so the next code a test generates must belong to a later step.
+	if e.clk != nil {
+		e.clk.Advance(31 * time.Second)
+	}
 	return enrollment.Secret, confirmed.RecoveryCodes
 }
 

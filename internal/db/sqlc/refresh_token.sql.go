@@ -130,6 +130,16 @@ func (q *Queries) ListRefreshTokenChildren(ctx context.Context, parentID uuid.Nu
 	return items, nil
 }
 
+const lockRefreshToken = `-- name: LockRefreshToken :exec
+SELECT id FROM refresh_tokens WHERE id = $1 FOR UPDATE
+`
+
+// Serializes concurrent replays of one rotated token inside a transaction.
+func (q *Queries) LockRefreshToken(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, lockRefreshToken, id)
+	return err
+}
+
 const revokeRefreshToken = `-- name: RevokeRefreshToken :execrows
 UPDATE refresh_tokens SET revoked_at = $2 WHERE id = $1 AND revoked_at IS NULL
 `
