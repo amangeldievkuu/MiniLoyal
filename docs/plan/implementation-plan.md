@@ -196,11 +196,11 @@ No Redis in the MVP: Postgres carries sessions, rate-limit counters and the Rive
 | Docs | Scalar (API reference), Astro Starlight (guides, zh-TW + en) | Standard |
 | Observability | `slog` JSON, OpenTelemetry traces and metrics, Grafana Cloud | Standard |
 | Testing | `go test -race` + `testcontainers-go`, Vitest, Playwright, k6 | Correctness of the ledger is the product |
-| Lint / security | gofmt, `go vet`, staticcheck, govulncheck, ESLint + Prettier, Smoke lockfile upload in CI | Team's CI conventions |
+| Lint / security | gofmt, `go vet`, staticcheck, govulncheck, ESLint + Prettier | Team's CI conventions |
 | Monorepo | Go module at root; npm workspaces (`web/*`, `sdk/*`, `apps/*`), Node 22; `Makefile` | npm and Makefile as in the team's repos |
 | Hosting (MVP) | **One GCP Compute Engine VM in `asia-east1` (Taiwan)** running Docker Compose: nginx (TLS via certbot), `api`, `worker`, `postgres:17` on 127.0.0.1 with `synchronous_commit=on`, backup sidecar + **WAL archiving to a GCS bucket in asia-east1** for point-in-time recovery | Data stays in Taiwan (PDPA, customer trust); cheapest and familiar |
 | Hosting (later) | Terraform for VM, GCS and KMS (Phase 7); Cloud Run + Cloud SQL when paying customers justify it | Staged |
-| CI/CD | GitHub Actions: gofmt check, vet, staticcheck, govulncheck, `go test -race` with Postgres service, npm lint/test/build, Docker build, Smoke upload, Dependabot; deploy to staging VM over SSH on `main` | Simple |
+| CI/CD | GitHub Actions: gofmt check, vet, staticcheck, govulncheck, `go test -race` with Postgres service, npm lint/test/build, Docker build, Dependabot; deploy to staging VM over SSH on `main` | Simple |
 
 ### 3.3 Repository layout (monorepo)
 
@@ -473,7 +473,7 @@ Claims respect limits under the template row lock: `SELECT … FOR UPDATE` on th
 - Rate limits per API key, per member, per IP (Postgres counters, in-process token buckets).
 - Audit log for every admin/staff action (points adjust, coupon redeem, data export, erasure).
 - Dashboard login: email + password (argon2id) with 2FA (TOTP), rotating refresh tokens, SSO later.
-- Supply chain: govulncheck, Dependabot, Smoke lockfile inventory on every push to `main`.
+- Supply chain: govulncheck and Dependabot.
 
 ### 5.9 Non-functional targets
 
