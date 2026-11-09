@@ -37,3 +37,6 @@ FROM tenant_users tu
 JOIN users u ON u.id = tu.user_id
 WHERE tu.tenant_id = $1
 ORDER BY tu.created_at;
+
+-- name: TenantSlugExists :one
+SELECT EXISTS (SELECT 1 FROM tenants WHERE slug = $1);

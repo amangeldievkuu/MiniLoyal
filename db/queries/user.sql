@@ -41,3 +41,9 @@ WHERE user_id = $1 AND code_hash = $2 AND used_at IS NULL;
 
 -- name: CountUnusedRecoveryCodes :one
 SELECT count(*) FROM totp_recovery_codes WHERE user_id = $1 AND used_at IS NULL;
+
+-- name: UpdateUserPasswordAt :exec
+UPDATE users SET password_hash = $2, sessions_valid_from = $3, updated_at = now() WHERE id = $1;
+
+-- name: InvalidateUserSessionsAt :exec
+UPDATE users SET sessions_valid_from = $2, updated_at = now() WHERE id = $1;

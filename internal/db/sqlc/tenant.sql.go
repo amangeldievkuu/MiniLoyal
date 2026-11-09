@@ -226,6 +226,17 @@ func (q *Queries) ListTeam(ctx context.Context, tenantID uuid.UUID) ([]ListTeamR
 	return items, nil
 }
 
+const tenantSlugExists = `-- name: TenantSlugExists :one
+SELECT EXISTS (SELECT 1 FROM tenants WHERE slug = $1)
+`
+
+func (q *Queries) TenantSlugExists(ctx context.Context, slug string) (bool, error) {
+	row := q.db.QueryRow(ctx, tenantSlugExists, slug)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const updateMembershipRole = `-- name: UpdateMembershipRole :one
 UPDATE tenant_users SET role = $3 WHERE tenant_id = $1 AND user_id = $2 RETURNING tenant_id, user_id, role, created_at
 `

@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countUnusedRecoveryCodes = `-- name: CountUnusedRecoveryCodes :one
@@ -156,6 +157,20 @@ func (q *Queries) InvalidateUserSessions(ctx context.Context, id uuid.UUID) erro
 	return err
 }
 
+const invalidateUserSessionsAt = `-- name: InvalidateUserSessionsAt :exec
+UPDATE users SET sessions_valid_from = $2, updated_at = now() WHERE id = $1
+`
+
+type InvalidateUserSessionsAtParams struct {
+	ID                uuid.UUID          `json:"id"`
+	SessionsValidFrom pgtype.Timestamptz `json:"sessions_valid_from"`
+}
+
+func (q *Queries) InvalidateUserSessionsAt(ctx context.Context, arg InvalidateUserSessionsAtParams) error {
+	_, err := q.db.Exec(ctx, invalidateUserSessionsAt, arg.ID, arg.SessionsValidFrom)
+	return err
+}
+
 const setPendingTotp = `-- name: SetPendingTotp :execrows
 UPDATE users SET totp_secret_enc = $2, updated_at = now()
 WHERE id = $1 AND totp_enabled_at IS NULL
@@ -194,6 +209,21 @@ type UpdateUserPasswordParams struct {
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
 	_, err := q.db.Exec(ctx, updateUserPassword, arg.ID, arg.PasswordHash)
+	return err
+}
+
+const updateUserPasswordAt = `-- name: UpdateUserPasswordAt :exec
+UPDATE users SET password_hash = $2, sessions_valid_from = $3, updated_at = now() WHERE id = $1
+`
+
+type UpdateUserPasswordAtParams struct {
+	ID                uuid.UUID          `json:"id"`
+	PasswordHash      string             `json:"password_hash"`
+	SessionsValidFrom pgtype.Timestamptz `json:"sessions_valid_from"`
+}
+
+func (q *Queries) UpdateUserPasswordAt(ctx context.Context, arg UpdateUserPasswordAtParams) error {
+	_, err := q.db.Exec(ctx, updateUserPasswordAt, arg.ID, arg.PasswordHash, arg.SessionsValidFrom)
 	return err
 }
 

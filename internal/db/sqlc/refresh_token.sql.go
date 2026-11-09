@@ -66,6 +66,19 @@ func (q *Queries) DeleteSpentRefreshTokens(ctx context.Context) (int64, error) {
 	return result.RowsAffected(), nil
 }
 
+const deleteSpentRefreshTokensForUser = `-- name: DeleteSpentRefreshTokensForUser :execrows
+DELETE FROM refresh_tokens
+WHERE user_id = $1 AND (expires_at < now() OR revoked_at < now() - interval '60 days')
+`
+
+func (q *Queries) DeleteSpentRefreshTokensForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSpentRefreshTokensForUser, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getRefreshTokenByHash = `-- name: GetRefreshTokenByHash :one
 SELECT id, user_id, token_hash, family, parent_id, expires_at, revoked_at, user_agent, created_at FROM refresh_tokens WHERE token_hash = $1
 `
