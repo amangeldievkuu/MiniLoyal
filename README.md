@@ -2,7 +2,7 @@
 
 Membership and loyalty backend for **LINE MINI Apps**: LINE login, member cards with rotating QR codes, a points ledger, coupons, stamp cards, push messaging, an admin dashboard, a staff LIFF app and a TypeScript SDK. Multi-tenant, built for agencies and brands in Taiwan first.
 
-Status: **Phase 1 complete** (platform core). Working today: dashboard accounts with TOTP and rotating refresh sessions, tenants and teams with roles, apps with encrypted LINE channel credentials, stores, staff with invite codes, scoped API keys, an append-only audit log, idempotent writes, and row-level tenant isolation enforced by PostgreSQL. Next: Phase 2 (LINE login, members, inbound webhooks). See `docs/plan/implementation-plan.md` for the plan and `docs/adr/` for decisions.
+Status: **Phase 2 complete** (LINE identity). Working today: dashboard accounts with TOTP and rotating refresh sessions, tenants and teams with roles and invitations, apps with verified and encrypted LINE channel credentials, stores, staff with invite codes, scoped API keys, an append-only audit log and per-user security history, idempotent writes, row-level tenant isolation enforced by PostgreSQL, LINE member sign-in through LIFF ID tokens (JWKS-verified), member profiles with consent, PDPA export and erasure, inbound LINE webhooks (follow and unfollow) with signature verification and redelivery handling, a TypeScript SDK and a demo MINI App. Next: Phase 3 (points ledger, rotating member card, staff app). See `docs/plan/implementation-plan.md` for the plan, `docs/adr/` for decisions and `docs/security/` for the review history.
 
 ## Security model in one paragraph
 
