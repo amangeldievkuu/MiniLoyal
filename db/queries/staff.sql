@@ -21,3 +21,6 @@ RETURNING *;
 
 -- name: DeleteStaff :execrows
 DELETE FROM staff WHERE id = $1;
+
+-- name: GetStaffTenant :one
+SELECT tenant_id FROM staff WHERE id = $1;

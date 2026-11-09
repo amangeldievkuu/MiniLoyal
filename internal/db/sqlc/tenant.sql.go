@@ -99,6 +99,39 @@ func (q *Queries) GetMembership(ctx context.Context, arg GetMembershipParams) (T
 	return i, err
 }
 
+const getTeamMember = `-- name: GetTeamMember :one
+SELECT tu.user_id, u.email, u.display_name, tu.role, tu.created_at
+FROM tenant_users tu
+JOIN users u ON u.id = tu.user_id
+WHERE tu.tenant_id = $1 AND tu.user_id = $2
+`
+
+type GetTeamMemberParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	UserID   uuid.UUID `json:"user_id"`
+}
+
+type GetTeamMemberRow struct {
+	UserID      uuid.UUID          `json:"user_id"`
+	Email       string             `json:"email"`
+	DisplayName *string            `json:"display_name"`
+	Role        string             `json:"role"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) GetTeamMember(ctx context.Context, arg GetTeamMemberParams) (GetTeamMemberRow, error) {
+	row := q.db.QueryRow(ctx, getTeamMember, arg.TenantID, arg.UserID)
+	var i GetTeamMemberRow
+	err := row.Scan(
+		&i.UserID,
+		&i.Email,
+		&i.DisplayName,
+		&i.Role,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getTenant = `-- name: GetTenant :one
 SELECT id, type, name, slug, plan, parent_tenant_id, created_at, updated_at FROM tenants WHERE id = $1
 `

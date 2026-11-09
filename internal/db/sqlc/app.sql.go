@@ -135,6 +135,17 @@ func (q *Queries) GetAppChannelsByChannelID(ctx context.Context, channelID strin
 	return items, nil
 }
 
+const getAppTenant = `-- name: GetAppTenant :one
+SELECT tenant_id FROM apps WHERE id = $1
+`
+
+func (q *Queries) GetAppTenant(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getAppTenant, id)
+	var tenant_id uuid.UUID
+	err := row.Scan(&tenant_id)
+	return tenant_id, err
+}
+
 const listAppChannels = `-- name: ListAppChannels :many
 SELECT id, tenant_id, app_id, environment, channel_id, liff_id, channel_secret_enc, created_at, updated_at FROM app_channels
 WHERE app_id = $1

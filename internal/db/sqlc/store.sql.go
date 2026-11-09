@@ -94,6 +94,17 @@ func (q *Queries) GetStore(ctx context.Context, id uuid.UUID) (Store, error) {
 	return i, err
 }
 
+const getStoreTenant = `-- name: GetStoreTenant :one
+SELECT tenant_id FROM stores WHERE id = $1
+`
+
+func (q *Queries) GetStoreTenant(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getStoreTenant, id)
+	var tenant_id uuid.UUID
+	err := row.Scan(&tenant_id)
+	return tenant_id, err
+}
+
 const listStores = `-- name: ListStores :many
 SELECT id, tenant_id, app_id, name, code, address, status, created_at, updated_at FROM stores WHERE app_id = $1 ORDER BY created_at
 `

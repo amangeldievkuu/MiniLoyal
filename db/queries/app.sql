@@ -50,3 +50,6 @@ DELETE FROM app_channels WHERE app_id = $1 AND environment = $2;
 
 -- name: GetAppChannelsByChannelID :many
 SELECT * FROM app_channels WHERE channel_id = $1;
+
+-- name: GetAppTenant :one
+SELECT tenant_id FROM apps WHERE id = $1;

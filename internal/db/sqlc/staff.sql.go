@@ -94,6 +94,17 @@ func (q *Queries) GetStaff(ctx context.Context, id uuid.UUID) (Staff, error) {
 	return i, err
 }
 
+const getStaffTenant = `-- name: GetStaffTenant :one
+SELECT tenant_id FROM staff WHERE id = $1
+`
+
+func (q *Queries) GetStaffTenant(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getStaffTenant, id)
+	var tenant_id uuid.UUID
+	err := row.Scan(&tenant_id)
+	return tenant_id, err
+}
+
 const listStaff = `-- name: ListStaff :many
 SELECT id, tenant_id, app_id, store_id, display_name, role, status, line_user_id, invite_code_hash, invite_expires_at, created_at, updated_at FROM staff WHERE app_id = $1 ORDER BY created_at
 `
