@@ -458,6 +458,29 @@ func TestApplicationRoleGrants(t *testing.T) {
 		{"refresh_tokens", "DELETE", true},
 		{"goose_db_version", "SELECT", false},
 		{"goose_db_version", "INSERT", false},
+		// Phase 2. Members are anonymized in place, never deleted; consents
+		// and security events are append-only; invitations are revoked, not
+		// deleted; webhook dedup rows are swept but never edited.
+		{"members", "SELECT", true},
+		{"members", "INSERT", true},
+		{"members", "UPDATE", true},
+		{"members", "DELETE", false},
+		{"member_consents", "SELECT", true},
+		{"member_consents", "INSERT", true},
+		{"member_consents", "UPDATE", false},
+		{"member_consents", "DELETE", false},
+		{"invitations", "SELECT", true},
+		{"invitations", "INSERT", true},
+		{"invitations", "UPDATE", true},
+		{"invitations", "DELETE", false},
+		{"webhook_inbound_events", "SELECT", true},
+		{"webhook_inbound_events", "INSERT", true},
+		{"webhook_inbound_events", "UPDATE", false},
+		{"webhook_inbound_events", "DELETE", true},
+		{"security_events", "SELECT", true},
+		{"security_events", "INSERT", true},
+		{"security_events", "UPDATE", false},
+		{"security_events", "DELETE", false},
 	}
 	for _, role := range []string{migrate.GroupRole, migrate.LoginRole} {
 		for _, tc := range cases {
