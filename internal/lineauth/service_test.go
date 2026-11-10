@@ -3,6 +3,7 @@ package lineauth_test
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,6 +114,35 @@ func TestLoginCreatesThenRefreshesTheMember(t *testing.T) {
 	p, err := w.svc.AuthenticateMember(ctx, second.Token)
 	if err != nil || !p.IsMember() || p.MemberID != first.Member.ID || p.AppID != w.app || p.TenantID != w.tenant {
 		t.Errorf("authenticate: %v %+v", err, p)
+	}
+}
+
+// Invariant: the sign-in that creates a member records member.created in
+// the same transaction, dated by the clock, with IDs only; later sign-ins
+// record nothing.
+func TestFirstLoginEmitsMemberCreated(t *testing.T) {
+	w := newWorld(t, lineauth.Config{})
+	ctx := context.Background()
+	first, err := w.svc.LoginWithLine(ctx, lineauth.LoginInput{AppID: w.app, IDToken: w.token(t, "id-token-new-cccccccccccc", "Unewmember", "Mei")}, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.svc.LoginWithLine(ctx, lineauth.LoginInput{AppID: w.app, IDToken: w.token(t, "id-token-again-dddddddddd", "Unewmember", "Mei")}, client); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	var payload string
+	var at time.Time
+	if err := w.d.Admin.QueryRow(ctx, `SELECT count(*), max(payload::text), max(occurred_at) FROM outbound_events
+		WHERE type = 'member.created' AND app_id = $1 AND member_id = $2`, w.app, first.Member.ID).Scan(&n, &payload, &at); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 || !at.Equal(w.clk.Now()) {
+		t.Fatalf("member.created events = %d at %s, want 1 at %s", n, at, w.clk.Now())
+	}
+	if strings.Contains(payload, "Unewmember") || strings.Contains(payload, "Mei") || !strings.Contains(payload, `"source": "login"`) ||
+		!strings.Contains(payload, first.Member.ID.String()) {
+		t.Errorf("payload = %s", payload)
 	}
 }
 

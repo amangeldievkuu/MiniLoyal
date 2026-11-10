@@ -18,6 +18,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
+	"github.com/amangeldievkuu/miniloyal/internal/events"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
@@ -167,7 +168,8 @@ func (s *Service) LoginWithLine(ctx context.Context, in LoginInput, c Client) (*
 	var row sqlc.UpsertMemberFromLoginRow
 	err = db.WithTenant(ctx, s.pool, app.TenantID, func(ctx context.Context, tx pgx.Tx) error {
 		var err error
-		row, err = sqlc.New(tx).UpsertMemberFromLogin(ctx, sqlc.UpsertMemberFromLoginParams{
+		q := sqlc.New(tx)
+		row, err = q.UpsertMemberFromLogin(ctx, sqlc.UpsertMemberFromLoginParams{
 			ID:          uuid.Must(uuid.NewV7()),
 			TenantID:    app.TenantID,
 			AppID:       app.ID,
@@ -179,7 +181,15 @@ func (s *Service) LoginWithLine(ctx context.Context, in LoginInput, c Client) (*
 		if err != nil {
 			return fmt.Errorf("lineauth: upsert member: %w", err)
 		}
-		return nil
+		if !row.Created {
+			return nil
+		}
+		// The first sign-in creates the member: tell the brand in the same
+		// transaction. IDs only; the profile is personal data.
+		return events.Emit(ctx, q, events.Event{
+			TenantID: app.TenantID, AppID: app.ID, Type: events.MemberCreated, MemberID: row.ID,
+			OccurredAt: s.clock.Now(), Payload: map[string]any{"member_id": row.ID, "source": "login"},
+		})
 	})
 	if err != nil {
 		return nil, err
