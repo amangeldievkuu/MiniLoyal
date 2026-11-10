@@ -37,3 +37,22 @@ export async function run(): Promise<void> {
     }
   }
 }
+
+// Member card and points: render the card payload as a QR code yourself.
+export async function cardAndPoints(
+  ml: MiniLoyal,
+  draw: (payload: string) => void,
+): Promise<() => void> {
+  const stop = ml.watchCard(
+    (card) => draw(card.qr),
+    (err) => console.warn('card refresh failed, retrying', err.code),
+  );
+
+  const summary = await ml.points();
+  console.log(summary.balance, summary.expiring[0]?.expires_at, summary.rules.spend_per_point);
+
+  for await (const page of ml.pointsHistoryAll({ limit: 20 })) {
+    for (const tx of page.items) console.log(tx.kind, tx.points, tx.balance_after);
+  }
+  return stop;
+}

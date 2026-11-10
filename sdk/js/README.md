@@ -68,6 +68,45 @@ if (!isFriend) {
 
 `addFriendUrl()` needs the app's Official Account basic ID, which the dashboard stores with the app; it returns `null` until then.
 
+## Member card
+
+The card is an opaque payload that changes every 30 seconds. Render it as a QR code (the SDK ships no QR library; the [`qrcode`](https://www.npmjs.com/package/qrcode) package works well) and let `watchCard` keep it current. A screenshot stops scanning within 90 seconds.
+
+```ts
+import QRCode from 'qrcode';
+
+const canvas = document.querySelector('canvas')!;
+const stop = ml.watchCard(
+  (card) => {
+    void QRCode.toCanvas(canvas, card.qr, { margin: 1, width: 240 });
+    // card.refresh_in_seconds: when the next code arrives (for a progress ring)
+  },
+  (err) => console.warn('card refresh failed, retrying', err.code),
+);
+// Call stop() when the card screen closes.
+```
+
+`watchCard` refreshes after `refresh_in_seconds`, pauses while the page is hidden and refreshes as soon as it is visible again, and retries failures with backoff (1, 2, 4, 8 seconds, at most 30). It never throws. `card()` fetches a single code.
+
+## Points
+
+```ts
+const summary = await ml.points();
+summary.balance; // spendable points
+summary.expiring[0]; // { points, expires_at } of the next expiry, if any
+summary.rules; // { currency, spend_per_point, points_per_unit, expiry_days, enabled }
+
+const page = await ml.pointsHistory({ limit: 20 }); // newest first
+page.items[0]?.kind; // 'earn' | 'redeem' | 'adjust' | 'expire'
+const next = page.next_cursor ? await ml.pointsHistory({ cursor: page.next_cursor }) : null;
+
+for await (const p of ml.pointsHistoryAll({ limit: 50 })) {
+  for (const tx of p.items) console.log(tx.created_at, tx.points, tx.balance_after);
+}
+```
+
+Points are added and spent by store staff (scanning the member card) or by the brand's backend; members only read them.
+
 ## Data rights
 
 ```ts
@@ -110,4 +149,4 @@ ml.logout(); // ends the MiniLoyal session; ml.logout({ liff: true }) also signs
 
 ## Types
 
-Request and response shapes are generated from the MiniLoyal OpenAPI document and re-exported: `Member`, `MemberUpdate`, `MemberExport`, `MemberSession`, `AppPublic`, plus the raw `paths` and `components` under `@miniloyal/sdk/schema`.
+Request and response shapes are generated from the MiniLoyal OpenAPI document and re-exported: `Member`, `MemberUpdate`, `MemberExport`, `MemberSession`, `AppPublic`, `MemberCard`, `PointsSummary`, `PointsTransaction`, `PointsHistoryPage`, `PointsKind`, plus the raw `paths` and `components` under `@miniloyal/sdk/schema`.
