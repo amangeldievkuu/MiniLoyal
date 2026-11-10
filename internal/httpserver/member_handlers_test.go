@@ -269,7 +269,7 @@ func TestMemberProfileConsentExportAndErasure(t *testing.T) {
 	}
 	var export api.MemberExport
 	e.must(e.do(http.MethodGet, "/v1/me/export", nil, bearer(sess.SessionToken)), http.StatusOK, "export").into(t, &export)
-	if len(export.Consents) != 2 || export.Member.LineUserId != "U2222" || export.Member.Id != m.Id {
+	if len(export.Consents) != 2 || deref(export.Member.LineUserId) != "U2222" || export.Member.Id != m.Id {
 		t.Errorf("export: %+v", export)
 	}
 
@@ -338,7 +338,7 @@ func TestDashboardMemberListsAndDataRights(t *testing.T) {
 		t.Errorf("search: %+v", search.Items)
 	}
 	e.must(e.do(http.MethodGet, "/v1/dashboard/apps/"+app.Id.String()+"/members?q=U0004", nil, bearer(ownerTok)), http.StatusOK, "search by line id").into(t, &search)
-	if len(search.Items) != 1 || search.Items[0].LineUserId != "U0004" {
+	if len(search.Items) != 1 || deref(search.Items[0].LineUserId) != "U0004" {
 		t.Errorf("search by line id: %+v", search.Items)
 	}
 	if r := e.do(http.MethodGet, "/v1/dashboard/apps/"+app.Id.String()+"/members?cursor=!!!", nil, bearer(ownerTok)); r.status != http.StatusBadRequest {
@@ -347,7 +347,7 @@ func TestDashboardMemberListsAndDataRights(t *testing.T) {
 
 	var detail api.MemberDetail
 	e.must(e.do(http.MethodGet, "/v1/dashboard/members/"+ids[0], nil, bearer(ownerTok)), http.StatusOK, "get").into(t, &detail)
-	if detail.LineUserId != "U0000" || detail.LastLoginAt == nil {
+	if deref(detail.LineUserId) != "U0000" || detail.LastLoginAt == nil {
 		t.Errorf("detail: %+v", detail)
 	}
 
@@ -418,7 +418,7 @@ func TestServerMemberEndpointsNeedTheScope(t *testing.T) {
 
 	var page api.MemberPage
 	e.must(e.do(http.MethodGet, "/v1/members", nil, reader), http.StatusOK, "server list").into(t, &page)
-	if len(page.Items) != 1 || page.Items[0].LineUserId != "U7777" {
+	if len(page.Items) != 1 || deref(page.Items[0].LineUserId) != "U7777" {
 		t.Errorf("server list: %+v", page.Items)
 	}
 	e.must(e.do(http.MethodGet, "/v1/members/"+sess.Member.Id.String(), nil, reader), http.StatusOK, "server get")

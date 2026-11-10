@@ -26,18 +26,20 @@ type ApiKey struct {
 }
 
 type App struct {
-	ID                 uuid.UUID          `json:"id"`
-	TenantID           uuid.UUID          `json:"tenant_id"`
-	Name               string             `json:"name"`
-	Slug               string             `json:"slug"`
-	Locale             string             `json:"locale"`
-	Status             string             `json:"status"`
-	OaChannelID        *string            `json:"oa_channel_id"`
-	OaBasicID          *string            `json:"oa_basic_id"`
-	OaChannelSecretEnc []byte             `json:"oa_channel_secret_enc"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	OaVerifiedAt       pgtype.Timestamptz `json:"oa_verified_at"`
+	ID                      uuid.UUID          `json:"id"`
+	TenantID                uuid.UUID          `json:"tenant_id"`
+	Name                    string             `json:"name"`
+	Slug                    string             `json:"slug"`
+	Locale                  string             `json:"locale"`
+	Status                  string             `json:"status"`
+	OaChannelID             *string            `json:"oa_channel_id"`
+	OaBasicID               *string            `json:"oa_basic_id"`
+	OaChannelSecretEnc      []byte             `json:"oa_channel_secret_enc"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+	OaVerifiedAt            pgtype.Timestamptz `json:"oa_verified_at"`
+	AllowHs256IDTokens      bool               `json:"allow_hs256_id_tokens"`
+	MemberSessionsValidFrom pgtype.Timestamptz `json:"member_sessions_valid_from"`
 }
 
 type AppChannel struct {
@@ -113,6 +115,7 @@ type Member struct {
 	AnonymizedAt    pgtype.Timestamptz `json:"anonymized_at"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	QrKeyVersion    int32              `json:"qr_key_version"`
 }
 
 type MemberConsent struct {
@@ -133,6 +136,71 @@ type MfaChallenge struct {
 	UsedAt    pgtype.Timestamptz `json:"used_at"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type PointsAccount struct {
+	MemberID       uuid.UUID          `json:"member_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	AppID          uuid.UUID          `json:"app_id"`
+	Balance        int64              `json:"balance"`
+	LifetimeEarned int64              `json:"lifetime_earned"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PointsLedger struct {
+	ID           int64              `json:"id"`
+	TenantID     uuid.UUID          `json:"tenant_id"`
+	AppID        uuid.UUID          `json:"app_id"`
+	MemberID     uuid.UUID          `json:"member_id"`
+	TxnID        uuid.UUID          `json:"txn_id"`
+	LotID        *int64             `json:"lot_id"`
+	Delta        int32              `json:"delta"`
+	BalanceAfter int64              `json:"balance_after"`
+	Reason       string             `json:"reason"`
+	SpendAmount  *int32             `json:"spend_amount"`
+	RefType      *string            `json:"ref_type"`
+	RefID        *string            `json:"ref_id"`
+	Note         *string            `json:"note"`
+	StoreID      uuid.NullUUID      `json:"store_id"`
+	ActorType    string             `json:"actor_type"`
+	ActorID      uuid.NullUUID      `json:"actor_id"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type PointsLot struct {
+	ID        int64              `json:"id"`
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	AppID     uuid.UUID          `json:"app_id"`
+	MemberID  uuid.UUID          `json:"member_id"`
+	Earned    int32              `json:"earned"`
+	Remaining int32              `json:"remaining"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type PointsReconciliationRun struct {
+	ID              int64              `json:"id"`
+	StartedAt       pgtype.Timestamptz `json:"started_at"`
+	FinishedAt      pgtype.Timestamptz `json:"finished_at"`
+	AccountsChecked int32              `json:"accounts_checked"`
+	Mismatches      int32              `json:"mismatches"`
+	Details         []byte             `json:"details"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type PointsRule struct {
+	AppID           uuid.UUID          `json:"app_id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	Currency        string             `json:"currency"`
+	SpendPerPoint   int32              `json:"spend_per_point"`
+	PointsPerUnit   int32              `json:"points_per_unit"`
+	MinSpend        int32              `json:"min_spend"`
+	MaxPointsPerTxn *int32             `json:"max_points_per_txn"`
+	ExpiryDays      *int32             `json:"expiry_days"`
+	Enabled         bool               `json:"enabled"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 type RefreshToken struct {
@@ -158,18 +226,20 @@ type SecurityEvent struct {
 }
 
 type Staff struct {
-	ID              uuid.UUID          `json:"id"`
-	TenantID        uuid.UUID          `json:"tenant_id"`
-	AppID           uuid.UUID          `json:"app_id"`
-	StoreID         uuid.NullUUID      `json:"store_id"`
-	DisplayName     string             `json:"display_name"`
-	Role            string             `json:"role"`
-	Status          string             `json:"status"`
-	LineUserID      *string            `json:"line_user_id"`
-	InviteCodeHash  *string            `json:"invite_code_hash"`
-	InviteExpiresAt pgtype.Timestamptz `json:"invite_expires_at"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ID                uuid.UUID          `json:"id"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	AppID             uuid.UUID          `json:"app_id"`
+	StoreID           uuid.NullUUID      `json:"store_id"`
+	DisplayName       string             `json:"display_name"`
+	Role              string             `json:"role"`
+	Status            string             `json:"status"`
+	LineUserID        *string            `json:"line_user_id"`
+	InviteCodeHash    *string            `json:"invite_code_hash"`
+	InviteExpiresAt   pgtype.Timestamptz `json:"invite_expires_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	SessionsValidFrom pgtype.Timestamptz `json:"sessions_valid_from"`
+	LastLoginAt       pgtype.Timestamptz `json:"last_login_at"`
 }
 
 type Store struct {

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MiniLoyal API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     Membership and loyalty backend for LINE MINI Apps: LINE login, member
     cards, points, coupons, stamp cards, messaging and webhooks.
@@ -51,6 +51,10 @@ tags:
     description: Team invitations
   - name: security
     description: Account security history
+  - name: points
+    description: Points rules, balances, history and adjustments
+  - name: staff-app
+    description: The cashier app (LIFF) used in stores
 paths:
   /healthz:
     get:
@@ -1453,6 +1457,449 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  # ------------------------------------------------------------- member card and points
+  /v1/me/card:
+    get:
+      tags: [member]
+      operationId: getMyCard
+      summary: The member card QR code, valid for one 30-second window
+      description: |
+        Returns the current rotating QR payload. Render it as a QR code and
+        fetch again after refresh_in_seconds. A scanner accepts the code until
+        expires_at (its window plus one), so a screenshot stops working within
+        90 seconds.
+      security:
+        - memberSession: []
+      responses:
+        '200':
+          description: Card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberCard'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/points:
+    get:
+      tags: [member, points]
+      operationId: getMyPoints
+      summary: My points balance, what expires soon, and the earn rule
+      security:
+        - memberSession: []
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointsSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/me/points/history:
+    get:
+      tags: [member, points]
+      operationId: listMyPointsHistory
+      summary: My points transactions, newest first
+      security:
+        - memberSession: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of transactions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointsHistoryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ------------------------------------------------------------------------- staff app
+  /v1/staff/auth/line:
+    post:
+      tags: [staff-app]
+      operationId: staffLoginWithLine
+      summary: Sign in to the staff app with LINE
+      description: |
+        The staff app sends a LIFF ID token. The first sign-in also sends the
+        invite code from the dashboard, which binds the LINE account to the
+        staff record; later sign-ins need only the token. Invite codes are
+        matched within the app only and attempts are rate limited. Staff
+        sessions last 12 hours (one shift).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffLoginRequest'
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid ID token, unknown staff member or wrong invite code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/staff/me:
+    get:
+      tags: [staff-app]
+      operationId: getStaffMe
+      summary: The signed-in staff member
+      security:
+        - staffSession: []
+      responses:
+        '200':
+          description: Staff member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMe'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/staff/scan:
+    post:
+      tags: [staff-app]
+      operationId: staffScan
+      summary: Read a member card QR code
+      description: |
+        Verifies the rotating code and returns the member with a scan token.
+        Points (and later coupon and stamp) actions require the scan token, so
+        staff can only act on a member whose card they scanned in the last
+        five minutes. Reading a code changes nothing, so no Idempotency-Key.
+      security:
+        - staffSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanRequest'
+      responses:
+        '200':
+          description: Member found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: The code is malformed, expired (a screenshot) or for another app
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /v1/staff/points/earn:
+    post:
+      tags: [staff-app, points]
+      operationId: staffEarnPoints
+      summary: Give points for a purchase
+      description: |
+        Points come from the app's earn rule applied to spend_amount. Managers
+        may instead give a fixed number of points; cashiers may not.
+      security:
+        - staffSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffEarnRequest'
+      responses:
+        '200':
+          description: Points added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointsTransaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+  /v1/staff/points/redeem:
+    post:
+      tags: [staff-app, points]
+      operationId: staffRedeemPoints
+      summary: Spend a member's points
+      security:
+        - staffSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffRedeemRequest'
+      responses:
+        '200':
+          description: Points spent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointsTransaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Not enough points
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+
+  # ------------------------------------------------------------------ dashboard points
+  /v1/dashboard/apps/{appId}/points-rules:
+    parameters:
+      - $ref: '#/components/parameters/AppId'
+    get:
+      tags: [points]
+      operationId: getPointsRules
+      summary: The app's earn rule
+      description: Apps without a saved rule answer the defaults (NT$100 = 1 point, no expiry).
+      security:
+        - dashboardSession: []
+      responses:
+        '200':
+          description: Rule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointsRules'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [points]
+      operationId: putPointsRules
+      summary: Replace the app's earn rule
+      description: Owners and admins only. Applies to points earned from now on.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PointsRulesPut'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointsRules'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+  /v1/dashboard/members/{memberId}/points:
+    parameters:
+      - $ref: '#/components/parameters/MemberId'
+    get:
+      tags: [points]
+      operationId: getMemberPoints
+      summary: A member's points summary
+      security:
+        - dashboardSession: []
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointsSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/dashboard/members/{memberId}/points/history:
+    parameters:
+      - $ref: '#/components/parameters/MemberId'
+    get:
+      tags: [points]
+      operationId: listMemberPointsHistory
+      summary: A member's points transactions, newest first
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of transactions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointsHistoryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/dashboard/members/{memberId}/points/adjustments:
+    parameters:
+      - $ref: '#/components/parameters/MemberId'
+    post:
+      tags: [points]
+      operationId: adjustMemberPoints
+      summary: Correct a member's points
+      description: Owners and admins only; audited. A negative delta consumes lots FIFO and cannot take the balance below zero.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PointsAdjustment'
+      responses:
+        '200':
+          description: Adjusted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointsTransaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Not enough points for a negative adjustment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+  /v1/dashboard/members/{memberId}/card/rotate:
+    parameters:
+      - $ref: '#/components/parameters/MemberId'
+    post:
+      tags: [members]
+      operationId: rotateMemberCard
+      summary: Invalidate every QR code the member's card ever showed
+      description: For a lost or shared phone. Owners and admins only; audited.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Rotated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberCardRotated'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+  /v1/dashboard/apps/{appId}/member-sessions/end:
+    parameters:
+      - $ref: '#/components/parameters/AppId'
+    post:
+      tags: [apps]
+      operationId: endMemberSessions
+      summary: Sign every member of the app out
+      description: Member sessions issued before now are refused; the SDK signs members back in through LINE. Owners and admins only; audited.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Done
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/App'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+  /v1/dashboard/staff/{staffId}/invite:
+    parameters:
+      - name: staffId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [staff]
+      operationId: resetStaffInvite
+      summary: Issue a new invite code and unlink the staff member's LINE account
+      description: For a new phone or a new person. Ends the staff member's sessions. The code is shown once.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: New invite code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffCreated'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+
   # --------------------------------------------------------------- server
   /v1/app:
     get:
@@ -1518,6 +1965,70 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /v1/members/{memberId}/points:
+    parameters:
+      - $ref: '#/components/parameters/MemberId'
+    get:
+      tags: [server, points]
+      operationId: serverGetMemberPoints
+      summary: A member's points summary (API key, members:read)
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointsSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [server, points]
+      operationId: serverPostPoints
+      summary: Earn, redeem or adjust points from a POS or brand backend (API key, points:write)
+      description: |
+        earn takes either spend_amount (the app's rule applies) or points;
+        redeem and adjust take points (adjust may be negative). ref_type and
+        ref_id identify the receipt or order and appear in the history.
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServerPointsRequest'
+      responses:
+        '200':
+          description: Applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointsTransaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Not enough points
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
 
 components:
   parameters:
@@ -1948,6 +2459,14 @@ components:
         webhook_url:
           type: string
           description: The URL to configure as the Messaging API webhook for this app.
+        allow_hs256_id_tokens:
+          type: boolean
+          description: Accept HS256 ID tokens (LINE web login). LIFF issues ES256, so this stays off for MINI Apps.
+        member_sessions_valid_from:
+          type: string
+          format: date-time
+          nullable: true
+          description: Member sessions issued before this instant are refused.
         created_at:
           type: string
           format: date-time
@@ -1995,6 +2514,8 @@ components:
           writeOnly: true
           maxLength: 128
           description: Stored encrypted. Send an empty string to clear it.
+        allow_hs256_id_tokens:
+          type: boolean
     AppChannel:
       type: object
       required: [environment, channel_id, liff_id, channel_secret_set, verified_at, created_at]
@@ -2120,6 +2641,10 @@ components:
         line_linked:
           type: boolean
           description: Whether the staff member has signed in to the staff app with LINE.
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
         created_at:
           type: string
           format: date-time
@@ -2328,10 +2853,11 @@ components:
       allOf:
         - $ref: '#/components/schemas/Member'
         - type: object
-          required: [line_user_id, created_at, updated_at]
+          required: [created_at, updated_at]
           properties:
             line_user_id:
               type: string
+              description: Omitted for dashboard users with the staff role, like phone and birthday.
             friend_changed_at:
               type: string
               format: date-time
@@ -2542,3 +3068,336 @@ components:
         next_cursor:
           type: string
           nullable: true
+
+    # ---- member card and points
+    MemberCard:
+      type: object
+      required: [qr, expires_at, refresh_in_seconds, window_seconds]
+      properties:
+        qr:
+          type: string
+          description: Opaque payload to render as a QR code.
+        expires_at:
+          type: string
+          format: date-time
+        refresh_in_seconds:
+          type: integer
+        window_seconds:
+          type: integer
+    MemberCardRotated:
+      type: object
+      required: [qr_key_version]
+      properties:
+        qr_key_version:
+          type: integer
+    PointsKind:
+      type: string
+      enum: [earn, redeem, adjust, expire]
+    PointsExpiring:
+      type: object
+      required: [points, expires_at]
+      properties:
+        points:
+          type: integer
+          format: int64
+        expires_at:
+          type: string
+          format: date-time
+    PointsRulesPublic:
+      type: object
+      required: [currency, spend_per_point, points_per_unit, enabled]
+      properties:
+        currency:
+          type: string
+        spend_per_point:
+          type: integer
+        points_per_unit:
+          type: integer
+        expiry_days:
+          type: integer
+          nullable: true
+        enabled:
+          type: boolean
+    PointsSummary:
+      type: object
+      required: [member_id, balance, lifetime_earned, expiring, rules]
+      properties:
+        member_id:
+          type: string
+          format: uuid
+        balance:
+          type: integer
+          format: int64
+        lifetime_earned:
+          type: integer
+          format: int64
+        expiring:
+          type: array
+          description: The next (at most three) expiry dates with the points that expire then.
+          items:
+            $ref: '#/components/schemas/PointsExpiring'
+        rules:
+          $ref: '#/components/schemas/PointsRulesPublic'
+    PointsTransaction:
+      type: object
+      required: [id, member_id, kind, points, balance_after, actor_type, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The transaction; one transaction may touch several lots.
+        member_id:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/PointsKind'
+        points:
+          type: integer
+          format: int64
+          description: Signed change, positive for earn.
+        balance_after:
+          type: integer
+          format: int64
+        spend_amount:
+          type: integer
+          nullable: true
+        ref_type:
+          type: string
+          nullable: true
+        ref_id:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        store_id:
+          type: string
+          format: uuid
+          nullable: true
+        actor_type:
+          type: string
+          enum: [member, staff, user, api_key, system]
+        created_at:
+          type: string
+          format: date-time
+    PointsHistoryPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PointsTransaction'
+        next_cursor:
+          type: string
+          nullable: true
+    PointsRules:
+      allOf:
+        - $ref: '#/components/schemas/PointsRulesPut'
+        - type: object
+          properties:
+            updated_at:
+              type: string
+              format: date-time
+              nullable: true
+    PointsRulesPut:
+      type: object
+      required: [currency, spend_per_point, points_per_unit, min_spend, enabled]
+      properties:
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          example: TWD
+        spend_per_point:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+          description: Currency units spent for points_per_unit points.
+        points_per_unit:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        min_spend:
+          type: integer
+          minimum: 0
+          maximum: 10000000
+        max_points_per_txn:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+          nullable: true
+        expiry_days:
+          type: integer
+          minimum: 1
+          maximum: 3650
+          nullable: true
+          description: Points expire this many days after they are earned; null keeps them forever.
+        enabled:
+          type: boolean
+    PointsAdjustment:
+      type: object
+      required: [delta, note]
+      properties:
+        delta:
+          type: integer
+          minimum: -1000000
+          maximum: 1000000
+          description: Non-zero.
+        note:
+          type: string
+          minLength: 1
+          maxLength: 200
+    ServerPointsRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [earn, redeem, adjust]
+        points:
+          type: integer
+          minimum: -1000000
+          maximum: 1000000
+        spend_amount:
+          type: integer
+          minimum: 0
+          maximum: 100000000
+        ref_type:
+          type: string
+          maxLength: 32
+        ref_id:
+          type: string
+          maxLength: 128
+        note:
+          type: string
+          maxLength: 200
+
+    # ---- staff app
+    StaffLoginRequest:
+      type: object
+      required: [app_id, id_token]
+      properties:
+        app_id:
+          type: string
+          format: uuid
+        id_token:
+          type: string
+          minLength: 20
+          maxLength: 4096
+        invite_code:
+          type: string
+          minLength: 8
+          maxLength: 32
+          description: From the dashboard, needed on the first sign-in only.
+    StoreRef:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    StaffMe:
+      type: object
+      required: [id, app_id, display_name, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        role:
+          $ref: '#/components/schemas/StaffRole'
+        store:
+          $ref: '#/components/schemas/StoreRef'
+    StaffSession:
+      type: object
+      required: [session_token, token_type, expires_in, staff, app]
+      properties:
+        session_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+        staff:
+          $ref: '#/components/schemas/StaffMe'
+        app:
+          $ref: '#/components/schemas/AppPublic'
+    ScanRequest:
+      type: object
+      required: [qr]
+      properties:
+        qr:
+          type: string
+          minLength: 10
+          maxLength: 128
+    ScannedMember:
+      type: object
+      required: [id, is_friend]
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+          nullable: true
+        picture_url:
+          type: string
+          nullable: true
+        is_friend:
+          type: boolean
+    ScanResult:
+      type: object
+      required: [scan_token, expires_at, member, balance]
+      properties:
+        scan_token:
+          type: string
+          description: Authorizes points actions on this member for five minutes.
+        expires_at:
+          type: string
+          format: date-time
+        member:
+          $ref: '#/components/schemas/ScannedMember'
+        balance:
+          type: integer
+          format: int64
+    StaffEarnRequest:
+      type: object
+      required: [scan_token]
+      properties:
+        scan_token:
+          type: string
+          maxLength: 1024
+        spend_amount:
+          type: integer
+          minimum: 0
+          maximum: 100000000
+        points:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+          description: Managers only; replaces the rule calculation.
+        note:
+          type: string
+          maxLength: 200
+    StaffRedeemRequest:
+      type: object
+      required: [scan_token, points]
+      properties:
+        scan_token:
+          type: string
+          maxLength: 1024
+        points:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        note:
+          type: string
+          maxLength: 200

@@ -171,6 +171,57 @@ func (e MemberSessionTokenType) Valid() bool {
 	}
 }
 
+// Defines values for PointsKind.
+const (
+	PointsKindAdjust PointsKind = "adjust"
+	PointsKindEarn   PointsKind = "earn"
+	PointsKindExpire PointsKind = "expire"
+	PointsKindRedeem PointsKind = "redeem"
+)
+
+// Valid indicates whether the value is a known member of the PointsKind enum.
+func (e PointsKind) Valid() bool {
+	switch e {
+	case PointsKindAdjust:
+		return true
+	case PointsKindEarn:
+		return true
+	case PointsKindExpire:
+		return true
+	case PointsKindRedeem:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PointsTransactionActorType.
+const (
+	PointsTransactionActorTypeApiKey PointsTransactionActorType = "api_key"
+	PointsTransactionActorTypeMember PointsTransactionActorType = "member"
+	PointsTransactionActorTypeStaff  PointsTransactionActorType = "staff"
+	PointsTransactionActorTypeSystem PointsTransactionActorType = "system"
+	PointsTransactionActorTypeUser   PointsTransactionActorType = "user"
+)
+
+// Valid indicates whether the value is a known member of the PointsTransactionActorType enum.
+func (e PointsTransactionActorType) Valid() bool {
+	switch e {
+	case PointsTransactionActorTypeApiKey:
+		return true
+	case PointsTransactionActorTypeMember:
+		return true
+	case PointsTransactionActorTypeStaff:
+		return true
+	case PointsTransactionActorTypeSystem:
+		return true
+	case PointsTransactionActorTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Role.
 const (
 	RoleAdmin Role = "admin"
@@ -186,6 +237,27 @@ func (e Role) Valid() bool {
 	case RoleOwner:
 		return true
 	case RoleStaff:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ServerPointsRequestType.
+const (
+	ServerPointsRequestTypeAdjust ServerPointsRequestType = "adjust"
+	ServerPointsRequestTypeEarn   ServerPointsRequestType = "earn"
+	ServerPointsRequestTypeRedeem ServerPointsRequestType = "redeem"
+)
+
+// Valid indicates whether the value is a known member of the ServerPointsRequestType enum.
+func (e ServerPointsRequestType) Valid() bool {
+	switch e {
+	case ServerPointsRequestTypeAdjust:
+		return true
+	case ServerPointsRequestTypeEarn:
+		return true
+	case ServerPointsRequestTypeRedeem:
 		return true
 	default:
 		return false
@@ -219,6 +291,21 @@ func (e StaffRole) Valid() bool {
 	case Cashier:
 		return true
 	case Manager:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StaffSessionTokenType.
+const (
+	StaffSessionTokenTypeBearer StaffSessionTokenType = "Bearer"
+)
+
+// Valid indicates whether the value is a known member of the StaffSessionTokenType enum.
+func (e StaffSessionTokenType) Valid() bool {
+	switch e {
+	case StaffSessionTokenTypeBearer:
 		return true
 	default:
 		return false
@@ -292,12 +379,17 @@ type ApiKeyScope string
 
 // App defines model for App.
 type App struct {
-	CreatedAt time.Time          `json:"created_at"`
-	Id        openapi_types.UUID `json:"id"`
+	// AllowHs256IdTokens Accept HS256 ID tokens (LINE web login). LIFF issues ES256, so this stays off for MINI Apps.
+	AllowHs256IdTokens *bool              `json:"allow_hs256_id_tokens,omitempty"`
+	CreatedAt          time.Time          `json:"created_at"`
+	Id                 openapi_types.UUID `json:"id"`
 
 	// Locale BCP 47 tag used for member-facing defaults, for example zh-TW.
 	Locale string `json:"locale"`
-	Name   string `json:"name"`
+
+	// MemberSessionsValidFrom Member sessions issued before this instant are refused.
+	MemberSessionsValidFrom *time.Time `json:"member_sessions_valid_from,omitempty"`
+	Name                    string     `json:"name"`
 
 	// OaBasicId The Official Account's basic ID, for example @123abcd, used for add-friend links.
 	OaBasicId *string `json:"oa_basic_id,omitempty"`
@@ -367,10 +459,11 @@ type AppStatus string
 
 // AppUpdate defines model for AppUpdate.
 type AppUpdate struct {
-	Locale      *string `json:"locale,omitempty"`
-	Name        *string `json:"name,omitempty"`
-	OaBasicId   *string `json:"oa_basic_id,omitempty"`
-	OaChannelId *string `json:"oa_channel_id,omitempty"`
+	AllowHs256IdTokens *bool   `json:"allow_hs256_id_tokens,omitempty"`
+	Locale             *string `json:"locale,omitempty"`
+	Name               *string `json:"name,omitempty"`
+	OaBasicId          *string `json:"oa_basic_id,omitempty"`
+	OaChannelId        *string `json:"oa_channel_id,omitempty"`
 
 	// OaChannelSecret Stored encrypted. Send an empty string to clear it.
 	OaChannelSecret *string    `json:"oa_channel_secret,omitempty"`
@@ -526,6 +619,21 @@ type Member struct {
 	PictureUrl *string `json:"picture_url,omitempty"`
 }
 
+// MemberCard defines model for MemberCard.
+type MemberCard struct {
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Qr Opaque payload to render as a QR code.
+	Qr               string `json:"qr"`
+	RefreshInSeconds int    `json:"refresh_in_seconds"`
+	WindowSeconds    int    `json:"window_seconds"`
+}
+
+// MemberCardRotated defines model for MemberCardRotated.
+type MemberCardRotated struct {
+	QrKeyVersion int `json:"qr_key_version"`
+}
+
 // MemberDetail defines model for MemberDetail.
 type MemberDetail struct {
 	AppId           openapi_types.UUID     `json:"app_id"`
@@ -544,10 +652,12 @@ type MemberDetail struct {
 	// Language The member's LINE language, when LINE shared it.
 	Language    *string    `json:"language,omitempty"`
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
-	LineUserId  string     `json:"line_user_id"`
-	Phone       *string    `json:"phone,omitempty"`
-	PictureUrl  *string    `json:"picture_url,omitempty"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+
+	// LineUserId Omitted for dashboard users with the staff role, like phone and birthday.
+	LineUserId *string   `json:"line_user_id,omitempty"`
+	Phone      *string   `json:"phone,omitempty"`
+	PictureUrl *string   `json:"picture_url,omitempty"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // MemberExport defines model for MemberExport.
@@ -621,6 +731,104 @@ type PasswordChangeRequest struct {
 	NewPassword     string `json:"new_password"`
 }
 
+// PointsAdjustment defines model for PointsAdjustment.
+type PointsAdjustment struct {
+	// Delta Non-zero.
+	Delta int    `json:"delta"`
+	Note  string `json:"note"`
+}
+
+// PointsExpiring defines model for PointsExpiring.
+type PointsExpiring struct {
+	ExpiresAt time.Time `json:"expires_at"`
+	Points    int64     `json:"points"`
+}
+
+// PointsHistoryPage defines model for PointsHistoryPage.
+type PointsHistoryPage struct {
+	Items      []PointsTransaction `json:"items"`
+	NextCursor *string             `json:"next_cursor,omitempty"`
+}
+
+// PointsKind defines model for PointsKind.
+type PointsKind string
+
+// PointsRules defines model for PointsRules.
+type PointsRules struct {
+	// Currency Example: TWD
+	Currency string `json:"currency"`
+	Enabled  bool   `json:"enabled"`
+
+	// ExpiryDays Points expire this many days after they are earned; null keeps them forever.
+	ExpiryDays      *int `json:"expiry_days,omitempty"`
+	MaxPointsPerTxn *int `json:"max_points_per_txn,omitempty"`
+	MinSpend        int  `json:"min_spend"`
+	PointsPerUnit   int  `json:"points_per_unit"`
+
+	// SpendPerPoint Currency units spent for points_per_unit points.
+	SpendPerPoint int        `json:"spend_per_point"`
+	UpdatedAt     *time.Time `json:"updated_at,omitempty"`
+}
+
+// PointsRulesPublic defines model for PointsRulesPublic.
+type PointsRulesPublic struct {
+	Currency      string `json:"currency"`
+	Enabled       bool   `json:"enabled"`
+	ExpiryDays    *int   `json:"expiry_days,omitempty"`
+	PointsPerUnit int    `json:"points_per_unit"`
+	SpendPerPoint int    `json:"spend_per_point"`
+}
+
+// PointsRulesPut defines model for PointsRulesPut.
+type PointsRulesPut struct {
+	// Currency Example: TWD
+	Currency string `json:"currency"`
+	Enabled  bool   `json:"enabled"`
+
+	// ExpiryDays Points expire this many days after they are earned; null keeps them forever.
+	ExpiryDays      *int `json:"expiry_days,omitempty"`
+	MaxPointsPerTxn *int `json:"max_points_per_txn,omitempty"`
+	MinSpend        int  `json:"min_spend"`
+	PointsPerUnit   int  `json:"points_per_unit"`
+
+	// SpendPerPoint Currency units spent for points_per_unit points.
+	SpendPerPoint int `json:"spend_per_point"`
+}
+
+// PointsSummary defines model for PointsSummary.
+type PointsSummary struct {
+	Balance int64 `json:"balance"`
+
+	// Expiring The next (at most three) expiry dates with the points that expire then.
+	Expiring       []PointsExpiring   `json:"expiring"`
+	LifetimeEarned int64              `json:"lifetime_earned"`
+	MemberId       openapi_types.UUID `json:"member_id"`
+	Rules          PointsRulesPublic  `json:"rules"`
+}
+
+// PointsTransaction defines model for PointsTransaction.
+type PointsTransaction struct {
+	ActorType    PointsTransactionActorType `json:"actor_type"`
+	BalanceAfter int64                      `json:"balance_after"`
+	CreatedAt    time.Time                  `json:"created_at"`
+
+	// Id The transaction; one transaction may touch several lots.
+	Id       openapi_types.UUID `json:"id"`
+	Kind     PointsKind         `json:"kind"`
+	MemberId openapi_types.UUID `json:"member_id"`
+	Note     *string            `json:"note,omitempty"`
+
+	// Points Signed change, positive for earn.
+	Points      int64               `json:"points"`
+	RefId       *string             `json:"ref_id,omitempty"`
+	RefType     *string             `json:"ref_type,omitempty"`
+	SpendAmount *int                `json:"spend_amount,omitempty"`
+	StoreId     *openapi_types.UUID `json:"store_id,omitempty"`
+}
+
+// PointsTransactionActorType defines model for PointsTransaction.ActorType.
+type PointsTransactionActorType string
+
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
 	DisplayName *string             `json:"display_name,omitempty"`
@@ -632,6 +840,29 @@ type RegisterRequest struct {
 
 // Role owner manages everything including billing and the team; admin manages apps and settings; staff has read-only access in the dashboard.
 type Role string
+
+// ScanRequest defines model for ScanRequest.
+type ScanRequest struct {
+	Qr string `json:"qr"`
+}
+
+// ScanResult defines model for ScanResult.
+type ScanResult struct {
+	Balance   int64         `json:"balance"`
+	ExpiresAt time.Time     `json:"expires_at"`
+	Member    ScannedMember `json:"member"`
+
+	// ScanToken Authorizes points actions on this member for five minutes.
+	ScanToken string `json:"scan_token"`
+}
+
+// ScannedMember defines model for ScannedMember.
+type ScannedMember struct {
+	DisplayName *string            `json:"display_name,omitempty"`
+	Id          openapi_types.UUID `json:"id"`
+	IsFriend    bool               `json:"is_friend"`
+	PictureUrl  *string            `json:"picture_url,omitempty"`
+}
 
 // SecurityEvent defines model for SecurityEvent.
 type SecurityEvent struct {
@@ -650,6 +881,19 @@ type SecurityEventPage struct {
 	Items      []SecurityEvent `json:"items"`
 	NextCursor *string         `json:"next_cursor,omitempty"`
 }
+
+// ServerPointsRequest defines model for ServerPointsRequest.
+type ServerPointsRequest struct {
+	Note        *string                 `json:"note,omitempty"`
+	Points      *int                    `json:"points,omitempty"`
+	RefId       *string                 `json:"ref_id,omitempty"`
+	RefType     *string                 `json:"ref_type,omitempty"`
+	SpendAmount *int                    `json:"spend_amount,omitempty"`
+	Type        ServerPointsRequestType `json:"type"`
+}
+
+// ServerPointsRequestType defines model for ServerPointsRequest.Type.
+type ServerPointsRequestType string
 
 // Session defines model for Session.
 type Session struct {
@@ -670,6 +914,7 @@ type Staff struct {
 	CreatedAt   time.Time          `json:"created_at"`
 	DisplayName string             `json:"display_name"`
 	Id          openapi_types.UUID `json:"id"`
+	LastLoginAt *time.Time         `json:"last_login_at,omitempty"`
 
 	// LineLinked Whether the staff member has signed in to the staff app with LINE.
 	LineLinked bool                `json:"line_linked"`
@@ -693,7 +938,8 @@ type StaffCreated struct {
 	Id          openapi_types.UUID `json:"id"`
 
 	// InviteCode One-time code the staff member enters in the staff app to bind their LINE account. Shown once.
-	InviteCode string `json:"invite_code"`
+	InviteCode  string     `json:"invite_code"`
+	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
 
 	// LineLinked Whether the staff member has signed in to the staff app with LINE.
 	LineLinked bool                `json:"line_linked"`
@@ -702,8 +948,56 @@ type StaffCreated struct {
 	StoreId    *openapi_types.UUID `json:"store_id,omitempty"`
 }
 
+// StaffEarnRequest defines model for StaffEarnRequest.
+type StaffEarnRequest struct {
+	Note *string `json:"note,omitempty"`
+
+	// Points Managers only; replaces the rule calculation.
+	Points      *int   `json:"points,omitempty"`
+	ScanToken   string `json:"scan_token"`
+	SpendAmount *int   `json:"spend_amount,omitempty"`
+}
+
+// StaffLoginRequest defines model for StaffLoginRequest.
+type StaffLoginRequest struct {
+	AppId   openapi_types.UUID `json:"app_id"`
+	IdToken string             `json:"id_token"`
+
+	// InviteCode From the dashboard, needed on the first sign-in only.
+	InviteCode *string `json:"invite_code,omitempty"`
+}
+
+// StaffMe defines model for StaffMe.
+type StaffMe struct {
+	AppId       openapi_types.UUID `json:"app_id"`
+	DisplayName string             `json:"display_name"`
+	Id          openapi_types.UUID `json:"id"`
+	Role        StaffRole          `json:"role"`
+	Store       *StoreRef          `json:"store,omitempty"`
+}
+
+// StaffRedeemRequest defines model for StaffRedeemRequest.
+type StaffRedeemRequest struct {
+	Note      *string `json:"note,omitempty"`
+	Points    int     `json:"points"`
+	ScanToken string  `json:"scan_token"`
+}
+
 // StaffRole defines model for StaffRole.
 type StaffRole string
+
+// StaffSession defines model for StaffSession.
+type StaffSession struct {
+	// App What a MINI App may know about its own app.
+	App          AppPublic             `json:"app"`
+	ExpiresIn    int                   `json:"expires_in"`
+	SessionToken string                `json:"session_token"`
+	Staff        StaffMe               `json:"staff"`
+	TokenType    StaffSessionTokenType `json:"token_type"`
+}
+
+// StaffSessionTokenType defines model for StaffSession.TokenType.
+type StaffSessionTokenType string
 
 // StaffUpdate defines model for StaffUpdate.
 type StaffUpdate struct {
@@ -731,6 +1025,12 @@ type StoreCreate struct {
 	Address *string `json:"address,omitempty"`
 	Code    *string `json:"code,omitempty"`
 	Name    string  `json:"name"`
+}
+
+// StoreRef defines model for StoreRef.
+type StoreRef struct {
+	Id   openapi_types.UUID `json:"id"`
+	Name string             `json:"name"`
 }
 
 // StoreUpdate defines model for StoreUpdate.
@@ -873,6 +1173,12 @@ type PutAppChannelParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// EndMemberSessionsParams defines parameters for EndMemberSessions.
+type EndMemberSessionsParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // ListMembersParams defines parameters for ListMembers.
 type ListMembersParams struct {
 	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
@@ -882,6 +1188,12 @@ type ListMembersParams struct {
 
 	// Q Search text; matches the display name or an exact LINE user ID.
 	Q *Query `form:"q,omitempty" json:"q,omitempty"`
+}
+
+// PutPointsRulesParams defines parameters for PutPointsRules.
+type PutPointsRulesParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
 // CreateStaffParams defines parameters for CreateStaff.
@@ -904,8 +1216,34 @@ type ListSecurityEventsParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// RotateMemberCardParams defines parameters for RotateMemberCard.
+type RotateMemberCardParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// AdjustMemberPointsParams defines parameters for AdjustMemberPoints.
+type AdjustMemberPointsParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ListMemberPointsHistoryParams defines parameters for ListMemberPointsHistory.
+type ListMemberPointsHistoryParams struct {
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous page's next_cursor.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // UpdateStaffParams defines parameters for UpdateStaff.
 type UpdateStaffParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ResetStaffInviteParams defines parameters for ResetStaffInvite.
+type ResetStaffInviteParams struct {
 	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
@@ -961,6 +1299,14 @@ type RecordConsentParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// ListMyPointsHistoryParams defines parameters for ListMyPointsHistory.
+type ListMyPointsHistoryParams struct {
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous page's next_cursor.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // ServerListMembersParams defines parameters for ServerListMembers.
 type ServerListMembersParams struct {
 	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
@@ -970,6 +1316,24 @@ type ServerListMembersParams struct {
 
 	// Q Search text; matches the display name or an exact LINE user ID.
 	Q *Query `form:"q,omitempty" json:"q,omitempty"`
+}
+
+// ServerPostPointsParams defines parameters for ServerPostPoints.
+type ServerPostPointsParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// StaffEarnPointsParams defines parameters for StaffEarnPoints.
+type StaffEarnPointsParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// StaffRedeemPointsParams defines parameters for StaffRedeemPoints.
+type StaffRedeemPointsParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
 // ReceiveLineWebhookParams defines parameters for ReceiveLineWebhook.
@@ -988,6 +1352,9 @@ type CreateApiKeyJSONRequestBody = ApiKeyCreate
 
 // PutAppChannelJSONRequestBody defines body for PutAppChannel for application/json ContentType.
 type PutAppChannelJSONRequestBody = AppChannelPut
+
+// PutPointsRulesJSONRequestBody defines body for PutPointsRules for application/json ContentType.
+type PutPointsRulesJSONRequestBody = PointsRulesPut
 
 // CreateStaffJSONRequestBody defines body for CreateStaff for application/json ContentType.
 type CreateStaffJSONRequestBody = StaffCreate
@@ -1016,6 +1383,9 @@ type DisableTotpJSONRequestBody = TotpDisableRequest
 // ConfirmTotpJSONRequestBody defines body for ConfirmTotp for application/json ContentType.
 type ConfirmTotpJSONRequestBody = TotpCodeRequest
 
+// AdjustMemberPointsJSONRequestBody defines body for AdjustMemberPoints for application/json ContentType.
+type AdjustMemberPointsJSONRequestBody = PointsAdjustment
+
 // UpdateStaffJSONRequestBody defines body for UpdateStaff for application/json ContentType.
 type UpdateStaffJSONRequestBody = StaffUpdate
 
@@ -1039,6 +1409,21 @@ type UpdateMeJSONRequestBody = MemberUpdate
 
 // RecordConsentJSONRequestBody defines body for RecordConsent for application/json ContentType.
 type RecordConsentJSONRequestBody = ConsentRequest
+
+// ServerPostPointsJSONRequestBody defines body for ServerPostPoints for application/json ContentType.
+type ServerPostPointsJSONRequestBody = ServerPointsRequest
+
+// StaffLoginWithLineJSONRequestBody defines body for StaffLoginWithLine for application/json ContentType.
+type StaffLoginWithLineJSONRequestBody = StaffLoginRequest
+
+// StaffEarnPointsJSONRequestBody defines body for StaffEarnPoints for application/json ContentType.
+type StaffEarnPointsJSONRequestBody = StaffEarnRequest
+
+// StaffRedeemPointsJSONRequestBody defines body for StaffRedeemPoints for application/json ContentType.
+type StaffRedeemPointsJSONRequestBody = StaffRedeemRequest
+
+// StaffScanJSONRequestBody defines body for StaffScan for application/json ContentType.
+type StaffScanJSONRequestBody = ScanRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1078,9 +1463,18 @@ type ServerInterface interface {
 	// PutAppChannel Create or replace the channel for an environment
 	// (PUT /v1/dashboard/apps/{appId}/channels/{environment})
 	PutAppChannel(w http.ResponseWriter, r *http.Request, appId AppId, environment ChannelEnvironment, params PutAppChannelParams)
+	// EndMemberSessions Sign every member of the app out
+	// (POST /v1/dashboard/apps/{appId}/member-sessions/end)
+	EndMemberSessions(w http.ResponseWriter, r *http.Request, appId AppId, params EndMemberSessionsParams)
 	// ListMembers Members of the app, newest first
 	// (GET /v1/dashboard/apps/{appId}/members)
 	ListMembers(w http.ResponseWriter, r *http.Request, appId AppId, params ListMembersParams)
+	// GetPointsRules The app's earn rule
+	// (GET /v1/dashboard/apps/{appId}/points-rules)
+	GetPointsRules(w http.ResponseWriter, r *http.Request, appId AppId)
+	// PutPointsRules Replace the app's earn rule
+	// (PUT /v1/dashboard/apps/{appId}/points-rules)
+	PutPointsRules(w http.ResponseWriter, r *http.Request, appId AppId, params PutPointsRulesParams)
 	// ListStaff Staff of the app
 	// (GET /v1/dashboard/apps/{appId}/staff)
 	ListStaff(w http.ResponseWriter, r *http.Request, appId AppId)
@@ -1141,15 +1535,30 @@ type ServerInterface interface {
 	// GetMember Member details
 	// (GET /v1/dashboard/members/{memberId})
 	GetMember(w http.ResponseWriter, r *http.Request, memberId MemberId)
+	// RotateMemberCard Invalidate every QR code the member's card ever showed
+	// (POST /v1/dashboard/members/{memberId}/card/rotate)
+	RotateMemberCard(w http.ResponseWriter, r *http.Request, memberId MemberId, params RotateMemberCardParams)
 	// ExportMember Export a member's data
 	// (GET /v1/dashboard/members/{memberId}/export)
 	ExportMember(w http.ResponseWriter, r *http.Request, memberId MemberId)
+	// GetMemberPoints A member's points summary
+	// (GET /v1/dashboard/members/{memberId}/points)
+	GetMemberPoints(w http.ResponseWriter, r *http.Request, memberId MemberId)
+	// AdjustMemberPoints Correct a member's points
+	// (POST /v1/dashboard/members/{memberId}/points/adjustments)
+	AdjustMemberPoints(w http.ResponseWriter, r *http.Request, memberId MemberId, params AdjustMemberPointsParams)
+	// ListMemberPointsHistory A member's points transactions, newest first
+	// (GET /v1/dashboard/members/{memberId}/points/history)
+	ListMemberPointsHistory(w http.ResponseWriter, r *http.Request, memberId MemberId, params ListMemberPointsHistoryParams)
 	// DeleteStaff Remove a staff member
 	// (DELETE /v1/dashboard/staff/{staffId})
 	DeleteStaff(w http.ResponseWriter, r *http.Request, staffId openapi_types.UUID)
 	// UpdateStaff Update a staff member
 	// (PATCH /v1/dashboard/staff/{staffId})
 	UpdateStaff(w http.ResponseWriter, r *http.Request, staffId openapi_types.UUID, params UpdateStaffParams)
+	// ResetStaffInvite Issue a new invite code and unlink the staff member's LINE account
+	// (POST /v1/dashboard/staff/{staffId}/invite)
+	ResetStaffInvite(w http.ResponseWriter, r *http.Request, staffId openapi_types.UUID, params ResetStaffInviteParams)
 	// DeleteStore Delete a store
 	// (DELETE /v1/dashboard/stores/{storeId})
 	DeleteStore(w http.ResponseWriter, r *http.Request, storeId openapi_types.UUID)
@@ -1198,18 +1607,48 @@ type ServerInterface interface {
 	// UpdateMe Update profile fields
 	// (PATCH /v1/me)
 	UpdateMe(w http.ResponseWriter, r *http.Request, params UpdateMeParams)
+	// GetMyCard The member card QR code, valid for one 30-second window
+	// (GET /v1/me/card)
+	GetMyCard(w http.ResponseWriter, r *http.Request)
 	// RecordConsent Record consent to the current personal-data notice
 	// (POST /v1/me/consent)
 	RecordConsent(w http.ResponseWriter, r *http.Request, params RecordConsentParams)
 	// ExportMe Everything stored about me
 	// (GET /v1/me/export)
 	ExportMe(w http.ResponseWriter, r *http.Request)
+	// GetMyPoints My points balance, what expires soon, and the earn rule
+	// (GET /v1/me/points)
+	GetMyPoints(w http.ResponseWriter, r *http.Request)
+	// ListMyPointsHistory My points transactions, newest first
+	// (GET /v1/me/points/history)
+	ListMyPointsHistory(w http.ResponseWriter, r *http.Request, params ListMyPointsHistoryParams)
 	// ServerListMembers Members of the app (API key, members:read)
 	// (GET /v1/members)
 	ServerListMembers(w http.ResponseWriter, r *http.Request, params ServerListMembersParams)
 	// ServerGetMember Member details (API key, members:read)
 	// (GET /v1/members/{memberId})
 	ServerGetMember(w http.ResponseWriter, r *http.Request, memberId MemberId)
+	// ServerGetMemberPoints A member's points summary (API key, members:read)
+	// (GET /v1/members/{memberId}/points)
+	ServerGetMemberPoints(w http.ResponseWriter, r *http.Request, memberId MemberId)
+	// ServerPostPoints Earn, redeem or adjust points from a POS or brand backend (API key, points:write)
+	// (POST /v1/members/{memberId}/points)
+	ServerPostPoints(w http.ResponseWriter, r *http.Request, memberId MemberId, params ServerPostPointsParams)
+	// StaffLoginWithLine Sign in to the staff app with LINE
+	// (POST /v1/staff/auth/line)
+	StaffLoginWithLine(w http.ResponseWriter, r *http.Request)
+	// GetStaffMe The signed-in staff member
+	// (GET /v1/staff/me)
+	GetStaffMe(w http.ResponseWriter, r *http.Request)
+	// StaffEarnPoints Give points for a purchase
+	// (POST /v1/staff/points/earn)
+	StaffEarnPoints(w http.ResponseWriter, r *http.Request, params StaffEarnPointsParams)
+	// StaffRedeemPoints Spend a member's points
+	// (POST /v1/staff/points/redeem)
+	StaffRedeemPoints(w http.ResponseWriter, r *http.Request, params StaffRedeemPointsParams)
+	// StaffScan Read a member card QR code
+	// (POST /v1/staff/scan)
+	StaffScan(w http.ResponseWriter, r *http.Request)
 	// ReceiveLineWebhook Inbound webhook from the app's LINE Official Account
 	// (POST /webhooks/line/{appId})
 	ReceiveLineWebhook(w http.ResponseWriter, r *http.Request, appId AppId, params ReceiveLineWebhookParams)
@@ -1590,6 +2029,60 @@ func (siw *ServerInterfaceWrapper) PutAppChannel(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// EndMemberSessions operation middleware
+func (siw *ServerInterfaceWrapper) EndMemberSessions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params EndMemberSessionsParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EndMemberSessions(w, r, appId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListMembers operation middleware
 func (siw *ServerInterfaceWrapper) ListMembers(w http.ResponseWriter, r *http.Request) {
 
@@ -1649,6 +2142,86 @@ func (siw *ServerInterfaceWrapper) ListMembers(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListMembers(w, r, appId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPointsRules operation middleware
+func (siw *ServerInterfaceWrapper) GetPointsRules(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPointsRules(w, r, appId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutPointsRules operation middleware
+func (siw *ServerInterfaceWrapper) PutPointsRules(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutPointsRulesParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutPointsRules(w, r, appId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2110,6 +2683,60 @@ func (siw *ServerInterfaceWrapper) GetMember(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// RotateMemberCard operation middleware
+func (siw *ServerInterfaceWrapper) RotateMemberCard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "memberId" -------------
+	var memberId MemberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "memberId", r.PathValue("memberId"), &memberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memberId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RotateMemberCardParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RotateMemberCard(w, r, memberId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ExportMember operation middleware
 func (siw *ServerInterfaceWrapper) ExportMember(w http.ResponseWriter, r *http.Request) {
 
@@ -2127,6 +2754,141 @@ func (siw *ServerInterfaceWrapper) ExportMember(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ExportMember(w, r, memberId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMemberPoints operation middleware
+func (siw *ServerInterfaceWrapper) GetMemberPoints(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "memberId" -------------
+	var memberId MemberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "memberId", r.PathValue("memberId"), &memberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memberId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMemberPoints(w, r, memberId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AdjustMemberPoints operation middleware
+func (siw *ServerInterfaceWrapper) AdjustMemberPoints(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "memberId" -------------
+	var memberId MemberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "memberId", r.PathValue("memberId"), &memberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memberId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AdjustMemberPointsParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AdjustMemberPoints(w, r, memberId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMemberPointsHistory operation middleware
+func (siw *ServerInterfaceWrapper) ListMemberPointsHistory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "memberId" -------------
+	var memberId MemberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "memberId", r.PathValue("memberId"), &memberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memberId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListMemberPointsHistoryParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMemberPointsHistory(w, r, memberId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2207,6 +2969,60 @@ func (siw *ServerInterfaceWrapper) UpdateStaff(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateStaff(w, r, staffId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResetStaffInvite operation middleware
+func (siw *ServerInterfaceWrapper) ResetStaffInvite(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "staffId" -------------
+	var staffId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "staffId", r.PathValue("staffId"), &staffId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "staffId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ResetStaffInviteParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResetStaffInvite(w, r, staffId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2815,6 +3631,20 @@ func (siw *ServerInterfaceWrapper) UpdateMe(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyCard operation middleware
+func (siw *ServerInterfaceWrapper) GetMyCard(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyCard(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RecordConsent operation middleware
 func (siw *ServerInterfaceWrapper) RecordConsent(w http.ResponseWriter, r *http.Request) {
 
@@ -2865,6 +3695,66 @@ func (siw *ServerInterfaceWrapper) ExportMe(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ExportMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMyPoints operation middleware
+func (siw *ServerInterfaceWrapper) GetMyPoints(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyPoints(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMyPointsHistory operation middleware
+func (siw *ServerInterfaceWrapper) ListMyPointsHistory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListMyPointsHistoryParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMyPointsHistory(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2950,6 +3840,218 @@ func (siw *ServerInterfaceWrapper) ServerGetMember(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ServerGetMember(w, r, memberId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ServerGetMemberPoints operation middleware
+func (siw *ServerInterfaceWrapper) ServerGetMemberPoints(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "memberId" -------------
+	var memberId MemberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "memberId", r.PathValue("memberId"), &memberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memberId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ServerGetMemberPoints(w, r, memberId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ServerPostPoints operation middleware
+func (siw *ServerInterfaceWrapper) ServerPostPoints(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "memberId" -------------
+	var memberId MemberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "memberId", r.PathValue("memberId"), &memberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memberId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ServerPostPointsParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ServerPostPoints(w, r, memberId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StaffLoginWithLine operation middleware
+func (siw *ServerInterfaceWrapper) StaffLoginWithLine(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StaffLoginWithLine(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetStaffMe operation middleware
+func (siw *ServerInterfaceWrapper) GetStaffMe(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetStaffMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StaffEarnPoints operation middleware
+func (siw *ServerInterfaceWrapper) StaffEarnPoints(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StaffEarnPointsParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StaffEarnPoints(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StaffRedeemPoints operation middleware
+func (siw *ServerInterfaceWrapper) StaffRedeemPoints(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StaffRedeemPointsParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StaffRedeemPoints(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StaffScan operation middleware
+func (siw *ServerInterfaceWrapper) StaffScan(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StaffScan(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3187,9 +4289,27 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/dashboard/invitations/{invitationId}", wrapper.RevokeInvitation)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/auth/accept-invite", wrapper.AcceptInvitation)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/me/security-events", wrapper.ListSecurityEvents)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/card", wrapper.GetMyCard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/points", wrapper.GetMyPoints)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/points/history", wrapper.ListMyPointsHistory)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/staff/auth/line", wrapper.StaffLoginWithLine)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/staff/me", wrapper.GetStaffMe)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/staff/scan", wrapper.StaffScan)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/staff/points/earn", wrapper.StaffEarnPoints)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/staff/points/redeem", wrapper.StaffRedeemPoints)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/points-rules", wrapper.GetPointsRules)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/points-rules", wrapper.PutPointsRules)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/members/{memberId}/points", wrapper.GetMemberPoints)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/members/{memberId}/points/history", wrapper.ListMemberPointsHistory)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/members/{memberId}/points/adjustments", wrapper.AdjustMemberPoints)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/members/{memberId}/card/rotate", wrapper.RotateMemberCard)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/member-sessions/end", wrapper.EndMemberSessions)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/staff/{staffId}/invite", wrapper.ResetStaffInvite)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/app", wrapper.GetCurrentApp)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/members", wrapper.ServerListMembers)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/members/{memberId}", wrapper.ServerGetMember)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/members/{memberId}/points", wrapper.ServerGetMemberPoints)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/members/{memberId}/points", wrapper.ServerPostPoints)
 
 	return m
 }
@@ -3931,6 +5051,87 @@ func (response PutAppChannel422JSONResponse) VisitPutAppChannelResponse(w http.R
 	return err
 }
 
+type EndMemberSessionsRequestObject struct {
+	AppId  AppId `json:"appId"`
+	Params EndMemberSessionsParams
+}
+
+type EndMemberSessionsResponseObject interface {
+	VisitEndMemberSessionsResponse(w http.ResponseWriter) error
+}
+
+type EndMemberSessions200JSONResponse App
+
+func (response EndMemberSessions200JSONResponse) VisitEndMemberSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EndMemberSessions401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response EndMemberSessions401JSONResponse) VisitEndMemberSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EndMemberSessions403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response EndMemberSessions403JSONResponse) VisitEndMemberSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EndMemberSessions404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response EndMemberSessions404JSONResponse) VisitEndMemberSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EndMemberSessions422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response EndMemberSessions422JSONResponse) VisitEndMemberSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListMembersRequestObject struct {
 	AppId  AppId `json:"appId"`
 	Params ListMembersParams
@@ -3992,6 +5193,152 @@ func (response ListMembers404JSONResponse) VisitListMembersResponse(w http.Respo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPointsRulesRequestObject struct {
+	AppId AppId `json:"appId"`
+}
+
+type GetPointsRulesResponseObject interface {
+	VisitGetPointsRulesResponse(w http.ResponseWriter) error
+}
+
+type GetPointsRules200JSONResponse PointsRules
+
+func (response GetPointsRules200JSONResponse) VisitGetPointsRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPointsRules401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetPointsRules401JSONResponse) VisitGetPointsRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPointsRules404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetPointsRules404JSONResponse) VisitGetPointsRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPointsRulesRequestObject struct {
+	AppId  AppId `json:"appId"`
+	Params PutPointsRulesParams
+	Body   *PutPointsRulesJSONRequestBody
+}
+
+type PutPointsRulesResponseObject interface {
+	VisitPutPointsRulesResponse(w http.ResponseWriter) error
+}
+
+type PutPointsRules200JSONResponse PointsRules
+
+func (response PutPointsRules200JSONResponse) VisitPutPointsRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPointsRules400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PutPointsRules400JSONResponse) VisitPutPointsRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPointsRules401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PutPointsRules401JSONResponse) VisitPutPointsRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPointsRules403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response PutPointsRules403JSONResponse) VisitPutPointsRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPointsRules404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PutPointsRules404JSONResponse) VisitPutPointsRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPointsRules422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response PutPointsRules422JSONResponse) VisitPutPointsRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5137,6 +6484,87 @@ func (response GetMember404JSONResponse) VisitGetMemberResponse(w http.ResponseW
 	return err
 }
 
+type RotateMemberCardRequestObject struct {
+	MemberId MemberId `json:"memberId"`
+	Params   RotateMemberCardParams
+}
+
+type RotateMemberCardResponseObject interface {
+	VisitRotateMemberCardResponse(w http.ResponseWriter) error
+}
+
+type RotateMemberCard200JSONResponse MemberCardRotated
+
+func (response RotateMemberCard200JSONResponse) VisitRotateMemberCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RotateMemberCard401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RotateMemberCard401JSONResponse) VisitRotateMemberCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RotateMemberCard403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RotateMemberCard403JSONResponse) VisitRotateMemberCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RotateMemberCard404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RotateMemberCard404JSONResponse) VisitRotateMemberCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RotateMemberCard422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response RotateMemberCard422JSONResponse) VisitRotateMemberCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ExportMemberRequestObject struct {
 	MemberId MemberId `json:"memberId"`
 }
@@ -5190,6 +6618,231 @@ func (response ExportMember403JSONResponse) VisitExportMemberResponse(w http.Res
 type ExportMember404JSONResponse struct{ NotFoundJSONResponse }
 
 func (response ExportMember404JSONResponse) VisitExportMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMemberPointsRequestObject struct {
+	MemberId MemberId `json:"memberId"`
+}
+
+type GetMemberPointsResponseObject interface {
+	VisitGetMemberPointsResponse(w http.ResponseWriter) error
+}
+
+type GetMemberPoints200JSONResponse PointsSummary
+
+func (response GetMemberPoints200JSONResponse) VisitGetMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMemberPoints401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetMemberPoints401JSONResponse) VisitGetMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMemberPoints404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetMemberPoints404JSONResponse) VisitGetMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberPointsRequestObject struct {
+	MemberId MemberId `json:"memberId"`
+	Params   AdjustMemberPointsParams
+	Body     *AdjustMemberPointsJSONRequestBody
+}
+
+type AdjustMemberPointsResponseObject interface {
+	VisitAdjustMemberPointsResponse(w http.ResponseWriter) error
+}
+
+type AdjustMemberPoints200JSONResponse PointsTransaction
+
+func (response AdjustMemberPoints200JSONResponse) VisitAdjustMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberPoints400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AdjustMemberPoints400JSONResponse) VisitAdjustMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberPoints401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AdjustMemberPoints401JSONResponse) VisitAdjustMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberPoints403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response AdjustMemberPoints403JSONResponse) VisitAdjustMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberPoints404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AdjustMemberPoints404JSONResponse) VisitAdjustMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberPoints409JSONResponse Error
+
+func (response AdjustMemberPoints409JSONResponse) VisitAdjustMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberPoints422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response AdjustMemberPoints422JSONResponse) VisitAdjustMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMemberPointsHistoryRequestObject struct {
+	MemberId MemberId `json:"memberId"`
+	Params   ListMemberPointsHistoryParams
+}
+
+type ListMemberPointsHistoryResponseObject interface {
+	VisitListMemberPointsHistoryResponse(w http.ResponseWriter) error
+}
+
+type ListMemberPointsHistory200JSONResponse PointsHistoryPage
+
+func (response ListMemberPointsHistory200JSONResponse) VisitListMemberPointsHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMemberPointsHistory400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListMemberPointsHistory400JSONResponse) VisitListMemberPointsHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMemberPointsHistory401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMemberPointsHistory401JSONResponse) VisitListMemberPointsHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMemberPointsHistory404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListMemberPointsHistory404JSONResponse) VisitListMemberPointsHistoryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5344,6 +6997,87 @@ type UpdateStaff422JSONResponse struct {
 }
 
 func (response UpdateStaff422JSONResponse) VisitUpdateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetStaffInviteRequestObject struct {
+	StaffId openapi_types.UUID `json:"staffId"`
+	Params  ResetStaffInviteParams
+}
+
+type ResetStaffInviteResponseObject interface {
+	VisitResetStaffInviteResponse(w http.ResponseWriter) error
+}
+
+type ResetStaffInvite200JSONResponse StaffCreated
+
+func (response ResetStaffInvite200JSONResponse) VisitResetStaffInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetStaffInvite401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ResetStaffInvite401JSONResponse) VisitResetStaffInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetStaffInvite403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ResetStaffInvite403JSONResponse) VisitResetStaffInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetStaffInvite404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ResetStaffInvite404JSONResponse) VisitResetStaffInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetStaffInvite422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response ResetStaffInvite422JSONResponse) VisitResetStaffInviteResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6454,6 +8188,41 @@ func (response UpdateMe422JSONResponse) VisitUpdateMeResponse(w http.ResponseWri
 	return err
 }
 
+type GetMyCardRequestObject struct {
+}
+
+type GetMyCardResponseObject interface {
+	VisitGetMyCardResponse(w http.ResponseWriter) error
+}
+
+type GetMyCard200JSONResponse MemberCard
+
+func (response GetMyCard200JSONResponse) VisitGetMyCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyCard401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetMyCard401JSONResponse) VisitGetMyCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RecordConsentRequestObject struct {
 	Params RecordConsentParams
 	Body   *RecordConsentJSONRequestBody
@@ -6545,6 +8314,91 @@ func (response ExportMe200JSONResponse) VisitExportMeResponse(w http.ResponseWri
 type ExportMe401JSONResponse struct{ UnauthorizedJSONResponse }
 
 func (response ExportMe401JSONResponse) VisitExportMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyPointsRequestObject struct {
+}
+
+type GetMyPointsResponseObject interface {
+	VisitGetMyPointsResponse(w http.ResponseWriter) error
+}
+
+type GetMyPoints200JSONResponse PointsSummary
+
+func (response GetMyPoints200JSONResponse) VisitGetMyPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyPoints401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetMyPoints401JSONResponse) VisitGetMyPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMyPointsHistoryRequestObject struct {
+	Params ListMyPointsHistoryParams
+}
+
+type ListMyPointsHistoryResponseObject interface {
+	VisitListMyPointsHistoryResponse(w http.ResponseWriter) error
+}
+
+type ListMyPointsHistory200JSONResponse PointsHistoryPage
+
+func (response ListMyPointsHistory200JSONResponse) VisitListMyPointsHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMyPointsHistory400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListMyPointsHistory400JSONResponse) VisitListMyPointsHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMyPointsHistory401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMyPointsHistory401JSONResponse) VisitListMyPointsHistoryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6684,6 +8538,519 @@ func (response ServerGetMember404JSONResponse) VisitServerGetMemberResponse(w ht
 	return err
 }
 
+type ServerGetMemberPointsRequestObject struct {
+	MemberId MemberId `json:"memberId"`
+}
+
+type ServerGetMemberPointsResponseObject interface {
+	VisitServerGetMemberPointsResponse(w http.ResponseWriter) error
+}
+
+type ServerGetMemberPoints200JSONResponse PointsSummary
+
+func (response ServerGetMemberPoints200JSONResponse) VisitServerGetMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerGetMemberPoints401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ServerGetMemberPoints401JSONResponse) VisitServerGetMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerGetMemberPoints403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ServerGetMemberPoints403JSONResponse) VisitServerGetMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerGetMemberPoints404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ServerGetMemberPoints404JSONResponse) VisitServerGetMemberPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerPostPointsRequestObject struct {
+	MemberId MemberId `json:"memberId"`
+	Params   ServerPostPointsParams
+	Body     *ServerPostPointsJSONRequestBody
+}
+
+type ServerPostPointsResponseObject interface {
+	VisitServerPostPointsResponse(w http.ResponseWriter) error
+}
+
+type ServerPostPoints200JSONResponse PointsTransaction
+
+func (response ServerPostPoints200JSONResponse) VisitServerPostPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerPostPoints400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ServerPostPoints400JSONResponse) VisitServerPostPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerPostPoints401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ServerPostPoints401JSONResponse) VisitServerPostPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerPostPoints403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ServerPostPoints403JSONResponse) VisitServerPostPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerPostPoints404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ServerPostPoints404JSONResponse) VisitServerPostPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerPostPoints409JSONResponse Error
+
+func (response ServerPostPoints409JSONResponse) VisitServerPostPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerPostPoints422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response ServerPostPoints422JSONResponse) VisitServerPostPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffLoginWithLineRequestObject struct {
+	Body *StaffLoginWithLineJSONRequestBody
+}
+
+type StaffLoginWithLineResponseObject interface {
+	VisitStaffLoginWithLineResponse(w http.ResponseWriter) error
+}
+
+type StaffLoginWithLine200JSONResponse StaffSession
+
+func (response StaffLoginWithLine200JSONResponse) VisitStaffLoginWithLineResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffLoginWithLine400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response StaffLoginWithLine400JSONResponse) VisitStaffLoginWithLineResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffLoginWithLine401JSONResponse Error
+
+func (response StaffLoginWithLine401JSONResponse) VisitStaffLoginWithLineResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffLoginWithLine404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response StaffLoginWithLine404JSONResponse) VisitStaffLoginWithLineResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffLoginWithLine429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response StaffLoginWithLine429JSONResponse) VisitStaffLoginWithLineResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetStaffMeRequestObject struct {
+}
+
+type GetStaffMeResponseObject interface {
+	VisitGetStaffMeResponse(w http.ResponseWriter) error
+}
+
+type GetStaffMe200JSONResponse StaffMe
+
+func (response GetStaffMe200JSONResponse) VisitGetStaffMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetStaffMe401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetStaffMe401JSONResponse) VisitGetStaffMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffEarnPointsRequestObject struct {
+	Params StaffEarnPointsParams
+	Body   *StaffEarnPointsJSONRequestBody
+}
+
+type StaffEarnPointsResponseObject interface {
+	VisitStaffEarnPointsResponse(w http.ResponseWriter) error
+}
+
+type StaffEarnPoints200JSONResponse PointsTransaction
+
+func (response StaffEarnPoints200JSONResponse) VisitStaffEarnPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffEarnPoints400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response StaffEarnPoints400JSONResponse) VisitStaffEarnPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffEarnPoints401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StaffEarnPoints401JSONResponse) VisitStaffEarnPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffEarnPoints403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response StaffEarnPoints403JSONResponse) VisitStaffEarnPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffEarnPoints422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response StaffEarnPoints422JSONResponse) VisitStaffEarnPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffRedeemPointsRequestObject struct {
+	Params StaffRedeemPointsParams
+	Body   *StaffRedeemPointsJSONRequestBody
+}
+
+type StaffRedeemPointsResponseObject interface {
+	VisitStaffRedeemPointsResponse(w http.ResponseWriter) error
+}
+
+type StaffRedeemPoints200JSONResponse PointsTransaction
+
+func (response StaffRedeemPoints200JSONResponse) VisitStaffRedeemPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffRedeemPoints400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response StaffRedeemPoints400JSONResponse) VisitStaffRedeemPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffRedeemPoints401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StaffRedeemPoints401JSONResponse) VisitStaffRedeemPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffRedeemPoints409JSONResponse Error
+
+func (response StaffRedeemPoints409JSONResponse) VisitStaffRedeemPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffRedeemPoints422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response StaffRedeemPoints422JSONResponse) VisitStaffRedeemPointsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffScanRequestObject struct {
+	Body *StaffScanJSONRequestBody
+}
+
+type StaffScanResponseObject interface {
+	VisitStaffScanResponse(w http.ResponseWriter) error
+}
+
+type StaffScan200JSONResponse ScanResult
+
+func (response StaffScan200JSONResponse) VisitStaffScanResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffScan400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response StaffScan400JSONResponse) VisitStaffScanResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffScan401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StaffScan401JSONResponse) VisitStaffScanResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffScan422JSONResponse Error
+
+func (response StaffScan422JSONResponse) VisitStaffScanResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ReceiveLineWebhookRequestObject struct {
 	AppId  AppId `json:"appId"`
 	Params ReceiveLineWebhookParams
@@ -6767,9 +9134,18 @@ type StrictServerInterface interface {
 	// PutAppChannel Create or replace the channel for an environment
 	// (PUT /v1/dashboard/apps/{appId}/channels/{environment})
 	PutAppChannel(ctx context.Context, request PutAppChannelRequestObject) (PutAppChannelResponseObject, error)
+	// EndMemberSessions Sign every member of the app out
+	// (POST /v1/dashboard/apps/{appId}/member-sessions/end)
+	EndMemberSessions(ctx context.Context, request EndMemberSessionsRequestObject) (EndMemberSessionsResponseObject, error)
 	// ListMembers Members of the app, newest first
 	// (GET /v1/dashboard/apps/{appId}/members)
 	ListMembers(ctx context.Context, request ListMembersRequestObject) (ListMembersResponseObject, error)
+	// GetPointsRules The app's earn rule
+	// (GET /v1/dashboard/apps/{appId}/points-rules)
+	GetPointsRules(ctx context.Context, request GetPointsRulesRequestObject) (GetPointsRulesResponseObject, error)
+	// PutPointsRules Replace the app's earn rule
+	// (PUT /v1/dashboard/apps/{appId}/points-rules)
+	PutPointsRules(ctx context.Context, request PutPointsRulesRequestObject) (PutPointsRulesResponseObject, error)
 	// ListStaff Staff of the app
 	// (GET /v1/dashboard/apps/{appId}/staff)
 	ListStaff(ctx context.Context, request ListStaffRequestObject) (ListStaffResponseObject, error)
@@ -6830,15 +9206,30 @@ type StrictServerInterface interface {
 	// GetMember Member details
 	// (GET /v1/dashboard/members/{memberId})
 	GetMember(ctx context.Context, request GetMemberRequestObject) (GetMemberResponseObject, error)
+	// RotateMemberCard Invalidate every QR code the member's card ever showed
+	// (POST /v1/dashboard/members/{memberId}/card/rotate)
+	RotateMemberCard(ctx context.Context, request RotateMemberCardRequestObject) (RotateMemberCardResponseObject, error)
 	// ExportMember Export a member's data
 	// (GET /v1/dashboard/members/{memberId}/export)
 	ExportMember(ctx context.Context, request ExportMemberRequestObject) (ExportMemberResponseObject, error)
+	// GetMemberPoints A member's points summary
+	// (GET /v1/dashboard/members/{memberId}/points)
+	GetMemberPoints(ctx context.Context, request GetMemberPointsRequestObject) (GetMemberPointsResponseObject, error)
+	// AdjustMemberPoints Correct a member's points
+	// (POST /v1/dashboard/members/{memberId}/points/adjustments)
+	AdjustMemberPoints(ctx context.Context, request AdjustMemberPointsRequestObject) (AdjustMemberPointsResponseObject, error)
+	// ListMemberPointsHistory A member's points transactions, newest first
+	// (GET /v1/dashboard/members/{memberId}/points/history)
+	ListMemberPointsHistory(ctx context.Context, request ListMemberPointsHistoryRequestObject) (ListMemberPointsHistoryResponseObject, error)
 	// DeleteStaff Remove a staff member
 	// (DELETE /v1/dashboard/staff/{staffId})
 	DeleteStaff(ctx context.Context, request DeleteStaffRequestObject) (DeleteStaffResponseObject, error)
 	// UpdateStaff Update a staff member
 	// (PATCH /v1/dashboard/staff/{staffId})
 	UpdateStaff(ctx context.Context, request UpdateStaffRequestObject) (UpdateStaffResponseObject, error)
+	// ResetStaffInvite Issue a new invite code and unlink the staff member's LINE account
+	// (POST /v1/dashboard/staff/{staffId}/invite)
+	ResetStaffInvite(ctx context.Context, request ResetStaffInviteRequestObject) (ResetStaffInviteResponseObject, error)
 	// DeleteStore Delete a store
 	// (DELETE /v1/dashboard/stores/{storeId})
 	DeleteStore(ctx context.Context, request DeleteStoreRequestObject) (DeleteStoreResponseObject, error)
@@ -6887,18 +9278,48 @@ type StrictServerInterface interface {
 	// UpdateMe Update profile fields
 	// (PATCH /v1/me)
 	UpdateMe(ctx context.Context, request UpdateMeRequestObject) (UpdateMeResponseObject, error)
+	// GetMyCard The member card QR code, valid for one 30-second window
+	// (GET /v1/me/card)
+	GetMyCard(ctx context.Context, request GetMyCardRequestObject) (GetMyCardResponseObject, error)
 	// RecordConsent Record consent to the current personal-data notice
 	// (POST /v1/me/consent)
 	RecordConsent(ctx context.Context, request RecordConsentRequestObject) (RecordConsentResponseObject, error)
 	// ExportMe Everything stored about me
 	// (GET /v1/me/export)
 	ExportMe(ctx context.Context, request ExportMeRequestObject) (ExportMeResponseObject, error)
+	// GetMyPoints My points balance, what expires soon, and the earn rule
+	// (GET /v1/me/points)
+	GetMyPoints(ctx context.Context, request GetMyPointsRequestObject) (GetMyPointsResponseObject, error)
+	// ListMyPointsHistory My points transactions, newest first
+	// (GET /v1/me/points/history)
+	ListMyPointsHistory(ctx context.Context, request ListMyPointsHistoryRequestObject) (ListMyPointsHistoryResponseObject, error)
 	// ServerListMembers Members of the app (API key, members:read)
 	// (GET /v1/members)
 	ServerListMembers(ctx context.Context, request ServerListMembersRequestObject) (ServerListMembersResponseObject, error)
 	// ServerGetMember Member details (API key, members:read)
 	// (GET /v1/members/{memberId})
 	ServerGetMember(ctx context.Context, request ServerGetMemberRequestObject) (ServerGetMemberResponseObject, error)
+	// ServerGetMemberPoints A member's points summary (API key, members:read)
+	// (GET /v1/members/{memberId}/points)
+	ServerGetMemberPoints(ctx context.Context, request ServerGetMemberPointsRequestObject) (ServerGetMemberPointsResponseObject, error)
+	// ServerPostPoints Earn, redeem or adjust points from a POS or brand backend (API key, points:write)
+	// (POST /v1/members/{memberId}/points)
+	ServerPostPoints(ctx context.Context, request ServerPostPointsRequestObject) (ServerPostPointsResponseObject, error)
+	// StaffLoginWithLine Sign in to the staff app with LINE
+	// (POST /v1/staff/auth/line)
+	StaffLoginWithLine(ctx context.Context, request StaffLoginWithLineRequestObject) (StaffLoginWithLineResponseObject, error)
+	// GetStaffMe The signed-in staff member
+	// (GET /v1/staff/me)
+	GetStaffMe(ctx context.Context, request GetStaffMeRequestObject) (GetStaffMeResponseObject, error)
+	// StaffEarnPoints Give points for a purchase
+	// (POST /v1/staff/points/earn)
+	StaffEarnPoints(ctx context.Context, request StaffEarnPointsRequestObject) (StaffEarnPointsResponseObject, error)
+	// StaffRedeemPoints Spend a member's points
+	// (POST /v1/staff/points/redeem)
+	StaffRedeemPoints(ctx context.Context, request StaffRedeemPointsRequestObject) (StaffRedeemPointsResponseObject, error)
+	// StaffScan Read a member card QR code
+	// (POST /v1/staff/scan)
+	StaffScan(ctx context.Context, request StaffScanRequestObject) (StaffScanResponseObject, error)
 	// ReceiveLineWebhook Inbound webhook from the app's LINE Official Account
 	// (POST /webhooks/line/{appId})
 	ReceiveLineWebhook(ctx context.Context, request ReceiveLineWebhookRequestObject) (ReceiveLineWebhookResponseObject, error)
@@ -7280,6 +9701,33 @@ func (sh *strictHandler) PutAppChannel(w http.ResponseWriter, r *http.Request, a
 	}
 }
 
+// EndMemberSessions operation middleware
+func (sh *strictHandler) EndMemberSessions(w http.ResponseWriter, r *http.Request, appId AppId, params EndMemberSessionsParams) {
+	var request EndMemberSessionsRequestObject
+
+	request.AppId = appId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EndMemberSessions(ctx, request.(EndMemberSessionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EndMemberSessions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EndMemberSessionsResponseObject); ok {
+		if err := validResponse.VisitEndMemberSessionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListMembers operation middleware
 func (sh *strictHandler) ListMembers(w http.ResponseWriter, r *http.Request, appId AppId, params ListMembersParams) {
 	var request ListMembersRequestObject
@@ -7300,6 +9748,66 @@ func (sh *strictHandler) ListMembers(w http.ResponseWriter, r *http.Request, app
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListMembersResponseObject); ok {
 		if err := validResponse.VisitListMembersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPointsRules operation middleware
+func (sh *strictHandler) GetPointsRules(w http.ResponseWriter, r *http.Request, appId AppId) {
+	var request GetPointsRulesRequestObject
+
+	request.AppId = appId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPointsRules(ctx, request.(GetPointsRulesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPointsRules")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPointsRulesResponseObject); ok {
+		if err := validResponse.VisitGetPointsRulesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutPointsRules operation middleware
+func (sh *strictHandler) PutPointsRules(w http.ResponseWriter, r *http.Request, appId AppId, params PutPointsRulesParams) {
+	var request PutPointsRulesRequestObject
+
+	request.AppId = appId
+	request.Params = params
+
+	var body PutPointsRulesJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutPointsRules(ctx, request.(PutPointsRulesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutPointsRules")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutPointsRulesResponseObject); ok {
+		if err := validResponse.VisitPutPointsRulesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -7868,6 +10376,33 @@ func (sh *strictHandler) GetMember(w http.ResponseWriter, r *http.Request, membe
 	}
 }
 
+// RotateMemberCard operation middleware
+func (sh *strictHandler) RotateMemberCard(w http.ResponseWriter, r *http.Request, memberId MemberId, params RotateMemberCardParams) {
+	var request RotateMemberCardRequestObject
+
+	request.MemberId = memberId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RotateMemberCard(ctx, request.(RotateMemberCardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RotateMemberCard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RotateMemberCardResponseObject); ok {
+		if err := validResponse.VisitRotateMemberCardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ExportMember operation middleware
 func (sh *strictHandler) ExportMember(w http.ResponseWriter, r *http.Request, memberId MemberId) {
 	var request ExportMemberRequestObject
@@ -7887,6 +10422,93 @@ func (sh *strictHandler) ExportMember(w http.ResponseWriter, r *http.Request, me
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ExportMemberResponseObject); ok {
 		if err := validResponse.VisitExportMemberResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMemberPoints operation middleware
+func (sh *strictHandler) GetMemberPoints(w http.ResponseWriter, r *http.Request, memberId MemberId) {
+	var request GetMemberPointsRequestObject
+
+	request.MemberId = memberId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMemberPoints(ctx, request.(GetMemberPointsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMemberPoints")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMemberPointsResponseObject); ok {
+		if err := validResponse.VisitGetMemberPointsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AdjustMemberPoints operation middleware
+func (sh *strictHandler) AdjustMemberPoints(w http.ResponseWriter, r *http.Request, memberId MemberId, params AdjustMemberPointsParams) {
+	var request AdjustMemberPointsRequestObject
+
+	request.MemberId = memberId
+	request.Params = params
+
+	var body AdjustMemberPointsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AdjustMemberPoints(ctx, request.(AdjustMemberPointsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AdjustMemberPoints")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AdjustMemberPointsResponseObject); ok {
+		if err := validResponse.VisitAdjustMemberPointsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListMemberPointsHistory operation middleware
+func (sh *strictHandler) ListMemberPointsHistory(w http.ResponseWriter, r *http.Request, memberId MemberId, params ListMemberPointsHistoryParams) {
+	var request ListMemberPointsHistoryRequestObject
+
+	request.MemberId = memberId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMemberPointsHistory(ctx, request.(ListMemberPointsHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMemberPointsHistory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMemberPointsHistoryResponseObject); ok {
+		if err := validResponse.VisitListMemberPointsHistoryResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -7947,6 +10569,33 @@ func (sh *strictHandler) UpdateStaff(w http.ResponseWriter, r *http.Request, sta
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateStaffResponseObject); ok {
 		if err := validResponse.VisitUpdateStaffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResetStaffInvite operation middleware
+func (sh *strictHandler) ResetStaffInvite(w http.ResponseWriter, r *http.Request, staffId openapi_types.UUID, params ResetStaffInviteParams) {
+	var request ResetStaffInviteRequestObject
+
+	request.StaffId = staffId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResetStaffInvite(ctx, request.(ResetStaffInviteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResetStaffInvite")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResetStaffInviteResponseObject); ok {
+		if err := validResponse.VisitResetStaffInviteResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -8414,6 +11063,30 @@ func (sh *strictHandler) UpdateMe(w http.ResponseWriter, r *http.Request, params
 	}
 }
 
+// GetMyCard operation middleware
+func (sh *strictHandler) GetMyCard(w http.ResponseWriter, r *http.Request) {
+	var request GetMyCardRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyCard(ctx, request.(GetMyCardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyCard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyCardResponseObject); ok {
+		if err := validResponse.VisitGetMyCardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // RecordConsent operation middleware
 func (sh *strictHandler) RecordConsent(w http.ResponseWriter, r *http.Request, params RecordConsentParams) {
 	var request RecordConsentRequestObject
@@ -8464,6 +11137,56 @@ func (sh *strictHandler) ExportMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ExportMeResponseObject); ok {
 		if err := validResponse.VisitExportMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyPoints operation middleware
+func (sh *strictHandler) GetMyPoints(w http.ResponseWriter, r *http.Request) {
+	var request GetMyPointsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyPoints(ctx, request.(GetMyPointsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyPoints")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyPointsResponseObject); ok {
+		if err := validResponse.VisitGetMyPointsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListMyPointsHistory operation middleware
+func (sh *strictHandler) ListMyPointsHistory(w http.ResponseWriter, r *http.Request, params ListMyPointsHistoryParams) {
+	var request ListMyPointsHistoryRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMyPointsHistory(ctx, request.(ListMyPointsHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMyPointsHistory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMyPointsHistoryResponseObject); ok {
+		if err := validResponse.VisitListMyPointsHistoryResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -8523,6 +11246,218 @@ func (sh *strictHandler) ServerGetMember(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// ServerGetMemberPoints operation middleware
+func (sh *strictHandler) ServerGetMemberPoints(w http.ResponseWriter, r *http.Request, memberId MemberId) {
+	var request ServerGetMemberPointsRequestObject
+
+	request.MemberId = memberId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ServerGetMemberPoints(ctx, request.(ServerGetMemberPointsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ServerGetMemberPoints")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ServerGetMemberPointsResponseObject); ok {
+		if err := validResponse.VisitServerGetMemberPointsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ServerPostPoints operation middleware
+func (sh *strictHandler) ServerPostPoints(w http.ResponseWriter, r *http.Request, memberId MemberId, params ServerPostPointsParams) {
+	var request ServerPostPointsRequestObject
+
+	request.MemberId = memberId
+	request.Params = params
+
+	var body ServerPostPointsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ServerPostPoints(ctx, request.(ServerPostPointsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ServerPostPoints")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ServerPostPointsResponseObject); ok {
+		if err := validResponse.VisitServerPostPointsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StaffLoginWithLine operation middleware
+func (sh *strictHandler) StaffLoginWithLine(w http.ResponseWriter, r *http.Request) {
+	var request StaffLoginWithLineRequestObject
+
+	var body StaffLoginWithLineJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StaffLoginWithLine(ctx, request.(StaffLoginWithLineRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StaffLoginWithLine")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StaffLoginWithLineResponseObject); ok {
+		if err := validResponse.VisitStaffLoginWithLineResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetStaffMe operation middleware
+func (sh *strictHandler) GetStaffMe(w http.ResponseWriter, r *http.Request) {
+	var request GetStaffMeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetStaffMe(ctx, request.(GetStaffMeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetStaffMe")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetStaffMeResponseObject); ok {
+		if err := validResponse.VisitGetStaffMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StaffEarnPoints operation middleware
+func (sh *strictHandler) StaffEarnPoints(w http.ResponseWriter, r *http.Request, params StaffEarnPointsParams) {
+	var request StaffEarnPointsRequestObject
+
+	request.Params = params
+
+	var body StaffEarnPointsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StaffEarnPoints(ctx, request.(StaffEarnPointsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StaffEarnPoints")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StaffEarnPointsResponseObject); ok {
+		if err := validResponse.VisitStaffEarnPointsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StaffRedeemPoints operation middleware
+func (sh *strictHandler) StaffRedeemPoints(w http.ResponseWriter, r *http.Request, params StaffRedeemPointsParams) {
+	var request StaffRedeemPointsRequestObject
+
+	request.Params = params
+
+	var body StaffRedeemPointsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StaffRedeemPoints(ctx, request.(StaffRedeemPointsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StaffRedeemPoints")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StaffRedeemPointsResponseObject); ok {
+		if err := validResponse.VisitStaffRedeemPointsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StaffScan operation middleware
+func (sh *strictHandler) StaffScan(w http.ResponseWriter, r *http.Request) {
+	var request StaffScanRequestObject
+
+	var body StaffScanJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StaffScan(ctx, request.(StaffScanRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StaffScan")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StaffScanResponseObject); ok {
+		if err := validResponse.VisitStaffScanResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ReceiveLineWebhook operation middleware
 func (sh *strictHandler) ReceiveLineWebhook(w http.ResponseWriter, r *http.Request, appId AppId, params ReceiveLineWebhookParams) {
 	var request ReceiveLineWebhookRequestObject
@@ -8555,156 +11490,203 @@ func (sh *strictHandler) ReceiveLineWebhook(w http.ResponseWriter, r *http.Reque
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

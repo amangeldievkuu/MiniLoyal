@@ -464,7 +464,7 @@ func TestExportImmediatelyAfterConsentIncludesIt(t *testing.T) {
 	if !exported.ExportedAt.Equal(e.clk.Now()) {
 		t.Errorf("exported_at = %s, want the service clock %s", exported.ExportedAt, e.clk.Now())
 	}
-	if exported.Member.LineUserId != "Uexport" || uuid.UUID(exported.Member.Id) != uuid.UUID(sess.Member.Id) {
+	if deref(exported.Member.LineUserId) != "Uexport" || uuid.UUID(exported.Member.Id) != uuid.UUID(sess.Member.Id) {
 		t.Errorf("export member = %+v", exported.Member)
 	}
 	// The dashboard export is the same document plus an audit entry.

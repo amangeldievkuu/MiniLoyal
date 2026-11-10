@@ -102,10 +102,14 @@ export function MemberDetailView({
       >
         <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[max-content_1fr]">
           <Row label={t('members.detail.lineUserId')}>
-            <span className="flex flex-wrap items-center gap-2">
-              <code className="font-mono text-xs break-all">{m.line_user_id}</code>
-              <CopyButton text={m.line_user_id} />
-            </span>
+            {m.line_user_id ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <code className="font-mono text-xs break-all">{m.line_user_id}</code>
+                <CopyButton text={m.line_user_id} />
+              </span>
+            ) : (
+              dash
+            )}
           </Row>
           <Row label={t('members.detail.language')}>{m.language ?? dash}</Row>
           <Row label={t('members.detail.phone')}>{m.phone ?? dash}</Row>

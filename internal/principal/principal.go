@@ -58,6 +58,13 @@ type Principal struct {
 
 	// MemberID is set for KindMember (a MINI App user signed in through LINE).
 	MemberID uuid.UUID
+
+	// StaffID, StaffRole and StoreID are set for KindStaff (a cashier or
+	// manager signed in to the staff app). StoreID is uuid.Nil when the staff
+	// member is not assigned to a store.
+	StaffID   uuid.UUID
+	StaffRole string
+	StoreID   uuid.UUID
 }
 
 // HasScope reports whether an API key principal carries scope.
@@ -70,6 +77,14 @@ func (p Principal) IsUser() bool { return p.Kind == KindUser && p.UserID != uuid
 
 // IsAPIKey reports whether the caller is a server API key.
 func (p Principal) IsAPIKey() bool { return p.Kind == KindAPIKey && p.APIKeyID != uuid.Nil }
+
+// IsStaff reports whether the caller is a staff member of an app.
+func (p Principal) IsStaff() bool {
+	return p.Kind == KindStaff && p.StaffID != uuid.Nil && p.AppID != uuid.Nil && p.TenantID != uuid.Nil
+}
+
+// IsManager reports whether a staff caller has the manager role.
+func (p Principal) IsManager() bool { return p.IsStaff() && p.StaffRole == "manager" }
 
 // IsMember reports whether the caller is a MINI App member.
 func (p Principal) IsMember() bool {

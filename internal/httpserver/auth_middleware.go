@@ -28,10 +28,21 @@ type MemberAuthenticator interface {
 	AuthenticateMember(ctx context.Context, bearerToken string) (principal.Principal, error)
 }
 
-// dashboardPathPrefix is where bearer tokens are dashboard sessions; every
-// other bearer token is a member session. The two token kinds carry different
-// typ claims, so a token presented on the wrong side is refused either way.
-const dashboardPathPrefix = "/v1/dashboard/"
+// StaffAuthenticator verifies a staff app session token. Implemented by the
+// staffauth service.
+type StaffAuthenticator interface {
+	AuthenticateStaff(ctx context.Context, bearerToken string) (principal.Principal, error)
+}
+
+// Bearer tokens are dispatched by path: /v1/dashboard/* carries dashboard
+// sessions, /v1/staff/* staff sessions (except the staff sign-in itself),
+// everything else member sessions. Each token kind carries its own typ claim,
+// so a token presented on the wrong side is refused either way.
+const (
+	dashboardPathPrefix = "/v1/dashboard/"
+	staffPathPrefix     = "/v1/staff/"
+	staffSignInPath     = "/v1/staff/auth/line"
+)
 
 // authenticate reads X-API-Key or Authorization: Bearer, verifies it and
 // stores the principal in the context. Requests without credentials pass
@@ -62,6 +73,12 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 			var p principal.Principal
 			var err error
 			switch {
+			case strings.HasPrefix(r.URL.Path, staffPathPrefix) && r.URL.Path != staffSignInPath:
+				if s.staff == nil {
+					writeError(w, r, http.StatusUnauthorized, "unauthorized", "invalid bearer token")
+					return
+				}
+				p, err = s.staff.AuthenticateStaff(ctx, token)
 			case strings.HasPrefix(r.URL.Path, dashboardPathPrefix):
 				if s.dashboard == nil {
 					writeError(w, r, http.StatusUnauthorized, "unauthorized", "invalid bearer token")
@@ -100,6 +117,17 @@ func requireUser(ctx context.Context) (principal.Principal, error) {
 	p, ok := principal.FromContext(ctx)
 	if !ok || !p.IsUser() {
 		return principal.Principal{}, apierr.Unauthorized("sign in to the dashboard")
+	}
+	return p, nil
+}
+
+// requireStaff returns the staff member calling, or 401.
+//
+//lint:ignore U1000 used by the staff handlers that replace stubs_staff.go
+func requireStaff(ctx context.Context) (principal.Principal, error) {
+	p, ok := principal.FromContext(ctx)
+	if !ok || !p.IsStaff() {
+		return principal.Principal{}, apierr.Unauthorized("sign in to the staff app")
 	}
 	return p, nil
 }

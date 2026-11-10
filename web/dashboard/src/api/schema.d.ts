@@ -843,6 +843,317 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The member card QR code, valid for one 30-second window
+         * @description Returns the current rotating QR payload. Render it as a QR code and
+         *     fetch again after refresh_in_seconds. A scanner accepts the code until
+         *     expires_at (its window plus one), so a screenshot stops working within
+         *     90 seconds.
+         */
+        get: operations["getMyCard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My points balance, what expires soon, and the earn rule */
+        get: operations["getMyPoints"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/points/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My points transactions, newest first */
+        get: operations["listMyPointsHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/auth/line": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign in to the staff app with LINE
+         * @description The staff app sends a LIFF ID token. The first sign-in also sends the
+         *     invite code from the dashboard, which binds the LINE account to the
+         *     staff record; later sign-ins need only the token. Invite codes are
+         *     matched within the app only and attempts are rate limited. Staff
+         *     sessions last 12 hours (one shift).
+         */
+        post: operations["staffLoginWithLine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in staff member */
+        get: operations["getStaffMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a member card QR code
+         * @description Verifies the rotating code and returns the member with a scan token.
+         *     Points (and later coupon and stamp) actions require the scan token, so
+         *     staff can only act on a member whose card they scanned in the last
+         *     five minutes. Reading a code changes nothing, so no Idempotency-Key.
+         */
+        post: operations["staffScan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/points/earn": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Give points for a purchase
+         * @description Points come from the app's earn rule applied to spend_amount. Managers
+         *     may instead give a fixed number of points; cashiers may not.
+         */
+        post: operations["staffEarnPoints"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/points/redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Spend a member's points */
+        post: operations["staffRedeemPoints"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/apps/{appId}/points-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The app's earn rule
+         * @description Apps without a saved rule answer the defaults (NT$100 = 1 point, no expiry).
+         */
+        get: operations["getPointsRules"];
+        /**
+         * Replace the app's earn rule
+         * @description Owners and admins only. Applies to points earned from now on.
+         */
+        put: operations["putPointsRules"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/members/{memberId}/points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        /** A member's points summary */
+        get: operations["getMemberPoints"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/members/{memberId}/points/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        /** A member's points transactions, newest first */
+        get: operations["listMemberPointsHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/members/{memberId}/points/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct a member's points
+         * @description Owners and admins only; audited. A negative delta consumes lots FIFO and cannot take the balance below zero.
+         */
+        post: operations["adjustMemberPoints"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/members/{memberId}/card/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invalidate every QR code the member's card ever showed
+         * @description For a lost or shared phone. Owners and admins only; audited.
+         */
+        post: operations["rotateMemberCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/apps/{appId}/member-sessions/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign every member of the app out
+         * @description Member sessions issued before now are refused; the SDK signs members back in through LINE. Owners and admins only; audited.
+         */
+        post: operations["endMemberSessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/staff/{staffId}/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staffId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue a new invite code and unlink the staff member's LINE account
+         * @description For a new phone or a new person. Ends the staff member's sessions. The code is shown once.
+         */
+        post: operations["resetStaffInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/app": {
         parameters: {
             query?: never;
@@ -893,6 +1204,31 @@ export interface paths {
         get: operations["serverGetMember"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/members/{memberId}/points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        /** A member's points summary (API key, members:read) */
+        get: operations["serverGetMemberPoints"];
+        put?: never;
+        /**
+         * Earn, redeem or adjust points from a POS or brand backend (API key, points:write)
+         * @description earn takes either spend_amount (the app's rule applies) or points;
+         *     redeem and adjust take points (adjust may be negative). ref_type and
+         *     ref_id identify the receipt or order and appear in the history.
+         */
+        post: operations["serverPostPoints"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1064,6 +1400,13 @@ export interface components {
             oa_verified_at?: string | null;
             /** @description The URL to configure as the Messaging API webhook for this app. */
             webhook_url: string;
+            /** @description Accept HS256 ID tokens (LINE web login). LIFF issues ES256, so this stays off for MINI Apps. */
+            allow_hs256_id_tokens?: boolean;
+            /**
+             * Format: date-time
+             * @description Member sessions issued before this instant are refused.
+             */
+            member_sessions_valid_from?: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -1084,6 +1427,7 @@ export interface components {
             oa_basic_id?: string | null;
             /** @description Stored encrypted. Send an empty string to clear it. */
             oa_channel_secret?: string;
+            allow_hs256_id_tokens?: boolean;
         };
         AppChannel: {
             environment: components["schemas"]["ChannelEnvironment"];
@@ -1144,6 +1488,8 @@ export interface components {
             status: components["schemas"]["AppStatus"];
             /** @description Whether the staff member has signed in to the staff app with LINE. */
             line_linked: boolean;
+            /** Format: date-time */
+            last_login_at?: string | null;
             /** Format: date-time */
             created_at: string;
         };
@@ -1243,7 +1589,8 @@ export interface components {
             created_at: string;
         };
         MemberDetail: components["schemas"]["Member"] & {
-            line_user_id: string;
+            /** @description Omitted for dashboard users with the staff role, like phone and birthday. */
+            line_user_id?: string;
             /** Format: date-time */
             friend_changed_at?: string | null;
             /** Format: date-time */
@@ -1349,6 +1696,164 @@ export interface components {
         SecurityEventPage: {
             items: components["schemas"]["SecurityEvent"][];
             next_cursor?: string | null;
+        };
+        MemberCard: {
+            /** @description Opaque payload to render as a QR code. */
+            qr: string;
+            /** Format: date-time */
+            expires_at: string;
+            refresh_in_seconds: number;
+            window_seconds: number;
+        };
+        MemberCardRotated: {
+            qr_key_version: number;
+        };
+        /** @enum {string} */
+        PointsKind: "earn" | "redeem" | "adjust" | "expire";
+        PointsExpiring: {
+            /** Format: int64 */
+            points: number;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        PointsRulesPublic: {
+            currency: string;
+            spend_per_point: number;
+            points_per_unit: number;
+            expiry_days?: number | null;
+            enabled: boolean;
+        };
+        PointsSummary: {
+            /** Format: uuid */
+            member_id: string;
+            /** Format: int64 */
+            balance: number;
+            /** Format: int64 */
+            lifetime_earned: number;
+            /** @description The next (at most three) expiry dates with the points that expire then. */
+            expiring: components["schemas"]["PointsExpiring"][];
+            rules: components["schemas"]["PointsRulesPublic"];
+        };
+        PointsTransaction: {
+            /**
+             * Format: uuid
+             * @description The transaction; one transaction may touch several lots.
+             */
+            id: string;
+            /** Format: uuid */
+            member_id: string;
+            kind: components["schemas"]["PointsKind"];
+            /**
+             * Format: int64
+             * @description Signed change, positive for earn.
+             */
+            points: number;
+            /** Format: int64 */
+            balance_after: number;
+            spend_amount?: number | null;
+            ref_type?: string | null;
+            ref_id?: string | null;
+            note?: string | null;
+            /** Format: uuid */
+            store_id?: string | null;
+            /** @enum {string} */
+            actor_type: "member" | "staff" | "user" | "api_key" | "system";
+            /** Format: date-time */
+            created_at: string;
+        };
+        PointsHistoryPage: {
+            items: components["schemas"]["PointsTransaction"][];
+            next_cursor?: string | null;
+        };
+        PointsRules: components["schemas"]["PointsRulesPut"] & {
+            /** Format: date-time */
+            updated_at?: string | null;
+        };
+        PointsRulesPut: {
+            /** @example TWD */
+            currency: string;
+            /** @description Currency units spent for points_per_unit points. */
+            spend_per_point: number;
+            points_per_unit: number;
+            min_spend: number;
+            max_points_per_txn?: number | null;
+            /** @description Points expire this many days after they are earned; null keeps them forever. */
+            expiry_days?: number | null;
+            enabled: boolean;
+        };
+        PointsAdjustment: {
+            /** @description Non-zero. */
+            delta: number;
+            note: string;
+        };
+        ServerPointsRequest: {
+            /** @enum {string} */
+            type: "earn" | "redeem" | "adjust";
+            points?: number;
+            spend_amount?: number;
+            ref_type?: string;
+            ref_id?: string;
+            note?: string;
+        };
+        StaffLoginRequest: {
+            /** Format: uuid */
+            app_id: string;
+            id_token: string;
+            /** @description From the dashboard, needed on the first sign-in only. */
+            invite_code?: string;
+        };
+        StoreRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        StaffMe: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            app_id: string;
+            display_name: string;
+            role: components["schemas"]["StaffRole"];
+            store?: components["schemas"]["StoreRef"];
+        };
+        StaffSession: {
+            session_token: string;
+            /** @enum {string} */
+            token_type: "Bearer";
+            expires_in: number;
+            staff: components["schemas"]["StaffMe"];
+            app: components["schemas"]["AppPublic"];
+        };
+        ScanRequest: {
+            qr: string;
+        };
+        ScannedMember: {
+            /** Format: uuid */
+            id: string;
+            display_name?: string | null;
+            picture_url?: string | null;
+            is_friend: boolean;
+        };
+        ScanResult: {
+            /** @description Authorizes points actions on this member for five minutes. */
+            scan_token: string;
+            /** Format: date-time */
+            expires_at: string;
+            member: components["schemas"]["ScannedMember"];
+            /** Format: int64 */
+            balance: number;
+        };
+        StaffEarnRequest: {
+            scan_token: string;
+            spend_amount?: number;
+            /** @description Managers only; replaces the rule calculation. */
+            points?: number;
+            note?: string;
+        };
+        StaffRedeemRequest: {
+            scan_token: string;
+            points: number;
+            note?: string;
         };
     };
     responses: {
@@ -2983,6 +3488,477 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
         };
     };
+    getMyCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberCard"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getMyPoints: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointsSummary"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listMyPointsHistory: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of transactions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointsHistoryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    staffLoginWithLine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description Invalid ID token, unknown staff member or wrong invite code */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getStaffMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Staff member */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMe"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    staffScan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanRequest"];
+            };
+        };
+        responses: {
+            /** @description Member found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description The code is malformed, expired (a screenshot) or for another app */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    staffEarnPoints: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffEarnRequest"];
+            };
+        };
+        responses: {
+            /** @description Points added */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointsTransaction"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    staffRedeemPoints: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffRedeemRequest"];
+            };
+        };
+        responses: {
+            /** @description Points spent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointsTransaction"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description Not enough points */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    getPointsRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointsRules"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putPointsRules: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PointsRulesPut"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointsRules"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    getMemberPoints: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointsSummary"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listMemberPointsHistory: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of transactions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointsHistoryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adjustMemberPoints: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PointsAdjustment"];
+            };
+        };
+        responses: {
+            /** @description Adjusted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointsTransaction"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Not enough points for a negative adjustment */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    rotateMemberCard: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rotated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberCardRotated"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    endMemberSessions: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["App"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    resetStaffInvite: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                staffId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description New invite code */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffCreated"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
     getCurrentApp: {
         parameters: {
             query?: never;
@@ -3056,6 +4032,74 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    serverGetMemberPoints: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointsSummary"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    serverPostPoints: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServerPointsRequest"];
+            };
+        };
+        responses: {
+            /** @description Applied */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointsTransaction"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Not enough points */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
         };
     };
 }

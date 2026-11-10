@@ -12,10 +12,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bindStaffLineUser = `-- name: BindStaffLineUser :execrows
+UPDATE staff SET line_user_id = $2, invite_code_hash = NULL, invite_expires_at = NULL, updated_at = now()
+WHERE id = $1 AND line_user_id IS NULL
+`
+
+type BindStaffLineUserParams struct {
+	ID         uuid.UUID `json:"id"`
+	LineUserID *string   `json:"line_user_id"`
+}
+
+func (q *Queries) BindStaffLineUser(ctx context.Context, arg BindStaffLineUserParams) (int64, error) {
+	result, err := q.db.Exec(ctx, bindStaffLineUser, arg.ID, arg.LineUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const createStaff = `-- name: CreateStaff :one
 INSERT INTO staff (id, tenant_id, app_id, store_id, display_name, role, invite_code_hash, invite_expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, tenant_id, app_id, store_id, display_name, role, status, line_user_id, invite_code_hash, invite_expires_at, created_at, updated_at
+RETURNING id, tenant_id, app_id, store_id, display_name, role, status, line_user_id, invite_code_hash, invite_expires_at, created_at, updated_at, sessions_valid_from, last_login_at
 `
 
 type CreateStaffParams struct {
@@ -54,6 +72,8 @@ func (q *Queries) CreateStaff(ctx context.Context, arg CreateStaffParams) (Staff
 		&i.InviteExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SessionsValidFrom,
+		&i.LastLoginAt,
 	)
 	return i, err
 }
@@ -70,8 +90,22 @@ func (q *Queries) DeleteStaff(ctx context.Context, id uuid.UUID) (int64, error) 
 	return result.RowsAffected(), nil
 }
 
+const endStaffSessions = `-- name: EndStaffSessions :exec
+UPDATE staff SET sessions_valid_from = $2, updated_at = now() WHERE id = $1
+`
+
+type EndStaffSessionsParams struct {
+	ID                uuid.UUID          `json:"id"`
+	SessionsValidFrom pgtype.Timestamptz `json:"sessions_valid_from"`
+}
+
+func (q *Queries) EndStaffSessions(ctx context.Context, arg EndStaffSessionsParams) error {
+	_, err := q.db.Exec(ctx, endStaffSessions, arg.ID, arg.SessionsValidFrom)
+	return err
+}
+
 const getStaff = `-- name: GetStaff :one
-SELECT id, tenant_id, app_id, store_id, display_name, role, status, line_user_id, invite_code_hash, invite_expires_at, created_at, updated_at FROM staff WHERE id = $1
+SELECT id, tenant_id, app_id, store_id, display_name, role, status, line_user_id, invite_code_hash, invite_expires_at, created_at, updated_at, sessions_valid_from, last_login_at FROM staff WHERE id = $1
 `
 
 func (q *Queries) GetStaff(ctx context.Context, id uuid.UUID) (Staff, error) {
@@ -90,6 +124,74 @@ func (q *Queries) GetStaff(ctx context.Context, id uuid.UUID) (Staff, error) {
 		&i.InviteExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SessionsValidFrom,
+		&i.LastLoginAt,
+	)
+	return i, err
+}
+
+const getStaffByInviteHash = `-- name: GetStaffByInviteHash :one
+SELECT id, tenant_id, app_id, store_id, display_name, role, status, line_user_id, invite_code_hash, invite_expires_at, created_at, updated_at, sessions_valid_from, last_login_at FROM staff
+WHERE app_id = $1 AND invite_code_hash = $2 AND line_user_id IS NULL
+  AND invite_expires_at > $3
+`
+
+type GetStaffByInviteHashParams struct {
+	AppID          uuid.UUID          `json:"app_id"`
+	InviteCodeHash *string            `json:"invite_code_hash"`
+	Now            pgtype.Timestamptz `json:"now"`
+}
+
+// Invite codes are matched within one app only, and only while unexpired.
+func (q *Queries) GetStaffByInviteHash(ctx context.Context, arg GetStaffByInviteHashParams) (Staff, error) {
+	row := q.db.QueryRow(ctx, getStaffByInviteHash, arg.AppID, arg.InviteCodeHash, arg.Now)
+	var i Staff
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.AppID,
+		&i.StoreID,
+		&i.DisplayName,
+		&i.Role,
+		&i.Status,
+		&i.LineUserID,
+		&i.InviteCodeHash,
+		&i.InviteExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SessionsValidFrom,
+		&i.LastLoginAt,
+	)
+	return i, err
+}
+
+const getStaffByLineUserID = `-- name: GetStaffByLineUserID :one
+SELECT id, tenant_id, app_id, store_id, display_name, role, status, line_user_id, invite_code_hash, invite_expires_at, created_at, updated_at, sessions_valid_from, last_login_at FROM staff WHERE app_id = $1 AND line_user_id = $2
+`
+
+type GetStaffByLineUserIDParams struct {
+	AppID      uuid.UUID `json:"app_id"`
+	LineUserID *string   `json:"line_user_id"`
+}
+
+func (q *Queries) GetStaffByLineUserID(ctx context.Context, arg GetStaffByLineUserIDParams) (Staff, error) {
+	row := q.db.QueryRow(ctx, getStaffByLineUserID, arg.AppID, arg.LineUserID)
+	var i Staff
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.AppID,
+		&i.StoreID,
+		&i.DisplayName,
+		&i.Role,
+		&i.Status,
+		&i.LineUserID,
+		&i.InviteCodeHash,
+		&i.InviteExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SessionsValidFrom,
+		&i.LastLoginAt,
 	)
 	return i, err
 }
@@ -106,7 +208,7 @@ func (q *Queries) GetStaffTenant(ctx context.Context, id uuid.UUID) (uuid.UUID, 
 }
 
 const listStaff = `-- name: ListStaff :many
-SELECT id, tenant_id, app_id, store_id, display_name, role, status, line_user_id, invite_code_hash, invite_expires_at, created_at, updated_at FROM staff WHERE app_id = $1 ORDER BY created_at
+SELECT id, tenant_id, app_id, store_id, display_name, role, status, line_user_id, invite_code_hash, invite_expires_at, created_at, updated_at, sessions_valid_from, last_login_at FROM staff WHERE app_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ListStaff(ctx context.Context, appID uuid.UUID) ([]Staff, error) {
@@ -131,6 +233,8 @@ func (q *Queries) ListStaff(ctx context.Context, appID uuid.UUID) ([]Staff, erro
 			&i.InviteExpiresAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SessionsValidFrom,
+			&i.LastLoginAt,
 		); err != nil {
 			return nil, err
 		}
@@ -142,6 +246,57 @@ func (q *Queries) ListStaff(ctx context.Context, appID uuid.UUID) ([]Staff, erro
 	return items, nil
 }
 
+const resetStaffInvite = `-- name: ResetStaffInvite :one
+UPDATE staff SET line_user_id = NULL, invite_code_hash = $2, invite_expires_at = $3,
+  sessions_valid_from = $4, updated_at = now()
+WHERE id = $1
+RETURNING id, tenant_id, app_id, store_id, display_name, role, status, line_user_id, invite_code_hash, invite_expires_at, created_at, updated_at, sessions_valid_from, last_login_at
+`
+
+type ResetStaffInviteParams struct {
+	ID                uuid.UUID          `json:"id"`
+	InviteCodeHash    *string            `json:"invite_code_hash"`
+	InviteExpiresAt   pgtype.Timestamptz `json:"invite_expires_at"`
+	SessionsValidFrom pgtype.Timestamptz `json:"sessions_valid_from"`
+}
+
+// A new invite code unbinds the LINE account (lost phone, new person).
+func (q *Queries) ResetStaffInvite(ctx context.Context, arg ResetStaffInviteParams) (Staff, error) {
+	row := q.db.QueryRow(ctx, resetStaffInvite,
+		arg.ID,
+		arg.InviteCodeHash,
+		arg.InviteExpiresAt,
+		arg.SessionsValidFrom,
+	)
+	var i Staff
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.AppID,
+		&i.StoreID,
+		&i.DisplayName,
+		&i.Role,
+		&i.Status,
+		&i.LineUserID,
+		&i.InviteCodeHash,
+		&i.InviteExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SessionsValidFrom,
+		&i.LastLoginAt,
+	)
+	return i, err
+}
+
+const touchStaffLogin = `-- name: TouchStaffLogin :exec
+UPDATE staff SET last_login_at = now() WHERE id = $1
+`
+
+func (q *Queries) TouchStaffLogin(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, touchStaffLogin, id)
+	return err
+}
+
 const updateStaff = `-- name: UpdateStaff :one
 UPDATE staff SET
   display_name = coalesce($1, display_name),
@@ -150,7 +305,7 @@ UPDATE staff SET
   status       = coalesce($5, status),
   updated_at   = now()
 WHERE id = $6
-RETURNING id, tenant_id, app_id, store_id, display_name, role, status, line_user_id, invite_code_hash, invite_expires_at, created_at, updated_at
+RETURNING id, tenant_id, app_id, store_id, display_name, role, status, line_user_id, invite_code_hash, invite_expires_at, created_at, updated_at, sessions_valid_from, last_login_at
 `
 
 type UpdateStaffParams struct {
@@ -185,6 +340,8 @@ func (q *Queries) UpdateStaff(ctx context.Context, arg UpdateStaffParams) (Staff
 		&i.InviteExpiresAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SessionsValidFrom,
+		&i.LastLoginAt,
 	)
 	return i, err
 }

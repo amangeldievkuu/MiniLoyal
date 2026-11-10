@@ -24,3 +24,29 @@ DELETE FROM staff WHERE id = $1;
 
 -- name: GetStaffTenant :one
 SELECT tenant_id FROM staff WHERE id = $1;
+
+-- name: GetStaffByLineUserID :one
+SELECT * FROM staff WHERE app_id = $1 AND line_user_id = $2;
+
+-- name: GetStaffByInviteHash :one
+-- Invite codes are matched within one app only, and only while unexpired.
+SELECT * FROM staff
+WHERE app_id = $1 AND invite_code_hash = $2 AND line_user_id IS NULL
+  AND invite_expires_at > sqlc.arg('now');
+
+-- name: BindStaffLineUser :execrows
+UPDATE staff SET line_user_id = $2, invite_code_hash = NULL, invite_expires_at = NULL, updated_at = now()
+WHERE id = $1 AND line_user_id IS NULL;
+
+-- name: TouchStaffLogin :exec
+UPDATE staff SET last_login_at = now() WHERE id = $1;
+
+-- name: EndStaffSessions :exec
+UPDATE staff SET sessions_valid_from = $2, updated_at = now() WHERE id = $1;
+
+-- name: ResetStaffInvite :one
+-- A new invite code unbinds the LINE account (lost phone, new person).
+UPDATE staff SET line_user_id = NULL, invite_code_hash = $2, invite_expires_at = $3,
+  sessions_valid_from = $4, updated_at = now()
+WHERE id = $1
+RETURNING *;

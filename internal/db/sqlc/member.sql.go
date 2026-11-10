@@ -64,7 +64,7 @@ func (q *Queries) CountMembers(ctx context.Context, appID uuid.UUID) (int64, err
 }
 
 const getMember = `-- name: GetMember :one
-SELECT id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at FROM members WHERE id = $1
+SELECT id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at, qr_key_version FROM members WHERE id = $1
 `
 
 func (q *Queries) GetMember(ctx context.Context, id uuid.UUID) (Member, error) {
@@ -90,12 +90,13 @@ func (q *Queries) GetMember(ctx context.Context, id uuid.UUID) (Member, error) {
 		&i.AnonymizedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.QrKeyVersion,
 	)
 	return i, err
 }
 
 const getMemberByLineUserID = `-- name: GetMemberByLineUserID :one
-SELECT id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at FROM members WHERE app_id = $1 AND line_user_id = $2
+SELECT id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at, qr_key_version FROM members WHERE app_id = $1 AND line_user_id = $2
 `
 
 type GetMemberByLineUserIDParams struct {
@@ -126,6 +127,7 @@ func (q *Queries) GetMemberByLineUserID(ctx context.Context, arg GetMemberByLine
 		&i.AnonymizedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.QrKeyVersion,
 	)
 	return i, err
 }
@@ -201,7 +203,7 @@ func (q *Queries) ListMemberConsents(ctx context.Context, memberID uuid.UUID) ([
 }
 
 const listMembers = `-- name: ListMembers :many
-SELECT id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at FROM members
+SELECT id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at, qr_key_version FROM members
 WHERE app_id = $1
   AND anonymized_at IS NULL
   AND (
@@ -262,6 +264,7 @@ func (q *Queries) ListMembers(ctx context.Context, arg ListMembersParams) ([]Mem
 			&i.AnonymizedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.QrKeyVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -276,7 +279,7 @@ func (q *Queries) ListMembers(ctx context.Context, arg ListMembersParams) ([]Mem
 const setMemberConsent = `-- name: SetMemberConsent :one
 UPDATE members SET consent_version = $2, consent_at = now(), updated_at = now()
 WHERE id = $1 AND anonymized_at IS NULL
-RETURNING id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at
+RETURNING id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at, qr_key_version
 `
 
 type SetMemberConsentParams struct {
@@ -307,6 +310,7 @@ func (q *Queries) SetMemberConsent(ctx context.Context, arg SetMemberConsentPara
 		&i.AnonymizedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.QrKeyVersion,
 	)
 	return i, err
 }
@@ -339,7 +343,7 @@ UPDATE members SET
   custom_fields = coalesce($8, custom_fields),
   updated_at    = now()
 WHERE id = $9 AND anonymized_at IS NULL
-RETURNING id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at
+RETURNING id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at, qr_key_version
 `
 
 type UpdateMemberProfileParams struct {
@@ -387,6 +391,7 @@ func (q *Queries) UpdateMemberProfile(ctx context.Context, arg UpdateMemberProfi
 		&i.AnonymizedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.QrKeyVersion,
 	)
 	return i, err
 }
@@ -398,7 +403,7 @@ ON CONFLICT (app_id, line_user_id) DO UPDATE SET
   is_friend         = true,
   friend_changed_at = now(),
   updated_at        = now()
-RETURNING id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at
+RETURNING id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at, qr_key_version
 `
 
 type UpsertMemberFromFollowParams struct {
@@ -437,6 +442,7 @@ func (q *Queries) UpsertMemberFromFollow(ctx context.Context, arg UpsertMemberFr
 		&i.AnonymizedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.QrKeyVersion,
 	)
 	return i, err
 }
@@ -450,7 +456,7 @@ ON CONFLICT (app_id, line_user_id) DO UPDATE SET
   language      = coalesce(EXCLUDED.language, members.language),
   last_login_at = now(),
   updated_at    = now()
-RETURNING id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at, (xmax = 0) AS created
+RETURNING id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at, qr_key_version, (xmax = 0) AS created
 `
 
 type UpsertMemberFromLoginParams struct {
@@ -483,6 +489,7 @@ type UpsertMemberFromLoginRow struct {
 	AnonymizedAt    pgtype.Timestamptz `json:"anonymized_at"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	QrKeyVersion    int32              `json:"qr_key_version"`
 	Created         bool               `json:"created"`
 }
 
@@ -518,6 +525,7 @@ func (q *Queries) UpsertMemberFromLogin(ctx context.Context, arg UpsertMemberFro
 		&i.AnonymizedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.QrKeyVersion,
 		&i.Created,
 	)
 	return i, err

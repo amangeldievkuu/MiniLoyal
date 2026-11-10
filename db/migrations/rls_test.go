@@ -155,7 +155,7 @@ func TestApplicationRoleCannotBypassRLS(t *testing.T) {
 
 	// Policies are forced, so even the table owner would be subject to them.
 	rows, err := d.Admin.Query(context.Background(),
-		"SELECT relname FROM pg_class WHERE relkind = 'r' AND relnamespace = 'public'::regnamespace AND relname NOT IN ('goose_db_version', 'users', 'refresh_tokens', 'totp_recovery_codes', 'mfa_challenges', 'security_events') AND NOT (relrowsecurity AND relforcerowsecurity)")
+		"SELECT relname FROM pg_class WHERE relkind = 'r' AND relnamespace = 'public'::regnamespace AND relname NOT IN ('goose_db_version', 'users', 'refresh_tokens', 'totp_recovery_codes', 'mfa_challenges', 'security_events', 'points_reconciliation_runs') AND NOT (relrowsecurity AND relforcerowsecurity)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,6 +291,39 @@ var rlsTables = []tenantTable{
 	}},
 	{name: "invitations", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
 		_, err := x.Exec(ctx, "INSERT INTO invitations (id, tenant_id, email, role, token_hash, expires_at) VALUES ($1, $2, $3, 'staff', $4, now() + interval '7 days')", testutil.NewID(), f.tenant, randHex(6)+"@example.com", randHex(32))
+		return err
+	}},
+	{name: "points_rules", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		// One rule per app: a fresh app keeps the insert from colliding.
+		appID := testutil.NewID()
+		if _, err := x.Exec(ctx, "INSERT INTO apps (id, tenant_id, name, slug) VALUES ($1, $2, 'Rules', $3)", appID, f.tenant, "rules-"+randHex(3)); err != nil {
+			return err
+		}
+		_, err := x.Exec(ctx, "INSERT INTO points_rules (app_id, tenant_id) VALUES ($1, $2)", appID, f.tenant)
+		return err
+	}},
+	{name: "points_accounts", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		memberID := testutil.NewID()
+		if _, err := x.Exec(ctx, "INSERT INTO members (id, tenant_id, app_id, line_user_id) VALUES ($1, $2, $3, $4)", memberID, f.tenant, f.app, "U"+randHex(16)); err != nil {
+			return err
+		}
+		_, err := x.Exec(ctx, "INSERT INTO points_accounts (member_id, tenant_id, app_id) VALUES ($1, $2, $3)", memberID, f.tenant, f.app)
+		return err
+	}},
+	{name: "points_lots", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		memberID := testutil.NewID()
+		if _, err := x.Exec(ctx, "INSERT INTO members (id, tenant_id, app_id, line_user_id) VALUES ($1, $2, $3, $4)", memberID, f.tenant, f.app, "U"+randHex(16)); err != nil {
+			return err
+		}
+		_, err := x.Exec(ctx, "INSERT INTO points_lots (tenant_id, app_id, member_id, earned, remaining) VALUES ($1, $2, $3, 10, 10)", f.tenant, f.app, memberID)
+		return err
+	}},
+	{name: "points_ledger", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		memberID := testutil.NewID()
+		if _, err := x.Exec(ctx, "INSERT INTO members (id, tenant_id, app_id, line_user_id) VALUES ($1, $2, $3, $4)", memberID, f.tenant, f.app, "U"+randHex(16)); err != nil {
+			return err
+		}
+		_, err := x.Exec(ctx, "INSERT INTO points_ledger (tenant_id, app_id, member_id, txn_id, delta, balance_after, reason, actor_type) VALUES ($1, $2, $3, $4, 5, 5, 'adjust', 'system')", f.tenant, f.app, memberID, testutil.NewID())
 		return err
 	}},
 }
@@ -465,6 +498,10 @@ func TestApplicationRoleGrants(t *testing.T) {
 		{"members", "INSERT", true},
 		{"members", "UPDATE", true},
 		{"members", "DELETE", false},
+		{"points_ledger", "UPDATE", false},
+		{"points_ledger", "DELETE", false},
+		{"points_lots", "DELETE", false},
+		{"points_accounts", "DELETE", false},
 		{"member_consents", "SELECT", true},
 		{"member_consents", "INSERT", true},
 		{"member_consents", "UPDATE", false},

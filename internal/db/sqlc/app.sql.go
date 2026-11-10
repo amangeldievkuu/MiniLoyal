@@ -35,7 +35,7 @@ func (q *Queries) CountApps(ctx context.Context, tenantID uuid.UUID) (int64, err
 const createApp = `-- name: CreateApp :one
 INSERT INTO apps (id, tenant_id, name, slug, locale)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at
+RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at, allow_hs256_id_tokens, member_sessions_valid_from
 `
 
 type CreateAppParams struct {
@@ -68,6 +68,8 @@ func (q *Queries) CreateApp(ctx context.Context, arg CreateAppParams) (App, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OaVerifiedAt,
+		&i.AllowHs256IDTokens,
+		&i.MemberSessionsValidFrom,
 	)
 	return i, err
 }
@@ -89,8 +91,39 @@ func (q *Queries) DeleteAppChannel(ctx context.Context, arg DeleteAppChannelPara
 	return result.RowsAffected(), nil
 }
 
+const endMemberSessions = `-- name: EndMemberSessions :one
+UPDATE apps SET member_sessions_valid_from = $2, updated_at = now() WHERE id = $1 RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at, allow_hs256_id_tokens, member_sessions_valid_from
+`
+
+type EndMemberSessionsParams struct {
+	ID                      uuid.UUID          `json:"id"`
+	MemberSessionsValidFrom pgtype.Timestamptz `json:"member_sessions_valid_from"`
+}
+
+func (q *Queries) EndMemberSessions(ctx context.Context, arg EndMemberSessionsParams) (App, error) {
+	row := q.db.QueryRow(ctx, endMemberSessions, arg.ID, arg.MemberSessionsValidFrom)
+	var i App
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Slug,
+		&i.Locale,
+		&i.Status,
+		&i.OaChannelID,
+		&i.OaBasicID,
+		&i.OaChannelSecretEnc,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OaVerifiedAt,
+		&i.AllowHs256IDTokens,
+		&i.MemberSessionsValidFrom,
+	)
+	return i, err
+}
+
 const getApp = `-- name: GetApp :one
-SELECT id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at FROM apps WHERE id = $1
+SELECT id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at, allow_hs256_id_tokens, member_sessions_valid_from FROM apps WHERE id = $1
 `
 
 func (q *Queries) GetApp(ctx context.Context, id uuid.UUID) (App, error) {
@@ -109,6 +142,8 @@ func (q *Queries) GetApp(ctx context.Context, id uuid.UUID) (App, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OaVerifiedAt,
+		&i.AllowHs256IDTokens,
+		&i.MemberSessionsValidFrom,
 	)
 	return i, err
 }
@@ -204,7 +239,7 @@ func (q *Queries) ListAppChannelsForLogin(ctx context.Context, appID uuid.UUID) 
 }
 
 const listApps = `-- name: ListApps :many
-SELECT id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at FROM apps WHERE tenant_id = $1 ORDER BY created_at
+SELECT id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at, allow_hs256_id_tokens, member_sessions_valid_from FROM apps WHERE tenant_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ListApps(ctx context.Context, tenantID uuid.UUID) ([]App, error) {
@@ -229,6 +264,8 @@ func (q *Queries) ListApps(ctx context.Context, tenantID uuid.UUID) ([]App, erro
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.OaVerifiedAt,
+			&i.AllowHs256IDTokens,
+			&i.MemberSessionsValidFrom,
 		); err != nil {
 			return nil, err
 		}
@@ -238,6 +275,37 @@ func (q *Queries) ListApps(ctx context.Context, tenantID uuid.UUID) ([]App, erro
 		return nil, err
 	}
 	return items, nil
+}
+
+const setAppHS256 = `-- name: SetAppHS256 :one
+UPDATE apps SET allow_hs256_id_tokens = $2, updated_at = now() WHERE id = $1 RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at, allow_hs256_id_tokens, member_sessions_valid_from
+`
+
+type SetAppHS256Params struct {
+	ID                 uuid.UUID `json:"id"`
+	AllowHs256IDTokens bool      `json:"allow_hs256_id_tokens"`
+}
+
+func (q *Queries) SetAppHS256(ctx context.Context, arg SetAppHS256Params) (App, error) {
+	row := q.db.QueryRow(ctx, setAppHS256, arg.ID, arg.AllowHs256IDTokens)
+	var i App
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Slug,
+		&i.Locale,
+		&i.Status,
+		&i.OaChannelID,
+		&i.OaBasicID,
+		&i.OaChannelSecretEnc,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OaVerifiedAt,
+		&i.AllowHs256IDTokens,
+		&i.MemberSessionsValidFrom,
+	)
+	return i, err
 }
 
 const setAppOAVerified = `-- name: SetAppOAVerified :exec
@@ -256,7 +324,7 @@ UPDATE apps SET
   status     = coalesce($3, status),
   updated_at = now()
 WHERE id = $4
-RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at
+RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at, allow_hs256_id_tokens, member_sessions_valid_from
 `
 
 type UpdateAppParams struct {
@@ -287,6 +355,8 @@ func (q *Queries) UpdateApp(ctx context.Context, arg UpdateAppParams) (App, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OaVerifiedAt,
+		&i.AllowHs256IDTokens,
+		&i.MemberSessionsValidFrom,
 	)
 	return i, err
 }
@@ -298,7 +368,7 @@ UPDATE apps SET
   oa_channel_secret_enc = $4,
   updated_at            = now()
 WHERE id = $1
-RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at
+RETURNING id, tenant_id, name, slug, locale, status, oa_channel_id, oa_basic_id, oa_channel_secret_enc, created_at, updated_at, oa_verified_at, allow_hs256_id_tokens, member_sessions_valid_from
 `
 
 type UpdateAppOAParams struct {
@@ -329,6 +399,8 @@ func (q *Queries) UpdateAppOA(ctx context.Context, arg UpdateAppOAParams) (App, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OaVerifiedAt,
+		&i.AllowHs256IDTokens,
+		&i.MemberSessionsValidFrom,
 	)
 	return i, err
 }

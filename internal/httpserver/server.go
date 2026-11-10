@@ -38,6 +38,9 @@ type Deps struct {
 	// Members verifies member session tokens (internal/lineauth). Nil means
 	// every bearer token outside /v1/dashboard/ is rejected.
 	Members MemberAuthenticator
+	// Staff verifies staff app session tokens (internal/staffauth). Nil means
+	// every bearer token on /v1/staff/* is rejected.
+	Staff StaffAuthenticator
 	// Tenants serves tenants, team, apps, channels, stores, staff, API keys
 	// and the audit log.
 	Tenants *tenant.Service
@@ -61,6 +64,7 @@ type Server struct {
 	dashboard DashboardAuthenticator
 	apiKeys   APIKeyAuthenticator
 	members   MemberAuthenticator
+	staff     StaffAuthenticator
 	tenants   *tenant.Service
 	lineauth  *lineauth.Service
 	memberSvc *member.Service
@@ -93,6 +97,7 @@ func New(d Deps) *Server {
 		dashboard: d.Dashboard,
 		apiKeys:   d.APIKeys,
 		members:   d.Members,
+		staff:     d.Staff,
 		tenants:   d.Tenants,
 		lineauth:  d.LineAuth,
 		memberSvc: d.MemberSvc,

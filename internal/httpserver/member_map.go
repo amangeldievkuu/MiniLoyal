@@ -55,7 +55,7 @@ func toMemberDetail(m sqlc.Member) api.MemberDetail {
 		Consent:      base.Consent,
 		CreatedAt:    base.CreatedAt,
 		UpdatedAt:    m.UpdatedAt.Time,
-		LineUserId:   m.LineUserID,
+		LineUserId:   &m.LineUserID,
 	}
 	if m.FriendChangedAt.Valid {
 		t := m.FriendChangedAt.Time

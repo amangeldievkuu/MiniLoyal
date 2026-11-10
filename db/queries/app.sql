@@ -64,3 +64,9 @@ UPDATE apps SET oa_verified_at = NULL, updated_at = now() WHERE id = $1;
 -- Every configured channel ID of the app is an acceptable ID token audience.
 SELECT id, environment, channel_id, liff_id, channel_secret_enc, verified_at
 FROM app_channels WHERE app_id = $1;
+
+-- name: SetAppHS256 :one
+UPDATE apps SET allow_hs256_id_tokens = $2, updated_at = now() WHERE id = $1 RETURNING *;
+
+-- name: EndMemberSessions :one
+UPDATE apps SET member_sessions_valid_from = $2, updated_at = now() WHERE id = $1 RETURNING *;
