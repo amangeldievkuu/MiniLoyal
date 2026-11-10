@@ -155,7 +155,7 @@ func TestApplicationRoleCannotBypassRLS(t *testing.T) {
 
 	// Policies are forced, so even the table owner would be subject to them.
 	rows, err := d.Admin.Query(context.Background(),
-		"SELECT relname FROM pg_class WHERE relkind = 'r' AND relnamespace = 'public'::regnamespace AND relname NOT IN ('goose_db_version', 'users', 'refresh_tokens', 'totp_recovery_codes', 'mfa_challenges', 'security_events', 'points_reconciliation_runs') AND relname NOT LIKE 'river\\_%' AND NOT (relrowsecurity AND relforcerowsecurity)")
+		"SELECT relname FROM pg_class WHERE relkind = 'r' AND relnamespace = 'public'::regnamespace AND relname NOT IN ('goose_db_version', 'users', 'refresh_tokens', 'totp_recovery_codes', 'mfa_challenges', 'security_events') AND relname NOT LIKE 'river\\_%' AND NOT (relrowsecurity AND relforcerowsecurity)")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +243,7 @@ var rlsTables = []tenantTable{
 		_, err := x.Exec(ctx, "INSERT INTO tenant_users (tenant_id, user_id, role) VALUES ($1, $2, 'staff')", f.tenant, f.user())
 		return err
 	}},
-	{name: "apps", col: "tenant_id", seeded: true, appDelete: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+	{name: "apps", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
 		_, err := x.Exec(ctx, "INSERT INTO apps (id, tenant_id, name, slug) VALUES ($1, $2, 'App', $3)", testutil.NewID(), f.tenant, "app-"+randHex(3))
 		return err
 	}},
@@ -326,6 +326,10 @@ var rlsTables = []tenantTable{
 		_, err := x.Exec(ctx, "INSERT INTO points_ledger (tenant_id, app_id, member_id, txn_id, delta, balance_after, reason, actor_type) VALUES ($1, $2, $3, $4, 5, 5, 'adjust', 'system')", f.tenant, f.app, memberID, testutil.NewID())
 		return err
 	}},
+	{name: "scan_token_uses", col: "tenant_id", seeded: true, appDelete: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		_, err := x.Exec(ctx, "INSERT INTO scan_token_uses (jti, tenant_id, app_id, used_at) VALUES ($1, $2, $3, now())", randHex(16), f.tenant, f.app)
+		return err
+	}},
 }
 
 // TestEveryTenantTableIsListed keeps rlsTables in step with the schema: a
@@ -341,6 +345,11 @@ func TestEveryTenantTableIsListed(t *testing.T) {
 	listed := map[string]bool{}
 	for _, tbl := range rlsTables {
 		listed[tbl.name] = true
+	}
+	// System-only tables carry RLS that admits system mode alone; they have
+	// no tenant column and are tested in TestSystemOnlyTables.
+	for _, name := range systemOnlyTables {
+		listed[name] = true
 	}
 	for rows.Next() {
 		var name string
@@ -565,3 +574,6 @@ func TestApplicationRoleGrants(t *testing.T) {
 		t.Errorf("application roles own %d relations", owned)
 	}
 }
+
+// systemOnlyTables have row-level security that only system mode passes.
+var systemOnlyTables = []string{"points_reconciliation_runs"}

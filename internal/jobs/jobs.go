@@ -20,6 +20,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/idempotency"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
+	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"github.com/amangeldievkuu/miniloyal/internal/webhook"
 )
 
@@ -67,9 +68,15 @@ func (d *Deps) defaults() {
 
 // ------------------------------------------------------------------------- maintenance
 
+// Job arguments are stored in River's tables, which the application role can
+// read and which carry no row-level security. Arguments must therefore hold
+// IDs only: never personal data, message text, tokens or secrets. A job loads
+// what it needs inside a tenant transaction when it runs.
+
 // MaintenanceArgs deletes spent rows that keep the identity and webhook
 // tables bounded: expired idempotency outcomes, spent refresh tokens, old MFA
-// challenges and old inbound webhook dedupe records.
+// challenges, old inbound webhook dedupe records and old single-use scan
+// records.
 type MaintenanceArgs struct{}
 
 // Kind implements river.JobArgs.
@@ -99,12 +106,14 @@ func (w *MaintenanceWorker) Work(ctx context.Context, _ *river.Job[MaintenanceAr
 	errs = append(errs, err)
 	events, err := webhook.DeleteOldInboundEvents(ctx, pool)
 	errs = append(errs, err)
+	scans, err := points.DeleteOldScanTokenUses(ctx, pool, w.deps.Clock.Now())
+	errs = append(errs, err)
 	if err := errors.Join(errs...); err != nil {
 		w.deps.Log.ErrorContext(ctx, "maintenance failed", "err", err)
 		return err
 	}
 	w.deps.Log.InfoContext(ctx, "maintenance run", "idempotency_keys", idem, "refresh_tokens", tokens,
-		"mfa_challenges", challenges, "webhook_events", events)
+		"mfa_challenges", challenges, "webhook_events", events, "scan_token_uses", scans)
 	return nil
 }
 

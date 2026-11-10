@@ -24,7 +24,8 @@
     "rateLimited": "嘗試次數過多，請於 {{seconds}} 秒後再試。",
     "signedOut": "已登出。",
     "expired": "登入已過期，請重新登入。",
-    "signInAgain": "重新登入"
+    "signInAgain": "重新登入",
+    "staffChannelRequired": "這家店尚未設定店員 App 的 LINE Login 頻道，請老闆在後台的「頻道」設定中新增。"
   },
   "invite": {
     "title": "第一次登入",
@@ -93,10 +94,29 @@
     "scanAgain": "這次掃描已失效，請重新掃描會員卡。",
     "network": "無法連線，請重試。點數不會重複計算。",
     "notAllowed": "您的權限無法執行此操作。",
-    "generic": "發生錯誤，請重試。"
+    "generic": "發生錯誤，請重試。",
+    "selfService": "不能為自己的會員卡加點或折抵，請請同事協助。",
+    "rateLimited": "短時間內操作太多次，請等 {{seconds}} 秒再試。",
+    "scanUsed": "這次掃描已用於折抵，請重新掃描會員卡。",
+    "pointsDisabled": "這家店已關閉點數功能。"
   },
   "keypad": {
     "clear": "清除",
-    "backspace": "刪除一位"
+    "backspace": "刪除一位",
+    "tooLarge": "最多 {{max}}，這個數字沒有輸入。"
+  },
+  "pending": {
+    "title": "上一筆操作尚未確認",
+    "earnSpend": "為 {{name}} 依消費 NT${{amount}} 加點",
+    "earnPoints": "為 {{name}} 加 {{points}} 點",
+    "redeem": "為 {{name}} 折抵 {{points}} 點",
+    "help": "請先重試，再為這位會員做其他操作。重試會送出相同的請求，最多只會生效一次。",
+    "blocked": "這位會員有一筆尚未確認的操作，請先在上方重試或捨棄。",
+    "discard": "捨棄",
+    "discardConfirm": "請先查看會員的點數紀錄再捨棄。若這筆操作其實已完成，它仍會保留。",
+    "discardYes": "確定捨棄",
+    "keep": "保留",
+    "discarded": "已捨棄尚未確認的操作。",
+    "notApplied": "上一筆操作沒有生效：{{reason}}"
   }
 }

@@ -890,7 +890,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** My points transactions, newest first */
+        /**
+         * My points transactions, newest first
+         * @description Members see what happened, not the brand's internal notes: note and
+         *     ref_id are omitted here (they are present in the dashboard and server
+         *     API history).
+         */
         get: operations["listMyPointsHistory"];
         put?: never;
         post?: never;
@@ -976,7 +981,12 @@ export interface paths {
         /**
          * Give points for a purchase
          * @description Points come from the app's earn rule applied to spend_amount. Managers
-         *     may instead give a fixed number of points; cashiers may not.
+         *     may instead give a fixed number of points, within the rule's cap;
+         *     cashiers may not. Staff cannot act on their own member card (403
+         *     self_service), and each staff member may make 30 points writes a
+         *     minute (429). A retry with the same Idempotency-Key replays the stored
+         *     result even after the scan token expired; a new write needs a scan
+         *     made in the last five minutes (403 scan_invalid otherwise).
          */
         post: operations["staffEarnPoints"];
         delete?: never;
@@ -994,7 +1004,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Spend a member's points */
+        /**
+         * Spend a member's points
+         * @description One scan pays for at most one redemption (409 scan_used afterwards;
+         *     scan the card again). The same rules as earn apply to own cards, the
+         *     rate limit, retries and expired scans.
+         */
         post: operations["staffRedeemPoints"];
         delete?: never;
         options?: never;
@@ -1013,7 +1028,9 @@ export interface paths {
         };
         /**
          * The app's earn rule
-         * @description Apps without a saved rule answer the defaults (NT$100 = 1 point, no expiry).
+         * @description Apps without a saved rule answer the defaults (NT$100 = 1 point, at
+         *     most 10,000 points per purchase, no expiry). Whatever the rule, one
+         *     purchase or fixed grant earns at most 100,000 points.
          */
         get: operations["getPointsRules"];
         /**
@@ -1374,10 +1391,13 @@ export interface components {
         /** @enum {string} */
         AppStatus: "active" | "disabled";
         /**
-         * @description The three internal channels of one LINE MINI App channel.
+         * @description developing, review and published are the three internal channels of
+         *     the LINE MINI App channel. staff is the staff app's own LINE Login
+         *     channel (same provider); staff sign-in accepts only it and member
+         *     sign-in never does, so its channel ID must differ from the MINI App's.
          * @enum {string}
          */
-        ChannelEnvironment: "developing" | "review" | "published";
+        ChannelEnvironment: "developing" | "review" | "published" | "staff";
         App: {
             /** Format: uuid */
             id: string;
@@ -1835,7 +1855,7 @@ export interface components {
             is_friend: boolean;
         };
         ScanResult: {
-            /** @description Authorizes points actions on this member for five minutes. */
+            /** @description Authorizes points actions on this member for five minutes; it pays for at most one redemption. */
             scan_token: string;
             /** Format: date-time */
             expires_at: string;

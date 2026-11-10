@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
@@ -18,39 +19,66 @@ import (
 // errLotDone means another run already expired the lot.
 var errLotDone = errors.New("points: lot already expired")
 
+// maxFailuresPerRun stops a run that keeps failing (a database outage)
+// instead of walking every due lot.
+const maxFailuresPerRun = 100
+
 // ExpireDue expires up to batch lots whose expiry passed before now, oldest
 // first, each in its own tenant transaction. It is safe to run twice and to
 // run concurrently: the lot is re-read under a row lock and the ledger
-// allows one expire row per lot. It returns how many lots it expired.
+// allows one expire row per lot. A lot that fails (an inconsistent account)
+// is logged and skipped for the rest of the run, so one bad account cannot
+// stall expiry for every tenant; the failures come back joined so the job
+// is retried. It returns how many lots it expired.
 func (s *Service) ExpireDue(ctx context.Context, now time.Time, batch int) (int, error) {
 	if batch < 1 {
 		batch = 500
 	}
-	var due []sqlc.PointsLot
-	err := db.WithSystem(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) (err error) {
-		due, err = sqlc.New(tx).ListDueLots(ctx, sqlc.ListDueLotsParams{Now: pgtype.Timestamptz{Time: now, Valid: true}, Batch: int32(batch)})
-		return err
-	})
-	if err != nil {
-		return 0, fmt.Errorf("points: due lots: %w", err)
-	}
 	expired := 0
-	for _, lot := range due {
-		err := db.WithTenant(ctx, s.pool, lot.TenantID, func(ctx context.Context, tx pgx.Tx) error {
-			return s.expireLot(ctx, sqlc.New(tx), lot, now)
+	failed := []int64{}
+	var errs []error
+	for expired < batch && len(failed) < maxFailuresPerRun {
+		var due []sqlc.PointsLot
+		err := db.WithSystem(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) (err error) {
+			due, err = sqlc.New(tx).ListDueLots(ctx, sqlc.ListDueLotsParams{
+				Now: pgtype.Timestamptz{Time: now, Valid: true}, Excluded: failed, Batch: int32(batch - expired),
+			})
+			return err
 		})
-		switch {
-		case err == nil:
-			expired++
-		case errors.Is(err, errLotDone), db.IsUniqueViolation(err, "points_ledger_expire_once_idx"):
-		default:
-			return expired, fmt.Errorf("points: expire lot %d: %w", lot.ID, err)
+		if err != nil {
+			return expired, errors.Join(append(errs, fmt.Errorf("points: due lots: %w", err))...)
+		}
+		if len(due) == 0 {
+			break
+		}
+		progressed := false
+		for _, lot := range due {
+			if err := ctx.Err(); err != nil {
+				return expired, errors.Join(append(errs, err)...)
+			}
+			err := db.WithTenant(ctx, s.pool, lot.TenantID, func(ctx context.Context, tx pgx.Tx) error {
+				return s.expireLot(ctx, sqlc.New(tx), lot, now)
+			})
+			switch {
+			case err == nil:
+				expired++
+				progressed = true
+			case errors.Is(err, errLotDone), db.IsUniqueViolation(err, "points_ledger_expire_once_idx"):
+				progressed = true
+			default:
+				s.log.ErrorContext(ctx, "points expiry failed for a lot", "lot_id", lot.ID, "member_id", lot.MemberID, "app_id", lot.AppID, "err", err)
+				failed = append(failed, lot.ID)
+				errs = append(errs, fmt.Errorf("points: expire lot %d: %w", lot.ID, err))
+			}
+		}
+		if !progressed && len(failed) == 0 {
+			break
 		}
 	}
 	if expired > 0 {
 		s.log.InfoContext(ctx, "points expired", "lots", expired)
 	}
-	return expired, nil
+	return expired, errors.Join(errs...)
 }
 
 func (s *Service) expireLot(ctx context.Context, q *sqlc.Queries, due sqlc.PointsLot, now time.Time) error {
@@ -142,4 +170,18 @@ func (s *Service) Reconcile(ctx context.Context, now time.Time) (checked int, mi
 		s.log.InfoContext(ctx, "points reconciliation clean", "accounts_checked", checked)
 	}
 	return checked, mismatches, nil
+}
+
+// DeleteOldScanTokenUses removes single-use records of scans older than a
+// day; scan tokens live five minutes. The maintenance job runs it.
+func DeleteOldScanTokenUses(ctx context.Context, pool *pgxpool.Pool, now time.Time) (int64, error) {
+	var n int64
+	err := db.WithSystem(ctx, pool, func(ctx context.Context, tx pgx.Tx) (err error) {
+		n, err = sqlc.New(tx).DeleteOldScanTokenUses(ctx, pgtype.Timestamptz{Time: now.Add(-24 * time.Hour), Valid: true})
+		return err
+	})
+	if err != nil {
+		return 0, fmt.Errorf("points: delete old scan uses: %w", err)
+	}
+	return n, nil
 }

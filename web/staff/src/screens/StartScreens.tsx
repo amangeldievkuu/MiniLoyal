@@ -54,9 +54,10 @@ export function StartScreen({
         liff_init: t('start.liffInit'),
         no_id_token: t('start.noIdToken'),
         app_not_found: t('start.appNotFound'),
+        staff_channel_required: t('start.staffChannelRequired'),
         server: t('start.server'),
       }[state.reason];
-      canRetry = state.reason !== 'not_configured';
+      canRetry = state.reason !== 'not_configured' && state.reason !== 'staff_channel_required';
       break;
   }
 

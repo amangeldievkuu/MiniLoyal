@@ -61,7 +61,12 @@ export type PointsAdjustment = Schemas['PointsAdjustment'];
 export type PointsKind = Schemas['PointsKind'];
 export type MemberCardRotated = Schemas['MemberCardRotated'];
 
-export const CHANNEL_ENVIRONMENTS: ChannelEnvironment[] = ['developing', 'review', 'published'];
+export const CHANNEL_ENVIRONMENTS: ChannelEnvironment[] = [
+  'developing',
+  'review',
+  'published',
+  'staff',
+];
 export const API_KEY_SCOPES: ApiKeyScope[] = [
   'members:read',
   'members:write',

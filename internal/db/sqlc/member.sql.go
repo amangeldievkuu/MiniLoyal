@@ -209,19 +209,20 @@ WHERE app_id = $1
   AND (
     $2::text IS NULL
     OR lower(display_name) LIKE '%' || lower($2::text) || '%'
-    OR line_user_id = $2::text
+    OR ($3::boolean AND line_user_id = $2::text)
   )
   AND (
-    $3::timestamptz IS NULL
-    OR (created_at, id) < ($3::timestamptz, $4::uuid)
+    $4::timestamptz IS NULL
+    OR (created_at, id) < ($4::timestamptz, $5::uuid)
   )
 ORDER BY created_at DESC, id DESC
-LIMIT $5
+LIMIT $6
 `
 
 type ListMembersParams struct {
 	AppID           uuid.UUID          `json:"app_id"`
 	Q               *string            `json:"q"`
+	MatchLineUserID bool               `json:"match_line_user_id"`
 	BeforeCreatedAt pgtype.Timestamptz `json:"before_created_at"`
 	BeforeID        uuid.NullUUID      `json:"before_id"`
 	PageLimit       int32              `json:"page_limit"`
@@ -233,6 +234,7 @@ func (q *Queries) ListMembers(ctx context.Context, arg ListMembersParams) ([]Mem
 	rows, err := q.db.Query(ctx, listMembers,
 		arg.AppID,
 		arg.Q,
+		arg.MatchLineUserID,
 		arg.BeforeCreatedAt,
 		arg.BeforeID,
 		arg.PageLimit,

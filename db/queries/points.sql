@@ -89,10 +89,38 @@ SELECT * FROM points_lots WHERE id = $1 FOR UPDATE;
 
 -- name: ListDueLots :many
 -- Expiry job: lots past their expiry that still hold points, oldest first.
+-- Lots that failed earlier in the same run are skipped so one bad account
+-- cannot stall expiry for everyone.
 SELECT * FROM points_lots
 WHERE remaining > 0 AND expires_at IS NOT NULL AND expires_at <= sqlc.arg('now')
+  AND NOT (id = ANY(sqlc.arg('excluded')::bigint[]))
 ORDER BY expires_at, id
 LIMIT sqlc.arg('batch');
+
+-- name: ListMemberDueLotsForUpdate :many
+-- A write transaction expires the locked member's due lots before it touches
+-- the balance, so expired points are never spent.
+SELECT * FROM points_lots
+WHERE member_id = $1 AND remaining > 0 AND expires_at IS NOT NULL AND expires_at <= sqlc.arg('now')
+ORDER BY expires_at, id
+FOR UPDATE;
+
+-- name: SumMemberDuePoints :one
+-- Points in lots already due but not yet expired by a write or the job.
+-- Reads subtract them, so a balance on screen never counts expired points.
+SELECT coalesce(sum(remaining), 0)::bigint AS points
+FROM points_lots
+WHERE member_id = $1 AND remaining > 0 AND expires_at IS NOT NULL AND expires_at <= sqlc.arg('now');
+
+-- name: UseScanToken :execrows
+-- Zero rows means the scan token already paid for a redemption.
+INSERT INTO scan_token_uses (jti, tenant_id, app_id, used_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (jti) DO NOTHING;
+
+-- name: DeleteOldScanTokenUses :execrows
+-- Scan tokens live five minutes; a day of history is plenty.
+DELETE FROM scan_token_uses WHERE used_at < sqlc.arg('before');
 
 -- name: ReconcilePointsAccounts :many
 -- Accounts whose cached balance disagrees with the ledger or the open lots.

@@ -95,16 +95,15 @@ func TestScanTokenLifecycle(t *testing.T) {
 	})
 
 	// Rotation invalidates every QR code the card showed, so nobody can scan
-	// it again; a scan token issued before the rotation stays valid for the
-	// rest of its five minutes, because it is a staff-side credential bound
-	// to the staff member who scanned, not to the QR key version.
+	// it again, and every scan token issued before it: the token carries the
+	// card key version (security review Phase 3, F10).
 	t.Run("card rotated after the scan", func(t *testing.T) {
 		m := e.lineLogin(app, "Urotated", "Rotated")
 		oldQR := e.cardOf(m.SessionToken).Qr
 		tok := e.scanToken(meiSess.SessionToken, m.SessionToken)
 		e.must(e.do(http.MethodPost, "/v1/dashboard/members/"+m.Member.Id.String()+"/card/rotate", nil, idemHeaders(owner)), http.StatusOK, "rotate")
 		wantCode(t, e.scanQR(meiSess.SessionToken, oldQR), http.StatusUnprocessableEntity, "invalid_card")
-		e.must(e.staffEarn(meiSess.SessionToken, tok, uuid.NewString(), 500), http.StatusOK, "scan token issued before the rotation")
+		wantCode(t, e.staffEarn(meiSess.SessionToken, tok, uuid.NewString(), 500), http.StatusForbidden, "scan_invalid")
 	})
 
 	t.Run("staff member disabled after the scan", func(t *testing.T) {
@@ -133,10 +132,12 @@ func TestScanTokenLifecycle(t *testing.T) {
 		e.must(e.staffEarn(newPhone.SessionToken, tok, uuid.NewString(), 500), http.StatusOK, "same staff record, new phone, old scan token")
 	})
 
-	// Authorization, including the scan token, runs before a replay: a
-	// retry after the token expired is refused with scan_invalid instead of
-	// replaying the stored outcome. The till has to scan again, and a new
-	// scan token is a new body, so the old key is a mismatch.
+	// A retry with the same key and body replays the stored outcome even
+	// after the scan token expired (security review Phase 3, F1): the till
+	// lost the answer and must learn it. The token's MAC and binding are
+	// still checked before the replay. A new write with the expired token is
+	// refused, and a new scan token is a new body, so the old key is a
+	// mismatch.
 	t.Run("earn retried with the same key", func(t *testing.T) {
 		m := e.lineLogin(app, "Uretry", "Retry")
 		tok := e.scanToken(meiSess.SessionToken, m.SessionToken)
@@ -148,7 +149,11 @@ func TestScanTokenLifecycle(t *testing.T) {
 			t.Errorf("replay differs:\n%s\n%s", first.body, replay.body)
 		}
 		e.clk.Advance(time.Second)
-		wantCode(t, e.staffEarn(meiSess.SessionToken, tok, key, 700), http.StatusForbidden, "scan_invalid")
+		late := e.must(e.staffEarn(meiSess.SessionToken, tok, key, 700), http.StatusOK, "replay after the token expired")
+		if !bytes.Equal(first.body, late.body) {
+			t.Errorf("late replay differs:\n%s\n%s", first.body, late.body)
+		}
+		wantCode(t, e.staffEarn(meiSess.SessionToken, tok, uuid.NewString(), 700), http.StatusForbidden, "scan_invalid")
 		fresh := e.scanToken(meiSess.SessionToken, m.SessionToken)
 		wantCode(t, e.staffEarn(meiSess.SessionToken, fresh, key, 700), http.StatusUnprocessableEntity, "idempotency_mismatch")
 		var balance int64

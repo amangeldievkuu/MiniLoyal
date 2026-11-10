@@ -148,7 +148,7 @@ func TestScanTokenRoundTripAndTampering(t *testing.T) {
 	c := codec(t, clk)
 	staff, member, app, tenant := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 
-	tok, exp, err := c.IssueScanToken(staff, member, app, tenant)
+	tok, exp, err := c.IssueScanToken(staff, member, app, tenant, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

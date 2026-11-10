@@ -43,6 +43,8 @@ type memberEnv struct {
 	seq      int
 	// channels maps an app ID to the channel ID registered for it.
 	channels map[string]string
+	// staffChannels maps an app ID to its staff app LINE Login channel.
+	staffChannels map[string]string
 	// cards is the codec behind /v1/me/card and /v1/staff/scan.
 	cards *card.Codec
 }
@@ -58,7 +60,7 @@ func newMemberEnv(t *testing.T) *memberEnv {
 func newMemberEnvWith(t *testing.T, staffCfg staffauth.Config) *memberEnv {
 	t.Helper()
 	d := testutil.NewDB(t)
-	e := &memberEnv{t: t, db: d, verifier: lineauthtest.NewFakeVerifier(), logs: &bytes.Buffer{}, channels: map[string]string{}}
+	e := &memberEnv{t: t, db: d, verifier: lineauthtest.NewFakeVerifier(), logs: &bytes.Buffer{}, channels: map[string]string{}, staffChannels: map[string]string{}}
 	e.clk = newLockedClock(time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC))
 	logger := slog.New(slog.NewJSONHandler(e.logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	keyring := crypto.Static(bytes.Repeat([]byte{7}, 32))
@@ -69,6 +71,7 @@ func newMemberEnvWith(t *testing.T, staffCfg staffauth.Config) *memberEnv {
 		t.Fatal(err)
 	}
 	tenants := tenant.New(d.App, keyring, e.clk, logger)
+	tenants.SetInviteKey(fullSigningKey)
 	lineAuth, err := lineauth.New(lineauth.Deps{Pool: d.App, Keyring: keyring, Verifier: e.verifier, Clock: e.clk, Log: logger,
 		Config: lineauth.Config{SigningKey: fullSigningKey, IPPerMinute: 10000}})
 	if err != nil {
@@ -187,7 +190,22 @@ func (e *memberEnv) app(access string) api.App {
 	e.must(e.do(http.MethodPut, "/v1/dashboard/apps/"+app.Id.String()+"/channels/developing",
 		map[string]any{"channel_id": channel, "liff_id": channel + "-abcdefgh", "channel_secret": "channel-secret"}, idemHeaders(access)), http.StatusOK, "put channel")
 	e.channels[app.Id.String()] = channel
+	// The staff app signs in through its own LINE Login channel.
+	staffChannel := fmt.Sprintf("%s%02d", "8"+memberChannelID[1:8], e.seq)
+	e.must(e.do(http.MethodPut, "/v1/dashboard/apps/"+app.Id.String()+"/channels/staff",
+		map[string]any{"channel_id": staffChannel, "liff_id": staffChannel + "-staffapp", "channel_secret": "channel-secret"}, idemHeaders(access)), http.StatusOK, "put staff channel")
+	e.staffChannels[app.Id.String()] = staffChannel
 	return app
+}
+
+// staffChannelOf returns the staff app channel ID registered for the app.
+func (e *memberEnv) staffChannelOf(app api.App) string {
+	e.t.Helper()
+	ch, ok := e.staffChannels[app.Id.String()]
+	if !ok {
+		e.t.Fatal("no staff channel for app")
+	}
+	return ch
 }
 
 // channelOf returns the channel ID registered for the app.

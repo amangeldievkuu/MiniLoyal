@@ -195,7 +195,7 @@
   },
   "channels": {
     "title": "LINE MINI App channels",
-    "help": "A MINI App channel has three internal channels (developing, review, published), each with its own LIFF ID. Fill them in separately; every configured channel ID is accepted as the ID token audience.",
+    "help": "A MINI App channel has three internal channels (developing, review, published), each with its own LIFF ID. Fill them in separately; every configured channel ID is accepted as the member ID token audience. The staff app signs in through its own LINE Login channel, configured in the fourth row.",
     "environment": "Environment",
     "channelId": "Channel ID",
     "liffId": "LIFF ID",
@@ -208,10 +208,12 @@
     "env": {
       "developing": "Developing",
       "review": "Review",
-      "published": "Published"
+      "published": "Published",
+      "staff": "Staff app (LINE Login channel)"
     },
     "verified": "Verified",
-    "notVerified": "Not verified"
+    "notVerified": "Not verified",
+    "staffHelp": "Create a separate LINE Login channel under the same provider for the staff app and add its LIFF app here. Staff sign-in accepts only this channel and member sign-in never does, so a member token from the MINI App can never open the staff app. Its channel ID must differ from the MINI App channel."
   },
   "stores": {
     "title": "Stores",

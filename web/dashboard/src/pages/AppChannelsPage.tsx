@@ -124,6 +124,9 @@ function ChannelCard({
         )
       }
     >
+      {environment === 'staff' && (
+        <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">{t('channels.staffHelp')}</p>
+      )}
       <form onSubmit={submit} aria-busy={save.isPending}>
         <fieldset disabled={!editable} className="grid gap-4 sm:grid-cols-3">
           <Field

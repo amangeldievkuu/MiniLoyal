@@ -73,6 +73,11 @@ func (s *Service) Summary(ctx context.Context, p principal.Principal, memberID u
 			return fmt.Errorf("points: account: %w", err)
 		default:
 			out.Balance, out.LifetimeEarned = acct.Balance, acct.LifetimeEarned
+			due, err := q.SumMemberDuePoints(ctx, sqlc.SumMemberDuePointsParams{MemberID: m.ID, Now: pgtype.Timestamptz{Time: s.clock.Now(), Valid: true}})
+			if err != nil {
+				return fmt.Errorf("points: due points: %w", err)
+			}
+			out.Balance -= due
 		}
 		rows, err := q.ListExpiringSoon(ctx, sqlc.ListExpiringSoonParams{MemberID: m.ID, Now: pgtype.Timestamptz{Time: s.clock.Now(), Valid: true}})
 		if err != nil {
@@ -148,6 +153,11 @@ func (s *Service) History(ctx context.Context, p principal.Principal, memberID u
 		out.Items = make([]Txn, 0, len(heads))
 		for _, h := range heads {
 			if t, ok := byTxn[h.TxnID]; ok {
+				// Notes and references are for the brand (adjustment reasons,
+				// receipt numbers); members see what happened, not why.
+				if p.IsMember() {
+					t.Note, t.RefID = nil, nil
+				}
 				out.Items = append(out.Items, *t)
 			}
 		}

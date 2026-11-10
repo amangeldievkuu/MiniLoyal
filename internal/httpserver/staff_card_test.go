@@ -25,11 +25,11 @@ func (e *memberEnv) staffInvite(access string, app api.App, name string) api.Sta
 	return st
 }
 
-// staffToken registers a LIFF ID token for sub in the app's channel.
+// staffToken registers a LIFF ID token for sub in the app's staff channel.
 func (e *memberEnv) staffIDToken(app api.App, sub string) string {
 	e.t.Helper()
 	token := "staff-idtoken-" + sub + "-" + uuid.NewString()
-	e.verifier.Add(token, lineauth.Claims{Sub: sub, Name: "Staff " + sub, Aud: e.channelOf(app)})
+	e.verifier.Add(token, lineauth.Claims{Sub: sub, Name: "Staff " + sub, Aud: e.staffChannelOf(app)})
 	return token
 }
 
@@ -432,7 +432,7 @@ func TestHS256IsOptInPerApp(t *testing.T) {
 		t.Errorf("member sign-in after opt-in: %v", lastSecrets())
 	}
 	e.staffSession(app, "Ustaff", "")
-	if lastSecrets()[e.channelOf(app)] != "channel-secret" {
+	if lastSecrets()[e.staffChannelOf(app)] != "channel-secret" {
 		t.Errorf("staff sign-in after opt-in: %v", lastSecrets())
 	}
 	audit := e.must(e.do(http.MethodGet, "/v1/dashboard/tenants/"+e.tenantID(owner)+"/audit-log", nil, bearer(owner)), http.StatusOK, "audit")

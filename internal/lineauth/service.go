@@ -159,7 +159,7 @@ func (s *Service) LoginWithLine(ctx context.Context, in LoginInput, c Client) (*
 	if fields := validateLogin(&in); len(fields) > 0 {
 		return nil, apierr.Validation(fields)
 	}
-	app, claims, err := s.VerifyIDTokenForApp(ctx, in.AppID, in.IDToken, in.Nonce)
+	app, claims, err := s.VerifyIDTokenForApp(ctx, in.AppID, in.IDToken, in.Nonce, AudienceMember)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +203,26 @@ func (s *Service) LoginWithLine(ctx context.Context, in LoginInput, c Client) (*
 // against its configured channels: every channel ID is an acceptable
 // audience, and channel secrets (for HS256 tokens) are passed only when the
 // app opted in with allow_hs256_id_tokens. Staff sign-in uses it too.
-func (s *Service) VerifyIDTokenForApp(ctx context.Context, appID uuid.UUID, idToken, nonce string) (sqlc.App, Claims, error) {
+// Audience selects which of an app's channels may issue the ID token.
+type Audience int
+
+const (
+	// AudienceMember accepts the MINI App's channels, never the staff app's.
+	AudienceMember Audience = iota
+	// AudienceStaff accepts only the staff app's own LINE Login channel.
+	AudienceStaff
+)
+
+// staffEnvironment matches tenant.StaffEnvironment (lineauth does not import
+// tenant).
+const staffEnvironment = "staff"
+
+// errStaffChannelRequired answers staff sign-in for an app without a staff
+// channel: accepting the member MINI App's tokens would let any page that
+// sees a staff member's member token open the staff app.
+var errStaffChannelRequired = apierr.New(409, "staff_channel_required", "set up the staff app's LINE Login channel in the dashboard first")
+
+func (s *Service) VerifyIDTokenForApp(ctx context.Context, appID uuid.UUID, idToken, nonce string, audience Audience) (sqlc.App, Claims, error) {
 	if s.verifier == nil {
 		return sqlc.App{}, Claims{}, errNoVerifier
 	}
@@ -233,7 +252,15 @@ func (s *Service) VerifyIDTokenForApp(ctx context.Context, appID uuid.UUID, idTo
 		return sqlc.App{}, Claims{}, err
 	}
 	vin := VerifyInput{ChannelSecrets: map[string]string{}, Nonce: nonce}
+	staffConfigured := false
 	for _, ch := range channels {
+		isStaff := ch.Environment == staffEnvironment
+		if isStaff {
+			staffConfigured = true
+		}
+		if isStaff != (audience == AudienceStaff) {
+			continue
+		}
 		if s.requireVerified && !ch.VerifiedAt.Valid {
 			continue
 		}
@@ -246,6 +273,9 @@ func (s *Service) VerifyIDTokenForApp(ctx context.Context, appID uuid.UUID, idTo
 			return sqlc.App{}, Claims{}, fmt.Errorf("lineauth: decrypt channel secret: %w", err)
 		}
 		vin.ChannelSecrets[ch.ChannelID] = string(secret)
+	}
+	if audience == AudienceStaff && !staffConfigured {
+		return sqlc.App{}, Claims{}, errStaffChannelRequired
 	}
 	if len(vin.ChannelIDs) == 0 {
 		return sqlc.App{}, Claims{}, errNoChannels

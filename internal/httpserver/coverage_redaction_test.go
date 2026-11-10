@@ -107,7 +107,7 @@ func TestStaffNeverReceivesPersonalData(t *testing.T) {
 			t.Fatalf("admins find a member by LINE user ID: %s", admin.body)
 		}
 		if bytes.Contains(r.body, []byte(f.member.Member.Id.String())) {
-			t.Skip("FINDING (low): the staff role finds a member by exact LINE user ID (GET /v1/dashboard/apps/{appId}/members?q=U...), " +
+			t.Fatal("regression of security review Phase 3, F13: the staff role finds a member by exact LINE user ID (GET /v1/dashboard/apps/{appId}/members?q=U...), " +
 				"so the redacted field still works as a lookup key; db/queries/member.sql ListMembers matches line_user_id = q for every role. " +
 				"Match the LINE user ID only for owners and admins")
 		}

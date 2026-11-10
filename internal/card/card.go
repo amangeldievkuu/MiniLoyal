@@ -21,6 +21,7 @@ package card
 import (
 	"crypto/hkdf"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
@@ -136,19 +137,21 @@ func Parse(payload string) (Parsed, error) {
 	return p, nil
 }
 
-// Verify checks the window (current one, or one either side) and the MAC
-// under the member's current key version.
+// Verify checks the MAC under the member's current key version first, then
+// the window (current one, or one either side). Checking the MAC first means
+// ErrExpired is only ever returned for a code the server really issued, so
+// the answer reveals nothing about member IDs a caller made up.
 func (c *Codec) Verify(p Parsed, keyVersion int) error {
-	now := windowOf(c.clock.Now())
-	if d := now - p.window; d > 1 || d < -1 {
-		return ErrExpired
-	}
 	want, err := c.mac(p.AppID, p.MemberID, keyVersion, p.window)
 	if err != nil {
 		return err
 	}
 	if !hmac.Equal(want, p.mac) {
 		return ErrInvalid
+	}
+	now := windowOf(c.clock.Now())
+	if d := now - p.window; d > 1 || d < -1 {
+		return ErrExpired
 	}
 	return nil
 }
@@ -174,20 +177,37 @@ func (c *Codec) mac(appID, memberID uuid.UUID, keyVersion int, window int64) ([]
 func windowOf(t time.Time) int64 { return t.Unix() / int64(Window/time.Second) }
 
 // ScanClaims bind a scan to one staff member and one member of one app.
+// JTI identifies the scan so it can pay for at most one redemption, and
+// KeyVersion is the member's card key version at scan time, so rotating the
+// card also invalidates scans already made.
 type ScanClaims struct {
-	StaffID   uuid.UUID `json:"stf"`
-	MemberID  uuid.UUID `json:"mem"`
-	AppID     uuid.UUID `json:"app"`
-	TenantID  uuid.UUID `json:"ten"`
-	IssuedAt  int64     `json:"iat"`
-	ExpiresAt int64     `json:"exp"`
+	StaffID    uuid.UUID `json:"stf"`
+	MemberID   uuid.UUID `json:"mem"`
+	AppID      uuid.UUID `json:"app"`
+	TenantID   uuid.UUID `json:"ten"`
+	KeyVersion int       `json:"kv"`
+	JTI        string    `json:"jti"`
+	IssuedAt   int64     `json:"iat"`
+	ExpiresAt  int64     `json:"exp"`
 }
 
+// Expired reports whether the claims' lifetime ended at now.
+func (cl ScanClaims) Expired(now time.Time) bool { return now.Unix() >= cl.ExpiresAt }
+
 // IssueScanToken returns a token for the claims, valid for ScanTokenTTL.
-func (c *Codec) IssueScanToken(staffID, memberID, appID, tenantID uuid.UUID) (string, time.Time, error) {
+// keyVersion is the member's qr_key_version the scanned code verified under.
+func (c *Codec) IssueScanToken(staffID, memberID, appID, tenantID uuid.UUID, keyVersion int) (string, time.Time, error) {
 	now := c.clock.Now()
 	exp := now.Add(ScanTokenTTL)
-	body, err := json.Marshal(ScanClaims{StaffID: staffID, MemberID: memberID, AppID: appID, TenantID: tenantID, IssuedAt: now.Unix(), ExpiresAt: exp.Unix()})
+	var jti [16]byte
+	if _, err := rand.Read(jti[:]); err != nil {
+		return "", time.Time{}, fmt.Errorf("card: scan token id: %w", err)
+	}
+	body, err := json.Marshal(ScanClaims{
+		StaffID: staffID, MemberID: memberID, AppID: appID, TenantID: tenantID,
+		KeyVersion: keyVersion, JTI: base64.RawURLEncoding.EncodeToString(jti[:]),
+		IssuedAt: now.Unix(), ExpiresAt: exp.Unix(),
+	})
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -200,6 +220,21 @@ func (c *Codec) IssueScanToken(staffID, memberID, appID, tenantID uuid.UUID) (st
 // VerifyScanToken checks the MAC and expiry and returns the claims. The
 // caller must still check StaffID against the signed-in staff member.
 func (c *Codec) VerifyScanToken(token string) (ScanClaims, error) {
+	cl, err := c.VerifyScanTokenIgnoringExpiry(token)
+	if err != nil {
+		return ScanClaims{}, err
+	}
+	if cl.Expired(c.clock.Now()) {
+		return ScanClaims{}, ErrExpired
+	}
+	return cl, nil
+}
+
+// VerifyScanTokenIgnoringExpiry checks the MAC and the shape but not the
+// lifetime. Points writes use it so an idempotent retry of a write that
+// already happened still replays after the token ran out; the lifetime is
+// checked before a write is made for the first time.
+func (c *Codec) VerifyScanTokenIgnoringExpiry(token string) (ScanClaims, error) {
 	if len(token) > 1024 || !strings.HasPrefix(token, scanPrefix) {
 		return ScanClaims{}, ErrMalformed
 	}
@@ -224,11 +259,8 @@ func (c *Codec) VerifyScanToken(token string) (ScanClaims, error) {
 	if err := json.Unmarshal(body, &cl); err != nil {
 		return ScanClaims{}, ErrMalformed
 	}
-	if cl.StaffID == uuid.Nil || cl.MemberID == uuid.Nil || cl.AppID == uuid.Nil || cl.TenantID == uuid.Nil {
+	if cl.StaffID == uuid.Nil || cl.MemberID == uuid.Nil || cl.AppID == uuid.Nil || cl.TenantID == uuid.Nil || cl.KeyVersion < 1 || cl.JTI == "" {
 		return ScanClaims{}, ErrMalformed
-	}
-	if c.clock.Now().Unix() >= cl.ExpiresAt {
-		return ScanClaims{}, ErrExpired
 	}
 	return cl, nil
 }
