@@ -1,9 +1,26 @@
-/** Placeholder shell. The staff scan flow (liff.scanCodeV2) arrives in Phase 3. */
+import { useEffect } from 'react';
+
+import { start, useSession } from './auth/session';
+import { Header } from './components/Header';
+import { Counter } from './screens/Counter';
+import { InviteScreen, StartScreen } from './screens/StartScreens';
+
+/** The staff app: sign in through LINE, then the counter. */
 export function App() {
-  return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: 24 }}>
-      <h1>MiniLoyal Staff</h1>
-      <p>Scan a member card to add points, stamps or redeem coupons.</p>
-    </main>
-  );
+  const state = useSession();
+
+  useEffect(() => {
+    void start();
+  }, []);
+
+  if (state.status === 'signed_in') {
+    return (
+      <>
+        <Header session={state.session} />
+        <Counter session={state.session} />
+      </>
+    );
+  }
+  if (state.status === 'needs_invite') return <InviteScreen state={state} />;
+  return <StartScreen state={state} />;
 }

@@ -1,0 +1,102 @@
+{
+  "app": {
+    "title": "MiniLoyal 店員",
+    "language": "語言"
+  },
+  "common": {
+    "signOut": "登出",
+    "retry": "重試",
+    "cancel": "取消",
+    "back": "返回",
+    "working": "處理中…",
+    "points": "點",
+    "requestId": "請求編號：{{id}}"
+  },
+  "start": {
+    "loading": "正在登入…",
+    "redirecting": "正在前往 LINE 登入…",
+    "notConfigured": "此店員 App 尚未設定完成，請聯絡管理員。",
+    "liffInit": "無法啟動 LINE，請關閉後重新開啟。",
+    "noIdToken": "無法取得 LINE 登入資訊，請重新開啟 App。",
+    "appNotFound": "找不到此商店，請聯絡管理員。",
+    "server": "暫時無法連線，請稍後再試。",
+    "tryAgain": "再試一次",
+    "rateLimited": "嘗試次數過多，請於 {{seconds}} 秒後再試。",
+    "signedOut": "已登出。",
+    "expired": "登入已過期，請重新登入。",
+    "signInAgain": "重新登入"
+  },
+  "invite": {
+    "title": "第一次登入",
+    "help": "請輸入管理員在後台提供給您的邀請碼，綁定您的 LINE 帳號。之後登入不需再輸入。",
+    "label": "邀請碼",
+    "hint": "格式 XXXX-XXXX-XXXX，不分大小寫，可省略連字號。",
+    "submit": "綁定並登入",
+    "wrongCode": "邀請碼錯誤或已過期，請向管理員索取新的邀請碼。",
+    "rateLimited": "嘗試次數過多，請於 {{seconds}} 秒後再試。",
+    "network": "無法連線，請檢查網路後重試。"
+  },
+  "header": {
+    "cashier": "收銀員",
+    "manager": "店長",
+    "noStore": "未指定門市"
+  },
+  "scan": {
+    "button": "掃描會員卡",
+    "typeCode": "手動輸入代碼",
+    "codeLabel": "會員卡代碼",
+    "submitCode": "查詢",
+    "cameraTitle": "對準會員卡 QR Code",
+    "cameraHelp": "請會員打開會員卡，將 QR Code 放在框內。",
+    "cameraError": "無法使用相機，請改用手動輸入或檢查權限。",
+    "scanning": "讀取中…",
+    "errors": {
+      "cardExpired": "會員卡代碼已過期，請會員重新整理會員卡後再掃描。",
+      "invalidCard": "這不是本店的有效會員卡。",
+      "generic": "無法讀取會員卡，請再試一次。"
+    }
+  },
+  "member": {
+    "anonymous": "會員",
+    "friend": "已加好友",
+    "notFriend": "未加好友",
+    "balance": "目前點數",
+    "expiresIn": "{{time}} 後需重新掃描",
+    "expired": "掃描已逾時，請重新掃描會員卡。",
+    "earn": "集點",
+    "redeem": "兌換點數",
+    "clear": "結束這位會員"
+  },
+  "earn": {
+    "amountLabel": "消費金額（NT$）",
+    "pointsLabel": "點數",
+    "fixedPoints": "直接給予點數（店長）",
+    "submit": "送出集點",
+    "enterAmount": "請輸入金額"
+  },
+  "redeem": {
+    "pointsLabel": "兌換點數",
+    "overBalance": "超過目前點數 {{balance}} 點。",
+    "review": "確認兌換",
+    "confirmTitle": "確認兌換",
+    "confirmBody": "兌換 {{points}} 點？兌換後剩餘 {{balance}} 點。",
+    "confirm": "確認"
+  },
+  "result": {
+    "earned": "已集 {{points}} 點",
+    "redeemed": "已兌換 {{points}} 點",
+    "newBalance": "目前點數：{{balance}} 點",
+    "next": "下一位顧客"
+  },
+  "errors": {
+    "insufficient": "點數不足，目前點數 {{balance}} 點。",
+    "scanAgain": "這次掃描已失效，請重新掃描會員卡。",
+    "network": "無法連線，請重試。點數不會重複計算。",
+    "notAllowed": "您的權限無法執行此操作。",
+    "generic": "發生錯誤，請重試。"
+  },
+  "keypad": {
+    "clear": "清除",
+    "backspace": "刪除一位"
+  }
+}
