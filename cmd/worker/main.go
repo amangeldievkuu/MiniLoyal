@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"os"
 	"os/signal"
 	"syscall"
@@ -55,8 +56,10 @@ func run() int {
 	defer pool.Close()
 
 	deps := jobs.Deps{Pool: pool, Clock: clock.Real{}, Log: logger}
-	// INTEGRATOR: pass the points service here once internal/points lands:
-	// deps.Expirer, deps.Reconciler = pointsSvc, pointsSvc
+	// Expiry and reconciliation need only the pool, clock and logger; the
+	// HTTP-facing dependencies (tenants, keyring, card) stay nil here.
+	pointsSvc := points.New(points.Deps{Pool: pool, Clock: clock.Real{}, Log: logger})
+	deps.Expirer, deps.Reconciler = pointsSvc, pointsSvc
 
 	client, err := jobs.NewClient(pool, deps, cfg.WorkerConcurrency)
 	if err != nil {
