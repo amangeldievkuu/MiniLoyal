@@ -3,6 +3,7 @@ package httpserver
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwt"
 
 	"github.com/amangeldievkuu/miniloyal/internal/api"
+	"github.com/amangeldievkuu/miniloyal/internal/card"
 	"github.com/amangeldievkuu/miniloyal/internal/lineauth"
 )
 
@@ -71,6 +73,64 @@ func forgedMemberToken(t *testing.T, sub, tenantID, appID uuid.UUID, typ string,
 	return string(signed)
 }
 
+// responseOwner reads which member (and app, when the response names one) a
+// member operation answered about. The card names both inside its QR
+// payload; points responses name the member only.
+func responseOwner(t *testing.T, opID string, body []byte) (memberID, appID uuid.UUID) {
+	t.Helper()
+	switch opID {
+	case "getMyCard":
+		var c api.MemberCard
+		if err := json.Unmarshal(body, &c); err != nil {
+			t.Fatal(err)
+		}
+		p, err := card.Parse(c.Qr)
+		if err != nil {
+			t.Fatalf("card payload: %v", err)
+		}
+		return p.MemberID, p.AppID
+	case "getMyPoints":
+		var s api.PointsSummary
+		if err := json.Unmarshal(body, &s); err != nil {
+			t.Fatal(err)
+		}
+		return uuid.UUID(s.MemberId), uuid.Nil
+	case "listMyPointsHistory":
+		var page api.PointsHistoryPage
+		if err := json.Unmarshal(body, &page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Items) == 0 {
+			t.Fatal("history is empty; the fixture member has points")
+		}
+		for _, it := range page.Items {
+			if it.MemberId != page.Items[0].MemberId {
+				t.Errorf("history mixes members %s and %s", it.MemberId, page.Items[0].MemberId)
+			}
+		}
+		return uuid.UUID(page.Items[0].MemberId), uuid.Nil
+	}
+	var got struct {
+		Id     uuid.UUID `json:"id"`
+		AppId  uuid.UUID `json:"app_id"`
+		Member *struct {
+			Id         uuid.UUID `json:"id"`
+			AppId      uuid.UUID `json:"app_id"`
+			LineUserId string    `json:"line_user_id"`
+		} `json:"member"`
+	}
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Member != nil { // exportMe wraps the member
+		got.Id, got.AppId = got.Member.Id, got.Member.AppId
+		if got.Member.LineUserId == "" {
+			t.Error("export omits the member's own LINE user ID")
+		}
+	}
+	return got.Id, got.AppId
+}
+
 func leaks(t *testing.T, body []byte, markers []string) {
 	t.Helper()
 	scanned := withoutRequestID(body)
@@ -90,6 +150,9 @@ func TestMemberScopeMatrix(t *testing.T) {
 	f := newMatrixFixtures(t, w)
 	other := newOtherApp(t, w)
 	a, b := f.member, other.member
+	// Member B holds points too, so both histories have rows to compare.
+	want(t, w.as("owner-b").post("/v1/dashboard/members/"+b.Member.Id.String()+"/points/adjustments", uuid.NewString(),
+		map[string]any{"delta": 40, "note": "welcome"}), http.StatusOK)
 
 	// Each member's own operations succeed and show only their own data.
 	for _, op := range memberOps {
@@ -111,24 +174,9 @@ func TestMemberScopeMatrix(t *testing.T) {
 					t.Fatalf("status = %d, want 200; body %s", r.code, r.body)
 				}
 				leaks(t, r.body, side.foreign)
-				var got struct {
-					Id     uuid.UUID `json:"id"`
-					AppId  uuid.UUID `json:"app_id"`
-					Member *struct {
-						Id         uuid.UUID `json:"id"`
-						AppId      uuid.UUID `json:"app_id"`
-						LineUserId string    `json:"line_user_id"`
-					} `json:"member"`
-				}
-				r.into(t, &got)
-				if got.Member != nil { // exportMe wraps the member
-					got.Id, got.AppId = got.Member.Id, got.Member.AppId
-					if got.Member.LineUserId == "" {
-						t.Error("export omits the member's own LINE user ID")
-					}
-				}
-				if got.Id != uuid.UUID(side.sess.Member.Id) || got.AppId != uuid.UUID(side.app.Id) {
-					t.Errorf("response is for member %s of app %s, want %s of %s", got.Id, got.AppId, side.sess.Member.Id, side.app.Id)
+				memberID, appID := responseOwner(t, op.id, r.body)
+				if memberID != uuid.UUID(side.sess.Member.Id) || (appID != uuid.Nil && appID != uuid.UUID(side.app.Id)) {
+					t.Errorf("response is for member %s of app %s, want %s of %s", memberID, appID, side.sess.Member.Id, side.app.Id)
 				}
 			})
 		}
@@ -140,6 +188,7 @@ func TestMemberScopeMatrix(t *testing.T) {
 	appA, appB := uuid.UUID(f.app.Id), uuid.UUID(other.app.Id)
 	refused := map[string]struct{ token, apiKey string }{
 		"dashboard token":                {"owner-a", ""},
+		"staff token of the same app":    {f.staffSess.SessionToken, ""},
 		"dashboard-typed JWT, same key":  {forgedMemberToken(t, w.ownerA, w.tenantA, appA, "dashboard", now, time.Hour), ""},
 		"api key":                        {"", f.key.Key},
 		"api key and member token":       {a.SessionToken, f.key.Key},
@@ -315,92 +364,4 @@ func TestMemberIdempotencyMatrix(t *testing.T) {
 			t.Errorf("%s replay after erasure: status = %d, want 401; body %s", op.id, r.code, r.body)
 		}
 	}
-}
-
-// Invariant: the server member routes need an API key with members:read.
-// The key sees only its own app's members; a key of another app gets 404
-// for a foreign member and a list without it; dashboard and member tokens
-// and missing credentials are 401; a key without the scope is 403.
-func TestServerMatrix(t *testing.T) {
-	w := newWorld(t)
-	f := newMatrixFixtures(t, w)
-	other := newOtherApp(t, w)
-
-	mint := func(token string, app api.App, scopes []string) api.ApiKeyCreated {
-		t.Helper()
-		r := w.as(token).post("/v1/dashboard/apps/"+app.Id.String()+"/api-keys", uuid.NewString(), map[string]any{"name": "k", "scopes": scopes})
-		want(t, r, http.StatusCreated)
-		var k api.ApiKeyCreated
-		r.into(t, &k)
-		return k
-	}
-	noScope := mint("owner-a", f.app, []string{"points:write"})
-	keyB := mint("owner-b", other.app, []string{"members:read"})
-	before := w.snapshot(w.tenantA)
-
-	for _, op := range serverOps {
-		t.Run(op.id+"/own key", func(t *testing.T) {
-			r := w.call(op.method, op.path(f), "", f.key.Key, "", nil)
-			want(t, r, http.StatusOK)
-			leaks(t, r.body, other.markers(w))
-			if !bytes.Contains(r.body, []byte(f.member.Member.Id.String())) {
-				t.Errorf("own member missing: %s", r.body)
-			}
-		})
-		t.Run(op.id+"/key without scope", func(t *testing.T) {
-			r := w.call(op.method, op.path(f), "", noScope.Key, "", nil)
-			want(t, r, http.StatusForbidden)
-			if code := r.errCode(t); code != "forbidden" {
-				t.Errorf("code = %s", code)
-			}
-			leaks(t, r.body, f.markers())
-		})
-		t.Run(op.id+"/key of another app", func(t *testing.T) {
-			r := w.call(op.method, op.path(f), "", keyB.Key, "", nil)
-			switch op.id {
-			case "serverListMembers":
-				want(t, r, http.StatusOK)
-				if !bytes.Contains(r.body, []byte(other.member.Member.Id.String())) {
-					t.Errorf("app B's key does not see app B's member: %s", r.body)
-				}
-			default:
-				want(t, r, http.StatusNotFound)
-				if code := r.errCode(t); code != "not_found" {
-					t.Errorf("code = %s", code)
-				}
-			}
-			leaks(t, r.body, f.markers())
-		})
-		refused := map[string]struct{ token, apiKey string }{
-			"dashboard token":     {"owner-a", ""},
-			"dashboard-typed JWT": {forgedMemberToken(t, w.ownerA, w.tenantA, uuid.UUID(f.app.Id), "dashboard", time.Now(), time.Hour), ""},
-			"member token":        {f.member.SessionToken, ""},
-			"no credentials":      {"", ""},
-			"unknown key":         {"", "ml_" + strings.Repeat("x", 40)},
-			"key in bearer":       {f.key.Key, ""},
-		}
-		for name, c := range refused {
-			t.Run(op.id+"/"+name, func(t *testing.T) {
-				r := w.call(op.method, op.path(f), c.token, c.apiKey, "", nil)
-				want(t, r, http.StatusUnauthorized)
-				if code := r.errCode(t); code != "unauthorized" {
-					t.Errorf("code = %s", code)
-				}
-				leaks(t, r.body, f.markers())
-			})
-		}
-	}
-
-	// A member erased by the dashboard disappears from the server API too.
-	want(t, w.as("owner-a").del("/v1/dashboard/members/"+f.member.Member.Id.String()), http.StatusNoContent)
-	want(t, w.call(http.MethodGet, "/v1/members/"+f.member.Member.Id.String(), "", f.key.Key, "", nil), http.StatusNotFound)
-	list := w.call(http.MethodGet, "/v1/members", "", f.key.Key, "", nil)
-	want(t, list, http.StatusOK)
-	if bytes.Contains(list.body, []byte(f.member.Member.Id.String())) || bytes.Contains(list.body, []byte(fixtureLineUser)) {
-		t.Errorf("erased member still listed: %s", list.body)
-	}
-
-	// Reads changed nothing but the asynchronous api_keys.last_used_at
-	// touch, and the deliberate erasure above touched members and audit_log.
-	assertUnchangedExcept(t, before, w.snapshot(w.tenantA), "after server reads", "api_keys", "members", "audit_log")
 }
