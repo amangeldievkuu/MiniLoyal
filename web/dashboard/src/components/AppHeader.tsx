@@ -15,6 +15,8 @@ const tabs = [
   { to: '/apps/$appId', key: 'settings' },
   { to: '/apps/$appId/members', key: 'members' },
   { to: '/apps/$appId/points', key: 'points' },
+  { to: '/apps/$appId/coupons', key: 'coupons' },
+  { to: '/apps/$appId/stamp-cards', key: 'stampCards' },
   { to: '/apps/$appId/channels', key: 'channels' },
   { to: '/apps/$appId/stores', key: 'stores' },
   { to: '/apps/$appId/staff', key: 'staff' },

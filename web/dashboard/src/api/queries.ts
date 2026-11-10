@@ -2,6 +2,8 @@ import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 
 import { api, unwrap } from './client';
 import type {
+  ArchiveStatus,
+  CouponState,
   ApiKey,
   App,
   AppChannel,
@@ -42,6 +44,16 @@ export const keys = {
   memberPointsRoot: (memberId: string) => ['member', memberId, 'points'] as const,
   memberPoints: (memberId: string) => ['member', memberId, 'points', 'summary'] as const,
   memberPointsHistory: (memberId: string) => ['member', memberId, 'points', 'history'] as const,
+  couponTemplatesRoot: (appId: string) => ['app', appId, 'coupon-templates'] as const,
+  couponTemplates: (appId: string, status: ArchiveStatus | undefined) =>
+    ['app', appId, 'coupon-templates', status ?? ''] as const,
+  stampCardsRoot: (appId: string) => ['app', appId, 'stamp-cards'] as const,
+  stampCards: (appId: string, status: ArchiveStatus | undefined) =>
+    ['app', appId, 'stamp-cards', status ?? ''] as const,
+  memberCouponsRoot: (memberId: string) => ['member', memberId, 'coupons'] as const,
+  memberCoupons: (memberId: string, state: CouponState | undefined) =>
+    ['member', memberId, 'coupons', state ?? ''] as const,
+  memberStamps: (memberId: string) => ['member', memberId, 'stamps'] as const,
   securityEvents: ['me', 'security-events'] as const,
 };
 

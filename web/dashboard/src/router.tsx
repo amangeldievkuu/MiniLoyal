@@ -15,6 +15,8 @@ import { AppChannelsPage } from './pages/AppChannelsPage';
 import { AppSettingsPage } from './pages/AppSettingsPage';
 import { AuditPage } from './pages/AuditPage';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
+import { CouponTemplatesPage } from './pages/CouponTemplatesPage';
+import { StampCardsPage } from './pages/StampCardsPage';
 import { MePage } from './pages/MePage';
 import { MemberDetailPage } from './pages/MemberDetailPage';
 import { MembersPage } from './pages/MembersPage';
@@ -138,6 +140,18 @@ const pointsRoute = createRoute({
   component: PointsRulesPage,
 });
 
+const couponsRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: '/apps/$appId/coupons',
+  component: CouponTemplatesPage,
+});
+
+const stampCardsRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: '/apps/$appId/stamp-cards',
+  component: StampCardsPage,
+});
+
 const channelsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/apps/$appId/channels',
@@ -181,6 +195,8 @@ const routeTree = rootRoute.addChildren([
     membersRoute,
     memberDetailRoute,
     pointsRoute,
+    couponsRoute,
+    stampCardsRoute,
     channelsRoute,
     storesRoute,
     staffRoute,
