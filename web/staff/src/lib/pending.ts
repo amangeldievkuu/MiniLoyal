@@ -1,12 +1,13 @@
 import { useSyncExternalStore } from 'react';
 
-import type { ApiError } from '../api/client';
+import { api, toApiError, unwrap, type ApiError } from '../api/client';
 import type { PointsTransaction, ScannedMember } from '../api/types';
 
 /** The request body of an earn or a redemption. */
 export type EarnBody =
   { scan_token: string; spend_amount: number } | { scan_token: string; points: number };
 export type RedeemBody = { scan_token: string; points: number };
+export type PointsWrite = { kind: 'earn'; body: EarnBody } | { kind: 'redeem'; body: RedeemBody };
 
 /**
  * A points write whose outcome is not known yet. It keeps its Idempotency-Key
@@ -19,7 +20,38 @@ export type PendingAction = {
   member: ScannedMember;
   /** The last failure, shown in the banner. */
   error?: ApiError;
-} & ({ kind: 'earn'; body: EarnBody } | { kind: 'redeem'; body: RedeemBody });
+} & PointsWrite;
+
+async function post(p: PendingAction): Promise<PointsTransaction> {
+  const params = { header: { 'Idempotency-Key': p.key } };
+  return p.kind === 'earn'
+    ? unwrap(await api.POST('/v1/staff/points/earn', { params, body: p.body }))
+    : unwrap(await api.POST('/v1/staff/points/redeem', { params, body: p.body }));
+}
+
+/**
+ * Sends a points write and settles it. A definite answer (2xx, or a 4xx that
+ * says nothing was written) clears the pending action; anything else keeps
+ * the key and body so the retry replays the same write.
+ */
+export async function sendPointsWrite(p: PendingAction): Promise<Outcome> {
+  const settle = () => {
+    if (getPendingAction()?.key === p.key) setPendingAction(null);
+  };
+  try {
+    const txn = await post(p);
+    settle();
+    return { ok: true, txn };
+  } catch (err) {
+    const error = toApiError(err);
+    if (isDefinite(error)) {
+      settle();
+      return { ok: false, error, ambiguous: false };
+    }
+    setPendingAction({ ...p, error });
+    return { ok: false, error, ambiguous: true };
+  }
+}
 
 /** What a submission came back with. */
 export type Outcome =

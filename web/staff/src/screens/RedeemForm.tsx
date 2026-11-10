@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { ApiError } from '../api/client';
 import type { PointsTransaction, ScanResult } from '../api/types';
 import { Keypad } from '../components/Keypad';
+import { MAX_POINTS } from '../lib/limits';
 import { Alert, Button, Card } from '../components/ui';
 import type { Outcome, RedeemBody } from '../lib/pending';
 import { describeActionError } from './actionError';
@@ -52,7 +53,13 @@ export function RedeemForm({
 
   return (
     <div className="flex flex-col gap-4" aria-busy={pending}>
-      <Keypad id="redeem-points" label={t('redeem.pointsLabel')} value={points} onChange={change} />
+      <Keypad
+        id="redeem-points"
+        label={t('redeem.pointsLabel')}
+        value={points}
+        onChange={change}
+        max={MAX_POINTS}
+      />
       {over && (
         <Alert tone="warning">
           {t('redeem.overBalance', { balance: scan.balance.toLocaleString() })}

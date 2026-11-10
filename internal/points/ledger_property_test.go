@@ -58,6 +58,21 @@ func (m *model) consume(n int64) {
 	}
 }
 
+// snapshot records what every lot holds, for restore after a refused write.
+func (m *model) snapshot() []int64 {
+	out := make([]int64, len(m.lots))
+	for i, l := range m.lots {
+		out[i] = l.remaining
+	}
+	return out
+}
+
+func (m *model) restore(s []int64) {
+	for i, r := range s {
+		m.lots[i].remaining = r
+	}
+}
+
 // expire empties every lot due at now and returns how many it emptied.
 func (m *model) expire(now time.Time) int {
 	n := 0
@@ -150,9 +165,17 @@ func TestLedgerPropertyRandomSequences(t *testing.T) {
 		// and some fall due between expiry runs.
 		e.clk.Advance(time.Duration(rng.IntN(36)) * time.Hour)
 		now := e.clk.Now()
+		p := rng.IntN(100)
+		// Every write expires the member's due lots first, in its own
+		// transaction (security review Phase 3, F6); a refused write rolls
+		// that back, so the model restores its lots on a refusal.
+		before := m.snapshot()
+		if p < 85 {
+			m.expire(now)
+		}
 		bal := m.balance()
 
-		switch p := rng.IntN(100); {
+		switch {
 		case p < 35: // earn through the till
 			spend := 100 + rng.IntN(4901)
 			pts := int64(spend / 100)
@@ -171,6 +194,7 @@ func TestLedgerPropertyRandomSequences(t *testing.T) {
 				if code(err) != "insufficient_points" {
 					t.Fatalf("step %d: redeem %d of %d: %v", step, n, bal, err)
 				}
+				m.restore(before)
 				counts["redeem refused"]++
 				break
 			}
@@ -189,6 +213,7 @@ func TestLedgerPropertyRandomSequences(t *testing.T) {
 				if code(err) != "insufficient_points" {
 					t.Fatalf("step %d: adjust %d of %d: %v", step, delta, bal, err)
 				}
+				m.restore(before)
 				counts["adjust refused"]++
 				break
 			}
@@ -346,7 +371,7 @@ func TestExpiredPointsCannotBeRedeemedBeforeTheJobRuns(t *testing.T) {
 	st := e.staff("cashier")
 	tx, err := e.svc.StaffRedeem(ctx, st, idem(), e.scan(t, st, m), 10, nil)
 	if err == nil {
-		t.Skipf("FINDING: a redemption %s after the lot's expiry spent %d expired points (balance after %d); "+
+		t.Fatalf("regression of security review Phase 3, F6: a redemption %s after the lot's expiry spent %d expired points (balance after %d); "+
 			"internal/points/service.go apply consumes ListOpenLotsForUpdate, which does not exclude lots with expires_at <= now, "+
 			"so expired points stay spendable until the next ExpireDue run (up to jobs.ExpiryInterval); "+
 			"the summary's balance also still counts them", time.Minute, -tx.Points, tx.BalanceAfter)
@@ -380,26 +405,34 @@ func TestOperationBoundsAtTheSpecMaxima(t *testing.T) {
 	}
 
 	// spend_amount 100,000,000 (the spec maximum) at 1 currency unit = 1000
-	// points would be 10^11 points: refused as a validation error.
+	// points would be 10^11 points: the rule math does not overflow and one
+	// purchase earns the platform ceiling (security review Phase 3, F4/F5).
 	put(points.Rules{SpendPerPoint: 1, PointsPerUnit: 1000})
-	if _, err := earn(intp(100_000_000), nil); code(err) != "validation_failed" {
-		t.Fatalf("max spend, generous rule: %v", err)
-	}
-	// With a cap the same purchase earns exactly the cap.
-	put(points.Rules{SpendPerPoint: 1, PointsPerUnit: 1000, MaxPointsPerTxn: intp(points.MaxPointsPerOperation)})
 	tx, err := earn(intp(100_000_000), nil)
-	if err != nil || tx.Points != points.MaxPointsPerOperation || tx.SpendAmount == nil || *tx.SpendAmount != 100_000_000 {
-		t.Fatalf("max spend, capped: %+v %v", tx, err)
+	if err != nil || tx.Points != points.MaxEarnPerOperation || tx.SpendAmount == nil || *tx.SpendAmount != 100_000_000 {
+		t.Fatalf("max spend, generous rule: %+v %v", tx, err)
+	}
+	// A rule cap above the ceiling still earns the ceiling.
+	put(points.Rules{SpendPerPoint: 1, PointsPerUnit: 1000, MaxPointsPerTxn: intp(points.MaxPointsPerOperation)})
+	if tx, err := earn(intp(100_000_000), nil); err != nil || tx.Points != points.MaxEarnPerOperation {
+		t.Fatalf("max spend, capped above the ceiling: %+v %v", tx, err)
 	}
 	put(points.Rules{SpendPerPoint: 100, PointsPerUnit: 1, MaxPointsPerTxn: intp(5)})
 	if tx, err := earn(intp(1_000_000), nil); err != nil || tx.Points != 5 {
 		t.Fatalf("cap of 5: %+v %v", tx, err)
 	}
-	// Fixed points at the maximum, and one more.
-	if tx, err := earn(nil, intp(points.MaxPointsPerOperation)); err != nil || tx.Points != points.MaxPointsPerOperation {
+	// Fixed points respect the rule cap, then the platform ceiling.
+	if tx, err := earn(nil, intp(5)); err != nil || tx.Points != 5 {
+		t.Fatalf("fixed points at the cap: %+v %v", tx, err)
+	}
+	if _, err := earn(nil, intp(6)); code(err) != "validation_failed" {
+		t.Fatalf("fixed points above the cap: %v", err)
+	}
+	put(points.Rules{SpendPerPoint: 100, PointsPerUnit: 1})
+	if tx, err := earn(nil, intp(points.MaxEarnPerOperation)); err != nil || tx.Points != points.MaxEarnPerOperation {
 		t.Fatalf("max fixed points: %+v %v", tx, err)
 	}
-	if _, err := earn(nil, intp(points.MaxPointsPerOperation+1)); code(err) != "validation_failed" {
+	if _, err := earn(nil, intp(points.MaxEarnPerOperation+1)); code(err) != "validation_failed" {
 		t.Fatalf("max+1 fixed points: %v", err)
 	}
 	for _, bad := range []int{0, -1} {
@@ -437,7 +470,7 @@ func TestOperationBoundsAtTheSpecMaxima(t *testing.T) {
 	}
 	var lifetime int64
 	_ = e.d.Admin.QueryRow(ctx, "SELECT lifetime_earned FROM points_accounts WHERE member_id = $1", m).Scan(&lifetime)
-	if lifetime != 2*points.MaxPointsPerOperation+5 {
+	if lifetime != 3*points.MaxEarnPerOperation+10 {
 		t.Errorf("lifetime earned = %d", lifetime)
 	}
 }

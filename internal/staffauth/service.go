@@ -386,7 +386,12 @@ func (s *Service) Scan(ctx context.Context, p principal.Principal, qr string) (S
 		acct, err := q.GetPointsAccount(ctx, m.ID)
 		switch {
 		case err == nil:
-			out.Balance = acct.Balance
+			// Due lots are expired by the next write; do not show them as spendable.
+			due, err := q.SumMemberDuePoints(ctx, sqlc.SumMemberDuePointsParams{MemberID: m.ID, Now: pgtype.Timestamptz{Time: s.clock.Now(), Valid: true}})
+			if err != nil {
+				return fmt.Errorf("staffauth: due points: %w", err)
+			}
+			out.Balance = acct.Balance - due
 		case db.IsNotFound(err):
 		default:
 			return fmt.Errorf("staffauth: load points: %w", err)

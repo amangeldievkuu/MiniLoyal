@@ -97,11 +97,13 @@
     "generic": "Something went wrong. Try again.",
     "selfService": "You cannot add or redeem points on your own member card. Ask a colleague.",
     "rateLimited": "Too many actions in a short time. Wait {{seconds}} s and try again.",
-    "scanUsed": "This scan was already used for a redemption. Scan the member card again."
+    "scanUsed": "This scan was already used for a redemption. Scan the member card again.",
+    "pointsDisabled": "Points are turned off for this shop."
   },
   "keypad": {
     "clear": "Clear",
-    "backspace": "Delete one digit"
+    "backspace": "Delete one digit",
+    "tooLarge": "At most {{max}}. That amount was not entered."
   },
   "pending": {
     "title": "Last action not confirmed",

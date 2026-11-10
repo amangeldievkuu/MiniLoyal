@@ -129,7 +129,7 @@ describe('pending points write', () => {
     mockApi({
       [SCAN]: () => json(200, scanResult(300)),
       [EARN]: (_call, n) =>
-        n === 0 ? lostResponse() : json(403, errorBody('invalid_scan_token', 'scan again')),
+        n === 0 ? lostResponse() : json(403, errorBody('scan_invalid', 'scan again')),
     });
     render(<Counter session={staffSession()} />);
     await scan();
@@ -164,6 +164,14 @@ describe('outcome classification', () => {
     expect(self.scanAgain).toBe(false);
     const used = describeActionError(new ApiError(409, { code: 'scan_used' }, 'x'), t, 0);
     expect(used.scanAgain).toBe(true);
+    // The codes the server sends for an unusable scan token.
+    for (const code of ['scan_invalid', 'scan_mismatch']) {
+      expect(describeActionError(new ApiError(403, { code }, 'x'), t, 0).scanAgain).toBe(true);
+    }
+    // A role refusal is not a scan problem.
+    const role = describeActionError(new ApiError(403, { code: 'forbidden' }, 'x'), t, 0);
+    expect(role.scanAgain).toBe(false);
+    expect(role.message).toMatch(/role does not allow/);
   });
 });
 

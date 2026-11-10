@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { ApiError } from '../api/client';
 import type { PointsTransaction, ScanResult } from '../api/types';
 import { Keypad } from '../components/Keypad';
+import { MAX_POINTS, MAX_SPEND_AMOUNT } from '../lib/limits';
 import { Alert, Button } from '../components/ui';
 import type { EarnBody, Outcome } from '../lib/pending';
 import { describeActionError } from './actionError';
@@ -80,6 +81,7 @@ export function EarnForm({
         prefix={fixed ? undefined : 'NT$'}
         value={amount}
         onChange={change}
+        max={fixed ? MAX_POINTS : MAX_SPEND_AMOUNT}
       />
       {blocked && <Alert tone="warning">{t('pending.blocked')}</Alert>}
       {failure && (

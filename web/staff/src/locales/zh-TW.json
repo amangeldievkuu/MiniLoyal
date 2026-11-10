@@ -97,11 +97,13 @@
     "generic": "發生錯誤，請重試。",
     "selfService": "不能為自己的會員卡加點或折抵，請請同事協助。",
     "rateLimited": "短時間內操作太多次，請等 {{seconds}} 秒再試。",
-    "scanUsed": "這次掃描已用於折抵，請重新掃描會員卡。"
+    "scanUsed": "這次掃描已用於折抵，請重新掃描會員卡。",
+    "pointsDisabled": "這家店已關閉點數功能。"
   },
   "keypad": {
     "clear": "清除",
-    "backspace": "刪除一位"
+    "backspace": "刪除一位",
+    "tooLarge": "最多 {{max}}，這個數字沒有輸入。"
   },
   "pending": {
     "title": "上一筆操作尚未確認",

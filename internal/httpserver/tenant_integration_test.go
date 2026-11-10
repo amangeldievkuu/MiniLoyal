@@ -66,6 +66,7 @@ func newWorld(t *testing.T) *world {
 	// so both share one keyring.
 	keyring := crypto.Static(bytes.Repeat([]byte{5}, 32))
 	svc := tenant.New(d.App, keyring, clock.Real{}, log)
+	svc.SetInviteKey(fullSigningKey)
 	w := &world{t: t, db: d, svc: svc, verifier: lineauthtest.NewFakeVerifier()}
 	lineAuth, err := lineauth.New(lineauth.Deps{Pool: d.App, Keyring: keyring, Verifier: w.verifier, Clock: clock.Real{}, Log: log,
 		Config: lineauth.Config{SigningKey: fullSigningKey, IPPerMinute: 10000}})

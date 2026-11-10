@@ -105,6 +105,13 @@ WHERE member_id = $1 AND remaining > 0 AND expires_at IS NOT NULL AND expires_at
 ORDER BY expires_at, id
 FOR UPDATE;
 
+-- name: SumMemberDuePoints :one
+-- Points in lots already due but not yet expired by a write or the job.
+-- Reads subtract them, so a balance on screen never counts expired points.
+SELECT coalesce(sum(remaining), 0)::bigint AS points
+FROM points_lots
+WHERE member_id = $1 AND remaining > 0 AND expires_at IS NOT NULL AND expires_at <= sqlc.arg('now');
+
 -- name: UseScanToken :execrows
 -- Zero rows means the scan token already paid for a redemption.
 INSERT INTO scan_token_uses (jti, tenant_id, app_id, used_at)

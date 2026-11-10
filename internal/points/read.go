@@ -73,6 +73,11 @@ func (s *Service) Summary(ctx context.Context, p principal.Principal, memberID u
 			return fmt.Errorf("points: account: %w", err)
 		default:
 			out.Balance, out.LifetimeEarned = acct.Balance, acct.LifetimeEarned
+			due, err := q.SumMemberDuePoints(ctx, sqlc.SumMemberDuePointsParams{MemberID: m.ID, Now: pgtype.Timestamptz{Time: s.clock.Now(), Valid: true}})
+			if err != nil {
+				return fmt.Errorf("points: due points: %w", err)
+			}
+			out.Balance -= due
 		}
 		rows, err := q.ListExpiringSoon(ctx, sqlc.ListExpiringSoonParams{MemberID: m.ID, Now: pgtype.Timestamptz{Time: s.clock.Now(), Valid: true}})
 		if err != nil {

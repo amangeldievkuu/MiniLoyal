@@ -249,7 +249,7 @@ func staffOpByID(t *testing.T, id string) opCase {
 
 func mustScanToken(t *testing.T, w *world, staffID, memberID, appID, tenantID uuid.UUID) string {
 	t.Helper()
-	tok, _, err := w.cards.IssueScanToken(staffID, memberID, appID, tenantID)
+	tok, _, err := w.cards.IssueScanToken(staffID, memberID, appID, tenantID, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

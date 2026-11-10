@@ -141,7 +141,7 @@ func TestSpendAboveTheSpecMaximumIsRefused(t *testing.T) {
 		}
 	}
 	if len(defects) > 0 {
-		t.Skipf("FINDING: spend_amount above the spec maximum of 100000000 is not refused: %s. "+
+		t.Fatalf("regression of security review Phase 3, F5: spend_amount above the spec maximum of 100000000 is not refused: %s. "+
 			"internal/points/rules.go PointsFor checks only spend >= 0, and service.go apply stores int32(*op.spend), "+
 			"so values above 2^31-1 wrap (500 on the CHECK, or a different stored amount)", strings.Join(defects, "; "))
 	}

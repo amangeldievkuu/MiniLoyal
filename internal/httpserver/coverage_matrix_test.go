@@ -393,10 +393,19 @@ const (
 
 // staffLogin signs a LINE account in to the staff app of app through
 // /v1/staff/auth/line; code is the invite code, empty after binding.
+//
+// Staff sign-in accepts only the app's staff LINE Login channel (security
+// review Phase 3, F3), so the app gets one derived from channelID and the
+// token is issued for it.
 func (w *world) staffLogin(app api.App, channelID, sub, code string) tresp {
 	w.t.Helper()
+	staffChannel := "9" + channelID[1:]
+	w.db.Exec(w.t, `INSERT INTO app_channels (tenant_id, app_id, environment, channel_id, liff_id)
+		SELECT tenant_id, id, 'staff', $2, $3 FROM apps WHERE id = $1
+		ON CONFLICT (app_id, environment) DO NOTHING`,
+		uuid.UUID(app.Id), staffChannel, staffChannel+"-staff-"+app.Id.String())
 	token := "staff-idtoken-" + sub + "-" + uuid.NewString()
-	w.verifier.Add(token, lineauth.Claims{Sub: sub, Name: "Staff " + sub, Aud: channelID})
+	w.verifier.Add(token, lineauth.Claims{Sub: sub, Name: "Staff " + sub, Aud: staffChannel})
 	body := map[string]any{"app_id": app.Id, "id_token": token}
 	if code != "" {
 		body["invite_code"] = code

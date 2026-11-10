@@ -7,52 +7,17 @@ import { CameraScanner } from '../components/CameraScanner';
 import { MemberPanel } from '../components/MemberPanel';
 import { Alert, Button, Card } from '../components/ui';
 import {
-  getPendingAction,
-  isDefinite,
+  sendPointsWrite as send,
   setPendingAction,
   usePendingAction,
-  type EarnBody,
   type Outcome,
   type PendingAction,
-  type RedeemBody,
+  type PointsWrite,
 } from '../lib/pending';
 import { canScanNatively, liff } from '../liff';
 import { describeActionError } from './actionError';
 import { EarnForm } from './EarnForm';
 import { RedeemForm } from './RedeemForm';
-
-type Write = { kind: 'earn'; body: EarnBody } | { kind: 'redeem'; body: RedeemBody };
-
-async function post(w: Write & { key: string }): Promise<PointsTransaction> {
-  const params = { header: { 'Idempotency-Key': w.key } };
-  return w.kind === 'earn'
-    ? unwrap(await api.POST('/v1/staff/points/earn', { params, body: w.body }))
-    : unwrap(await api.POST('/v1/staff/points/redeem', { params, body: w.body }));
-}
-
-/**
- * Sends a points write and settles it. A definite answer (2xx, or a 4xx that
- * says nothing was written) clears the pending action; anything else keeps
- * the key and body so the retry replays the same write.
- */
-async function send(p: PendingAction): Promise<Outcome> {
-  const settle = () => {
-    if (getPendingAction()?.key === p.key) setPendingAction(null);
-  };
-  try {
-    const txn = await post(p);
-    settle();
-    return { ok: true, txn };
-  } catch (err) {
-    const error = toApiError(err);
-    if (isDefinite(error)) {
-      settle();
-      return { ok: false, error, ambiguous: false };
-    }
-    setPendingAction({ ...p, error });
-    return { ok: false, error, ambiguous: true };
-  }
-}
 
 type Stage =
   | { name: 'idle' }
@@ -80,7 +45,7 @@ export function Counter({ session }: { session: StaffSession }) {
 
   /** A new write from a form: a fresh key, held until the outcome is known. */
   const submitWrite = useCallback(
-    (w: Write, member: ScannedMember): Promise<Outcome> => {
+    (w: PointsWrite, member: ScannedMember): Promise<Outcome> => {
       setConfirmDiscard(false);
       return send({ ...w, key: crypto.randomUUID(), staffId, member });
     },

@@ -642,6 +642,26 @@ func (q *Queries) StartReconciliationRun(ctx context.Context, startedAt pgtype.T
 	return id, err
 }
 
+const sumMemberDuePoints = `-- name: SumMemberDuePoints :one
+SELECT coalesce(sum(remaining), 0)::bigint AS points
+FROM points_lots
+WHERE member_id = $1 AND remaining > 0 AND expires_at IS NOT NULL AND expires_at <= $2
+`
+
+type SumMemberDuePointsParams struct {
+	MemberID uuid.UUID          `json:"member_id"`
+	Now      pgtype.Timestamptz `json:"now"`
+}
+
+// Points in lots already due but not yet expired by a write or the job.
+// Reads subtract them, so a balance on screen never counts expired points.
+func (q *Queries) SumMemberDuePoints(ctx context.Context, arg SumMemberDuePointsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, sumMemberDuePoints, arg.MemberID, arg.Now)
+	var points int64
+	err := row.Scan(&points)
+	return points, err
+}
+
 const upsertPointsRules = `-- name: UpsertPointsRules :one
 INSERT INTO points_rules (app_id, tenant_id, currency, spend_per_point, points_per_unit, min_spend, max_points_per_txn, expiry_days, enabled)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
