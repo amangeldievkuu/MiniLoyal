@@ -215,9 +215,10 @@ func TestPhase4CheckConstraints(t *testing.T) {
 		{"amount 1000000", tmpl, []any{f.tenant, f.app, "amount_off", 1000000, nil, 1, nil}, ""},
 		{"amount 0", tmpl, []any{f.tenant, f.app, "amount_off", 0, nil, 1, nil}, db.CodeCheckViolation},
 		{"amount 1000001", tmpl, []any{f.tenant, f.app, "amount_off", 1000001, nil, 1, nil}, db.CodeCheckViolation},
-		{"amount without value", tmpl, []any{f.tenant, f.app, "amount_off", nil, nil, 1, nil}, notNull},
-		{"free item 0", tmpl, []any{f.tenant, f.app, "free_item", 0, nil, 1, nil}, ""},
-		{"free item without value", tmpl, []any{f.tenant, f.app, "free_item", nil, nil, 1, nil}, notNull},
+		{"amount without value", tmpl, []any{f.tenant, f.app, "amount_off", nil, nil, 1, nil}, db.CodeCheckViolation},
+		{"percent without value", tmpl, []any{f.tenant, f.app, "percent_off", nil, nil, 1, nil}, db.CodeCheckViolation},
+		{"free item without value", tmpl, []any{f.tenant, f.app, "free_item", nil, nil, 1, nil}, ""},
+		{"free item 0", tmpl, []any{f.tenant, f.app, "free_item", 0, nil, 1, nil}, db.CodeCheckViolation},
 		{"free item with value", tmpl, []any{f.tenant, f.app, "free_item", 5, nil, 1, nil}, db.CodeCheckViolation},
 		{"unknown type", tmpl, []any{f.tenant, f.app, "bogo", 5, nil, 1, nil}, db.CodeCheckViolation},
 		{"zero total limit", tmpl, []any{f.tenant, f.app, "amount_off", 50, 0, 1, nil}, db.CodeCheckViolation},
@@ -268,6 +269,30 @@ func TestPhase4CheckConstraints(t *testing.T) {
 		})
 		if db.Code(err) != db.CodeCheckViolation {
 			t.Errorf("got %v, want a check violation", err)
+		}
+	})
+
+	// PATCH switching amount_off to free_item must clear value in the same update.
+	t.Run("switch to free item clears value", func(t *testing.T) {
+		update := func(setValue bool) (sqlc.CouponTemplate, error) {
+			var row sqlc.CouponTemplate
+			err := d.WithTenant(t, f.tenant, func(ctx context.Context, tx pgx.Tx) (err error) {
+				row, err = sqlc.New(tx).UpdateCouponTemplate(ctx, sqlc.UpdateCouponTemplateParams{
+					Type: ptr("free_item"), SetValue: setValue, Now: ts(now), AppID: f.app, ID: templateID,
+				})
+				return err
+			})
+			return row, err
+		}
+		if _, err := update(false); db.Code(err) != db.CodeCheckViolation {
+			t.Errorf("free_item keeping value 50: %v, want a check violation", err)
+		}
+		row, err := update(true)
+		if err != nil {
+			t.Fatalf("free_item with value cleared: %v", err)
+		}
+		if row.Type != "free_item" || row.Value != nil {
+			t.Errorf("type %s value %v, want free_item and nil", row.Type, row.Value)
 		}
 	})
 }

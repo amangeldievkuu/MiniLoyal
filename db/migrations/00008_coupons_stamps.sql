@@ -27,8 +27,8 @@ CREATE TABLE coupon_templates (
   name              text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 100),
   description       text CHECK (description IS NULL OR char_length(description) <= 2000),
   type              text NOT NULL CHECK (type IN ('amount_off', 'percent_off', 'free_item')),
-  -- amount_off: whole currency units; percent_off: 1..100; free_item: 0.
-  value             integer NOT NULL,
+  -- amount_off: whole currency units; percent_off: 1..100; free_item: NULL.
+  value             integer,
   -- Most instances ever issued, from every source; NULL for no limit.
   total_limit       integer CHECK (total_limit IS NULL OR total_limit BETWEEN 1 AND 10000000),
   -- Most instances one member may hold from claims (voided ones excluded).
@@ -46,10 +46,12 @@ CREATE TABLE coupon_templates (
   updated_at        timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (tenant_id, app_id) REFERENCES apps (tenant_id, id) ON DELETE CASCADE,
   UNIQUE (app_id, id),
+  -- value IS NOT NULL is explicit: a NULL comparison yields NULL, which a
+  -- CHECK accepts, so amount_off without a value would otherwise pass.
   CONSTRAINT coupon_templates_value_check CHECK (
-    (type = 'amount_off' AND value BETWEEN 1 AND 1000000) OR
-    (type = 'percent_off' AND value BETWEEN 1 AND 100) OR
-    (type = 'free_item' AND value = 0)
+    (type = 'amount_off' AND value IS NOT NULL AND value BETWEEN 1 AND 1000000) OR
+    (type = 'percent_off' AND value IS NOT NULL AND value BETWEEN 1 AND 100) OR
+    (type = 'free_item' AND value IS NULL)
   ),
   CONSTRAINT coupon_templates_window_check CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_to > valid_from),
   -- total_limit cannot go below claimed_count (the API answers 409 coupon_template_in_use).

@@ -101,7 +101,7 @@ type CreateCouponTemplateParams struct {
 	Name           string             `json:"name"`
 	Description    *string            `json:"description"`
 	Type           string             `json:"type"`
-	Value          int32              `json:"value"`
+	Value          *int32             `json:"value"`
 	TotalLimit     *int32             `json:"total_limit"`
 	PerMemberLimit int32              `json:"per_member_limit"`
 	ValidFrom      pgtype.Timestamptz `json:"valid_from"`
@@ -422,7 +422,7 @@ type ListCouponOffersRow struct {
 	Name           string             `json:"name"`
 	Description    *string            `json:"description"`
 	Type           string             `json:"type"`
-	Value          int32              `json:"value"`
+	Value          *int32             `json:"value"`
 	TotalLimit     *int32             `json:"total_limit"`
 	PerMemberLimit int32              `json:"per_member_limit"`
 	ValidFrom      pgtype.Timestamptz `json:"valid_from"`
@@ -596,7 +596,7 @@ type ListMemberCouponsRow struct {
 	TemplateName        string             `json:"template_name"`
 	TemplateDescription *string            `json:"template_description"`
 	TemplateType        string             `json:"template_type"`
-	TemplateValue       int32              `json:"template_value"`
+	TemplateValue       *int32             `json:"template_value"`
 	StoreName           *string            `json:"store_name"`
 }
 
@@ -696,7 +696,7 @@ type ListRedeemableMemberCouponsRow struct {
 	TemplateName        string             `json:"template_name"`
 	TemplateDescription *string            `json:"template_description"`
 	TemplateType        string             `json:"template_type"`
-	TemplateValue       int32              `json:"template_value"`
+	TemplateValue       *int32             `json:"template_value"`
 }
 
 // What staff can redeem for the scanned member now (state available),
@@ -842,16 +842,16 @@ UPDATE coupon_templates SET
   name             = coalesce($1, name),
   description      = CASE WHEN $2::boolean THEN $3 ELSE description END,
   type             = coalesce($4, type),
-  value            = coalesce($5, value),
-  total_limit      = CASE WHEN $6::boolean THEN $7 ELSE total_limit END,
-  per_member_limit = coalesce($8, per_member_limit),
-  valid_from       = CASE WHEN $9::boolean THEN $10 ELSE valid_from END,
-  valid_to         = CASE WHEN $11::boolean THEN $12 ELSE valid_to END,
-  validity_days    = CASE WHEN $13::boolean THEN $14 ELSE validity_days END,
-  claimable        = coalesce($15, claimable),
-  status           = coalesce($16, status),
-  updated_at       = $17
-WHERE app_id = $18 AND id = $19
+  value            = CASE WHEN $5::boolean THEN $6 ELSE value END,
+  total_limit      = CASE WHEN $7::boolean THEN $8 ELSE total_limit END,
+  per_member_limit = coalesce($9, per_member_limit),
+  valid_from       = CASE WHEN $10::boolean THEN $11 ELSE valid_from END,
+  valid_to         = CASE WHEN $12::boolean THEN $13 ELSE valid_to END,
+  validity_days    = CASE WHEN $14::boolean THEN $15 ELSE validity_days END,
+  claimable        = coalesce($16, claimable),
+  status           = coalesce($17, status),
+  updated_at       = $18
+WHERE app_id = $19 AND id = $20
 RETURNING id, tenant_id, app_id, name, description, type, value, total_limit, per_member_limit, valid_from, valid_to, validity_days, claimable, claimed_count, status, created_at, updated_at
 `
 
@@ -860,6 +860,7 @@ type UpdateCouponTemplateParams struct {
 	SetDescription  bool               `json:"set_description"`
 	Description     *string            `json:"description"`
 	Type            *string            `json:"type"`
+	SetValue        bool               `json:"set_value"`
 	Value           *int32             `json:"value"`
 	SetTotalLimit   bool               `json:"set_total_limit"`
 	TotalLimit      *int32             `json:"total_limit"`
@@ -878,8 +879,9 @@ type UpdateCouponTemplateParams struct {
 }
 
 // Partial update: a NULL argument keeps the column. The clearable columns
-// (description, total_limit, valid_from, valid_to, validity_days) take a
-// set_* flag so they can be set back to NULL. Type and value change only
+// (description, value, total_limit, valid_from, valid_to, validity_days)
+// take a set_* flag so they can be set back to NULL; switching to free_item
+// sets set_value with a NULL value. Type and value change only
 // while claimed_count is zero; the service checks that under
 // LockCouponTemplate. A total_limit below claimed_count fails
 // coupon_templates_limit_check (SQLSTATE 23514).
@@ -889,6 +891,7 @@ func (q *Queries) UpdateCouponTemplate(ctx context.Context, arg UpdateCouponTemp
 		arg.SetDescription,
 		arg.Description,
 		arg.Type,
+		arg.SetValue,
 		arg.Value,
 		arg.SetTotalLimit,
 		arg.TotalLimit,

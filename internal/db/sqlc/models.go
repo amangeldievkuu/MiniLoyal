@@ -102,7 +102,7 @@ type CouponTemplate struct {
 	Name           string             `json:"name"`
 	Description    *string            `json:"description"`
 	Type           string             `json:"type"`
-	Value          int32              `json:"value"`
+	Value          *int32             `json:"value"`
 	TotalLimit     *int32             `json:"total_limit"`
 	PerMemberLimit int32              `json:"per_member_limit"`
 	ValidFrom      pgtype.Timestamptz `json:"valid_from"`

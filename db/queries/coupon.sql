@@ -8,7 +8,7 @@ INSERT INTO coupon_templates (
   valid_from, valid_to, validity_days, claimable, created_at, updated_at
 ) VALUES (
   sqlc.arg('id'), sqlc.arg('tenant_id'), sqlc.arg('app_id'), sqlc.arg('name'), sqlc.narg('description'),
-  sqlc.arg('type'), sqlc.arg('value'), sqlc.narg('total_limit'), sqlc.arg('per_member_limit'),
+  sqlc.arg('type'), sqlc.narg('value'), sqlc.narg('total_limit'), sqlc.arg('per_member_limit'),
   sqlc.narg('valid_from'), sqlc.narg('valid_to'), sqlc.narg('validity_days'), sqlc.arg('claimable'),
   sqlc.arg('now'), sqlc.arg('now')
 )
@@ -49,8 +49,9 @@ ORDER BY t.created_at DESC, t.id DESC;
 
 -- name: UpdateCouponTemplate :one
 -- Partial update: a NULL argument keeps the column. The clearable columns
--- (description, total_limit, valid_from, valid_to, validity_days) take a
--- set_* flag so they can be set back to NULL. Type and value change only
+-- (description, value, total_limit, valid_from, valid_to, validity_days)
+-- take a set_* flag so they can be set back to NULL; switching to free_item
+-- sets set_value with a NULL value. Type and value change only
 -- while claimed_count is zero; the service checks that under
 -- LockCouponTemplate. A total_limit below claimed_count fails
 -- coupon_templates_limit_check (SQLSTATE 23514).
@@ -58,7 +59,7 @@ UPDATE coupon_templates SET
   name             = coalesce(sqlc.narg('name'), name),
   description      = CASE WHEN sqlc.arg('set_description')::boolean THEN sqlc.narg('description') ELSE description END,
   type             = coalesce(sqlc.narg('type'), type),
-  value            = coalesce(sqlc.narg('value'), value),
+  value            = CASE WHEN sqlc.arg('set_value')::boolean THEN sqlc.narg('value') ELSE value END,
   total_limit      = CASE WHEN sqlc.arg('set_total_limit')::boolean THEN sqlc.narg('total_limit') ELSE total_limit END,
   per_member_limit = coalesce(sqlc.narg('per_member_limit'), per_member_limit),
   valid_from       = CASE WHEN sqlc.arg('set_valid_from')::boolean THEN sqlc.narg('valid_from') ELSE valid_from END,
