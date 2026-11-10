@@ -47,20 +47,24 @@ func TestRolesIsIdempotent(t *testing.T) {
 	if got := read(migrate.GroupRole); got != (attrs{inherit: true}) {
 		t.Errorf("%s attrs = %+v, want NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE", migrate.GroupRole, got)
 	}
-	for _, role := range []string{migrate.LoginRole, migrate.WorkerRole} {
-		if got := read(role); got != (attrs{login: true, inherit: true}) {
-			t.Errorf("%s attrs = %+v, want LOGIN only", role, got)
+	// The API role is a member of the group role once; the worker, since
+	// 00011, not at all: it holds its own grants.
+	d.WithSteadyWorkerRole(t, func() {
+		for role, want := range map[string]int{migrate.LoginRole: 1, migrate.WorkerRole: 0} {
+			if got := read(role); got != (attrs{login: true, inherit: true}) {
+				t.Errorf("%s attrs = %+v, want LOGIN only", role, got)
+			}
+			var memberships int
+			if err := owner.QueryRowContext(ctx, `SELECT count(*) FROM pg_auth_members m
+				JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
+				WHERE g.rolname = $1 AND u.rolname = $2`, migrate.GroupRole, role).Scan(&memberships); err != nil {
+				t.Fatal(err)
+			}
+			if memberships != want {
+				t.Errorf("%s is a member of %s %d times, want %d", role, migrate.GroupRole, memberships, want)
+			}
 		}
-		var memberships int
-		if err := owner.QueryRowContext(ctx, `SELECT count(*) FROM pg_auth_members m
-			JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
-			WHERE g.rolname = $1 AND u.rolname = $2`, migrate.GroupRole, role).Scan(&memberships); err != nil {
-			t.Fatal(err)
-		}
-		if memberships != 1 {
-			t.Errorf("%s is a member of %s %d times, want exactly once", role, migrate.GroupRole, memberships)
-		}
-	}
+	})
 	// The API role must not inherit the worker's ownership of River's tables.
 	var apiIsWorker bool
 	if err := owner.QueryRowContext(ctx, "SELECT pg_has_role($1, $2, 'MEMBER')", migrate.LoginRole, migrate.WorkerRole).Scan(&apiIsWorker); err != nil {

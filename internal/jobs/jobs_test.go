@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -299,7 +300,44 @@ func TestCheckWorkerRole(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer memberPool.Close()
-	for name, pool := range map[string]*pgxpool.Pool{"api": d.App, "owner": d.Admin, "member of the worker role": memberPool} {
+
+	// Phase 4 re-review: a session that logged in as another role and ran
+	// SET ROLE miniloyal_worker has current_user = miniloyal_worker but can
+	// RESET ROLE. The login role here is neither superuser nor BYPASSRLS, so
+	// only the session_user check refuses it.
+	login := "miniloyal_worker_login_" + strings.ReplaceAll(testutil.NewID().String()[:8], "-", "")
+	d.Exec(t, "CREATE ROLE "+login+" LOGIN PASSWORD 'not-the-worker' NOBYPASSRLS NOSUPERUSER IN ROLE "+WorkerRole)
+	t.Cleanup(func() { _, _ = d.Admin.Exec(context.Background(), "DROP ROLE IF EXISTS "+login) })
+	u, err := url.Parse(d.AdminURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.User = url.UserPassword(login, "not-the-worker")
+	setCfg, err := pgxpool.ParseConfig(u.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	setCfg.AfterConnect = func(ctx context.Context, c *pgx.Conn) error {
+		_, err := c.Exec(ctx, "SET ROLE "+WorkerRole)
+		return err
+	}
+	setRolePool, err := pgxpool.NewWithConfig(ctx, setCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer setRolePool.Close()
+	var current, session string
+	if err := setRolePool.QueryRow(ctx, "SELECT current_user, session_user").Scan(&current, &session); err != nil {
+		t.Fatal(err)
+	}
+	if current != WorkerRole || session != login {
+		t.Fatalf("SET ROLE pool: current_user %s, session_user %s", current, session)
+	}
+
+	for name, pool := range map[string]*pgxpool.Pool{
+		"api": d.App, "owner": d.Admin, "member of the worker role": memberPool,
+		"another login after SET ROLE miniloyal_worker": setRolePool,
+	} {
 		if err := CheckWorkerRole(ctx, pool); !errors.Is(err, ErrNotWorkerRole) {
 			t.Errorf("%s: %v, want ErrNotWorkerRole", name, err)
 		}

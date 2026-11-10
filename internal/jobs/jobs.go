@@ -319,16 +319,21 @@ var ErrNotWorkerRole = errors.New("jobs: the worker must connect as " + WorkerRo
 // WorkerRole itself, so a worker pointed at the API's URL, or at another
 // role that merely belongs to WorkerRole (the schema owner does), stops at
 // start instead of failing every job, and a worker pointed at a superuser
-// does not run without row-level security.
+// does not run without row-level security. Both the session user (who
+// logged in) and the current user must be WorkerRole: a superuser session
+// that ran SET ROLE, for example through the connection string's options,
+// keeps its rights and can RESET ROLE at any time.
 func CheckWorkerRole(ctx context.Context, pool *pgxpool.Pool) error {
-	var user string
+	var user, session string
 	var super, bypass bool
-	if err := pool.QueryRow(ctx, `SELECT current_user, r.rolsuper, r.rolbypassrls
-		FROM pg_roles r WHERE r.rolname = current_user`).Scan(&user, &super, &bypass); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT current_user, session_user,
+		(SELECT bool_or(r.rolsuper) FROM pg_roles r WHERE r.rolname IN (current_user, session_user)),
+		(SELECT bool_or(r.rolbypassrls) FROM pg_roles r WHERE r.rolname IN (current_user, session_user))`).
+		Scan(&user, &session, &super, &bypass); err != nil {
 		return fmt.Errorf("jobs: check role: %w", err)
 	}
-	if user != WorkerRole || super || bypass {
-		return fmt.Errorf("%w: connected as %s (superuser %v, bypassrls %v)", ErrNotWorkerRole, user, super, bypass)
+	if user != WorkerRole || session != WorkerRole || super || bypass {
+		return fmt.Errorf("%w: connected as %s, session %s (superuser %v, bypassrls %v)", ErrNotWorkerRole, user, session, super, bypass)
 	}
 	return nil
 }

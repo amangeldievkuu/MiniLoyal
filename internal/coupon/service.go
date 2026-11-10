@@ -106,9 +106,14 @@ type Deps struct {
 	StaffWritesPerMinute int
 	// ClaimsPerMinute limits each member's claims; APIIssuesPerMinute
 	// limits each API key's issues. Zero means the default, negative turns
-	// the limit off (tests).
+	// the limit off (tests). APIIssuesPerMinute is ignored when
+	// APIKeyLimiter is set.
 	ClaimsPerMinute    int
 	APIIssuesPerMinute int
+	// APIKeyLimiter is the per-API-key write limiter shared with points, so
+	// the limit counts every API key write together. Nil builds one from
+	// APIIssuesPerMinute.
+	APIKeyLimiter *auth.Limiter
 }
 
 // Default rate limits. A member claims a handful of offers at a time; a
@@ -116,7 +121,7 @@ type Deps struct {
 // not empty a template in seconds.
 const (
 	DefaultClaimsPerMinute    = 10
-	DefaultAPIIssuesPerMinute = 300
+	DefaultAPIIssuesPerMinute = access.DefaultAPIKeyWritesPerMinute
 )
 
 // newLimiter returns a per-key limiter of perMinute (def when zero, none
@@ -168,6 +173,10 @@ func New(d Deps) *Service {
 	if limit == nil {
 		limit = access.NewStaffLimiter(d.Clock, d.StaffWritesPerMinute)
 	}
+	issueLimit := d.APIKeyLimiter
+	if issueLimit == nil {
+		issueLimit = access.NewAPIKeyLimiter(d.Clock, d.APIIssuesPerMinute)
+	}
 	return &Service{
 		pool:       d.Pool,
 		tenants:    d.Tenants,
@@ -177,7 +186,7 @@ func New(d Deps) *Service {
 		log:        d.Log,
 		staffLimit: limit,
 		claimLimit: newLimiter(d.Clock, d.ClaimsPerMinute, DefaultClaimsPerMinute),
-		issueLimit: newLimiter(d.Clock, d.APIIssuesPerMinute, DefaultAPIIssuesPerMinute),
+		issueLimit: issueLimit,
 	}
 }
 

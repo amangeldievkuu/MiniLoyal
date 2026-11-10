@@ -12,11 +12,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const insertOutboundEvent = `-- name: InsertOutboundEvent :one
+const insertOutboundEvent = `-- name: InsertOutboundEvent :exec
 
 INSERT INTO outbound_events (tenant_id, app_id, type, member_id, payload, occurred_at)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, event_id, tenant_id, app_id, type, member_id, payload, occurred_at, created_at
 `
 
 type InsertOutboundEventParams struct {
@@ -30,8 +29,9 @@ type InsertOutboundEventParams struct {
 
 // Outbound events: the append-only outbox. Written in the same transaction
 // as the change it describes; delivery is Phase 5.
-func (q *Queries) InsertOutboundEvent(ctx context.Context, arg InsertOutboundEventParams) (OutboundEvent, error) {
-	row := q.db.QueryRow(ctx, insertOutboundEvent,
+// No RETURNING: the worker role may insert events but not read them.
+func (q *Queries) InsertOutboundEvent(ctx context.Context, arg InsertOutboundEventParams) error {
+	_, err := q.db.Exec(ctx, insertOutboundEvent,
 		arg.TenantID,
 		arg.AppID,
 		arg.Type,
@@ -39,19 +39,7 @@ func (q *Queries) InsertOutboundEvent(ctx context.Context, arg InsertOutboundEve
 		arg.Payload,
 		arg.OccurredAt,
 	)
-	var i OutboundEvent
-	err := row.Scan(
-		&i.ID,
-		&i.EventID,
-		&i.TenantID,
-		&i.AppID,
-		&i.Type,
-		&i.MemberID,
-		&i.Payload,
-		&i.OccurredAt,
-		&i.CreatedAt,
-	)
-	return i, err
+	return err
 }
 
 const insertOutboundEvents = `-- name: InsertOutboundEvents :exec

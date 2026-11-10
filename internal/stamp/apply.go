@@ -260,7 +260,14 @@ func (s *Service) Adjust(ctx context.Context, p principal.Principal, memberID uu
 	var m sqlc.Member
 	var out Result
 	err = s.writer.Write(ctx, acc.TenantID, access.ScopeOf(p), idem,
-		func(ctx context.Context, tx pgx.Tx) (err error) { m, err = acc.Check(ctx, tx); return err },
+		func(ctx context.Context, tx pgx.Tx) (err error) {
+			if m, err = acc.Check(ctx, tx); err != nil {
+				return err
+			}
+			// The note is personal text an erasure must blank: serialize with
+			// it, and refuse a member erased meanwhile.
+			return access.ShareMember(ctx, sqlc.New(tx), m.AppID, m.ID)
+		},
 		func(ctx context.Context, tx pgx.Tx) (any, error) {
 			now := s.clock.Now()
 			c, err := cardForShare(ctx, sqlc.New(tx), m.AppID, cardID)

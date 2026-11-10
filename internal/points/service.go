@@ -87,6 +87,14 @@ type Deps struct {
 	// stamps, so the limit counts every staff write together. Nil builds
 	// one from StaffWritesPerMinute.
 	StaffLimiter *auth.Limiter
+	// APIKeyWritesPerMinute limits server posts per API key. Zero means
+	// the default (300); a negative value turns the limit off (tests).
+	// Ignored when APIKeyLimiter is set.
+	APIKeyWritesPerMinute int
+	// APIKeyLimiter is the per-API-key write limiter shared with coupon
+	// issues, so the limit counts every API key write together. Nil builds
+	// one from APIKeyWritesPerMinute.
+	APIKeyLimiter *auth.Limiter
 }
 
 // Service is the points domain.
@@ -99,6 +107,8 @@ type Service struct {
 	log     *slog.Logger
 	// staffLimit is nil when the per-staff limit is off.
 	staffLimit *auth.Limiter
+	// apiKeyLimit is nil when the per-API-key limit is off.
+	apiKeyLimit *auth.Limiter
 }
 
 // New returns a Service.
@@ -113,14 +123,19 @@ func New(d Deps) *Service {
 	if staffLimit == nil {
 		staffLimit = access.NewStaffLimiter(d.Clock, d.StaffWritesPerMinute)
 	}
+	apiKeyLimit := d.APIKeyLimiter
+	if apiKeyLimit == nil {
+		apiKeyLimit = access.NewAPIKeyLimiter(d.Clock, d.APIKeyWritesPerMinute)
+	}
 	return &Service{
-		pool:       d.Pool,
-		tenants:    d.Tenants,
-		writer:     access.NewWriter(d.Pool, d.Keyring, d.Clock),
-		card:       d.Card,
-		clock:      d.Clock,
-		log:        d.Log,
-		staffLimit: staffLimit,
+		pool:        d.Pool,
+		tenants:     d.Tenants,
+		writer:      access.NewWriter(d.Pool, d.Keyring, d.Clock),
+		card:        d.Card,
+		clock:       d.Clock,
+		log:         d.Log,
+		staffLimit:  staffLimit,
+		apiKeyLimit: apiKeyLimit,
 	}
 }
 

@@ -252,7 +252,7 @@ func (s *Server) ServerPostPoints(ctx context.Context, req api.ServerPostPointsR
 	if err != nil {
 		return nil, err
 	}
-	t, err := svc.ServerPost(ctx, p, uuid.UUID(req.MemberId), pointsIdem(ctx, req.Params.IdempotencyKey, body), points.ServerInput{
+	t, err := svc.ServerPost(s.auditContext(ctx), p, uuid.UUID(req.MemberId), pointsIdem(ctx, req.Params.IdempotencyKey, body), points.ServerInput{
 		Type: string(body.Type), Points: body.Points, Spend: body.SpendAmount,
 		RefType: body.RefType, RefID: body.RefId, Note: body.Note,
 	})

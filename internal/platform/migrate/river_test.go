@@ -49,29 +49,43 @@ func TestRiverSchemaBelongsToTheWorker(t *testing.T) {
 		t.Fatalf("after Up: %+v, want %+v", got, secured)
 	}
 
-	// Roll back to just before 00009, past any later migrations.
-	for {
-		v, err := migrate.Version(ctx, owner)
-		if err != nil {
+	// Rolling 00011 back makes the worker a member of miniloyal_app again,
+	// cluster-wide, until Up revokes it; tests that assert what the worker
+	// may not do wait while this runs.
+	d.WhileChangingWorkerRole(t, func() {
+		// Roll back to just before 00009, past any later migrations.
+		for {
+			v, err := migrate.Version(ctx, owner)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v < 9 {
+				break
+			}
+			if err := migrate.Down(ctx, owner); err != nil {
+				t.Fatalf("down from %d: %v", v, err)
+			}
+		}
+		if got, want := read(), (state{groupUpdate: true, apiInsert: true}); got != want {
+			t.Fatalf("after Down: %+v, want the Phase 3 shape %+v", got, want)
+		}
+
+		for i := 1; i <= 2; i++ {
+			if err := migrate.Up(ctx, owner); err != nil {
+				t.Fatalf("Up %d: %v", i, err)
+			}
+			if got := read(); got != secured {
+				t.Fatalf("after Up %d: %+v, want %+v", i, got, secured)
+			}
+		}
+	})
+	d.WithSteadyWorkerRole(t, func() {
+		var inGroup bool
+		if err := d.Admin.QueryRow(ctx, "SELECT pg_has_role($1, $2, 'MEMBER')", migrate.WorkerRole, migrate.GroupRole).Scan(&inGroup); err != nil {
 			t.Fatal(err)
 		}
-		if v < 9 {
-			break
+		if inGroup {
+			t.Errorf("after Up: %s is a member of %s", migrate.WorkerRole, migrate.GroupRole)
 		}
-		if err := migrate.Down(ctx, owner); err != nil {
-			t.Fatalf("down from %d: %v", v, err)
-		}
-	}
-	if got, want := read(), (state{groupUpdate: true, apiInsert: true}); got != want {
-		t.Fatalf("after Down: %+v, want the Phase 3 shape %+v", got, want)
-	}
-
-	for i := 1; i <= 2; i++ {
-		if err := migrate.Up(ctx, owner); err != nil {
-			t.Fatalf("Up %d: %v", i, err)
-		}
-		if got := read(); got != secured {
-			t.Fatalf("after Up %d: %+v, want %+v", i, got, secured)
-		}
-	}
+	})
 }
