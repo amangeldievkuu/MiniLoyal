@@ -1,33 +1,25 @@
-// Command worker runs background jobs. Feature jobs (messages, points expiry,
-// webhook deliveries, reconciliation) arrive with their phases; today it runs
-// the periodic maintenance that keeps the identity tables bounded.
+// Command worker runs background jobs on River: hourly maintenance that keeps
+// the identity and webhook tables bounded, points expiry every 15 minutes and
+// the daily points reconciliation. Several workers may run at once; River's
+// leader election schedules each periodic job once.
 package main
 
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/amangeldievkuu/miniloyal/internal/auth"
-	"github.com/amangeldievkuu/miniloyal/internal/idempotency"
+	"github.com/amangeldievkuu/miniloyal/internal/jobs"
+	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/log"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/otel"
-	"github.com/amangeldievkuu/miniloyal/internal/webhook"
 )
 
 var version = "dev"
-
-// maintenanceInterval is how often spent tokens, expired idempotency
-// outcomes and old MFA challenges are deleted.
-const maintenanceInterval = time.Hour
 
 func main() {
 	os.Exit(run())
@@ -62,46 +54,29 @@ func run() int {
 	}
 	defer pool.Close()
 
-	logger.Info("worker started", "concurrency", cfg.WorkerConcurrency, "version", version, "jobs", 1)
-	runMaintenance(ctx, pool, logger)
+	deps := jobs.Deps{Pool: pool, Clock: clock.Real{}, Log: logger}
+	// INTEGRATOR: pass the points service here once internal/points lands:
+	// deps.Expirer, deps.Reconciler = pointsSvc, pointsSvc
+
+	client, err := jobs.NewClient(pool, deps, cfg.WorkerConcurrency)
+	if err != nil {
+		logger.Error("job client setup failed", "err", err)
+		return 1
+	}
+	if err := client.Start(ctx); err != nil {
+		logger.Error("job client start failed", "err", err)
+		return 1
+	}
+	logger.Info("worker started", "concurrency", cfg.WorkerConcurrency, "version", version)
+
+	<-ctx.Done()
 	logger.Info("worker stopping")
-	return 0
-}
-
-// runMaintenance runs the cleanup once at start and then every interval
-// until ctx is cancelled.
-func runMaintenance(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger) {
-	ticker := time.NewTicker(maintenanceInterval)
-	defer ticker.Stop()
-	for {
-		maintain(ctx, pool, logger)
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
-}
-
-func maintain(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	stopCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
-	store := idempotency.New(pool, nil, nil)
-	idem, err := store.DeleteExpired(ctx)
-	if err != nil {
-		logger.Error("maintenance: idempotency cleanup failed", "err", err)
+	if err := client.StopAndCancel(stopCtx); err != nil {
+		logger.Error("job client stop failed", "err", err)
+		return 1
 	}
-	tokens, err := auth.SweepSpentRefreshTokens(ctx, pool)
-	if err != nil {
-		logger.Error("maintenance: refresh token sweep failed", "err", err)
-	}
-	challenges, err := auth.DeleteExpiredMFAChallenges(ctx, pool)
-	if err != nil {
-		logger.Error("maintenance: mfa challenge cleanup failed", "err", err)
-	}
-	events, err := webhook.DeleteOldInboundEvents(ctx, pool)
-	if err != nil {
-		logger.Error("maintenance: webhook event cleanup failed", "err", err)
-	}
-	logger.Info("maintenance run", "idempotency_keys", idem, "refresh_tokens", tokens, "mfa_challenges", challenges, "webhook_events", events)
+	logger.Info("worker stopped")
+	return 0
 }

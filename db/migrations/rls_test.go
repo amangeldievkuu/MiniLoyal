@@ -155,7 +155,7 @@ func TestApplicationRoleCannotBypassRLS(t *testing.T) {
 
 	// Policies are forced, so even the table owner would be subject to them.
 	rows, err := d.Admin.Query(context.Background(),
-		"SELECT relname FROM pg_class WHERE relkind = 'r' AND relnamespace = 'public'::regnamespace AND relname NOT IN ('goose_db_version', 'users', 'refresh_tokens', 'totp_recovery_codes', 'mfa_challenges', 'security_events', 'points_reconciliation_runs') AND NOT (relrowsecurity AND relforcerowsecurity)")
+		"SELECT relname FROM pg_class WHERE relkind = 'r' AND relnamespace = 'public'::regnamespace AND relname NOT IN ('goose_db_version', 'users', 'refresh_tokens', 'totp_recovery_codes', 'mfa_challenges', 'security_events', 'points_reconciliation_runs') AND relname NOT LIKE 'river\\_%' AND NOT (relrowsecurity AND relforcerowsecurity)")
 	if err != nil {
 		t.Fatal(err)
 	}
