@@ -575,6 +575,7 @@
     "voidTitle": "Void coupon",
     "voidHelp": "Coupon {{code}} can no longer be redeemed. This does not give the template limit back.",
     "reason": "Reason",
+    "reasonHint": "Do not enter personal data such as names or phone numbers. Erasing the member clears this text.",
     "errors": {
       "soldOut": "This template has reached its total limit.",
       "notClaimable": "This template is archived or outside its validity window.",
@@ -599,6 +600,7 @@
     "deltaHint": "A whole number from -100 to 100, not zero.",
     "invalidDelta": "Enter a whole number other than zero, up to 100.",
     "note": "Reason",
+    "noteHint": "Do not enter personal data such as names or phone numbers. Erasing the member clears this text.",
     "insufficient": "The member does not have that many stamps to remove."
   }
 }

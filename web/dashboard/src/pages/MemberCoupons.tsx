@@ -314,6 +314,7 @@ export function VoidDialog({
           id="void-reason"
           name="reason"
           label={t('memberCoupons.reason')}
+          hint={t('memberCoupons.reasonHint')}
           required
           maxLength={200}
           value={reason}

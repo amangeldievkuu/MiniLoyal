@@ -178,6 +178,7 @@ export function AdjustStampsDialog({
           id="stamps-note"
           name="note"
           label={t('memberStamps.note')}
+          hint={t('memberStamps.noteHint')}
           required
           maxLength={200}
           value={note}
