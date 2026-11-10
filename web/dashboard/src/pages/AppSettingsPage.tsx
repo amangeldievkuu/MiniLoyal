@@ -19,6 +19,7 @@ import { CopyButton, ErrorAlert, ReadOnlyNotice } from '../components/feedback';
 import { Badge, Button, Card, Field, SelectField, Status } from '../components/ui';
 import { formatDateTime } from '../lib/format';
 import { canManage } from '../lib/roles';
+import { AppSecurityCard } from './AppSecurityCard';
 
 export function AppSettingsPage() {
   const { appId = '' } = useParams({ strict: false });
@@ -222,6 +223,8 @@ function SettingsForm({ app, role }: { app: App; role: Role | null }) {
       </form>
 
       <WebhookCard url={app.webhook_url} />
+
+      <AppSecurityCard app={app} editable={editable} />
     </div>
   );
 }

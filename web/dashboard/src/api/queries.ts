@@ -11,6 +11,9 @@ import type {
   MemberDetail,
   MemberPage,
   Membership,
+  PointsHistoryPage,
+  PointsRules,
+  PointsSummary,
   SecurityEventPage,
   Staff,
   Store,
@@ -35,6 +38,10 @@ export const keys = {
   membersRoot: (appId: string) => ['app', appId, 'members'] as const,
   members: (appId: string, q: string | undefined) => ['app', appId, 'members', q ?? ''] as const,
   member: (memberId: string) => ['member', memberId] as const,
+  pointsRules: (appId: string) => ['app', appId, 'points-rules'] as const,
+  memberPointsRoot: (memberId: string) => ['member', memberId, 'points'] as const,
+  memberPoints: (memberId: string) => ['member', memberId, 'points', 'summary'] as const,
+  memberPointsHistory: (memberId: string) => ['member', memberId, 'points', 'history'] as const,
   securityEvents: ['me', 'security-events'] as const,
 };
 
@@ -167,6 +174,43 @@ export const memberQuery = (memberId: string) =>
     queryKey: keys.member(memberId),
     queryFn: async (): Promise<MemberDetail> =>
       unwrap(await api.GET('/v1/dashboard/members/{memberId}', { params: { path: { memberId } } })),
+  });
+
+export const pointsRulesQuery = (appId: string) =>
+  queryOptions({
+    queryKey: keys.pointsRules(appId),
+    queryFn: async (): Promise<PointsRules> =>
+      unwrap(
+        await api.GET('/v1/dashboard/apps/{appId}/points-rules', { params: { path: { appId } } }),
+      ),
+  });
+
+export const memberPointsQuery = (memberId: string) =>
+  queryOptions({
+    queryKey: keys.memberPoints(memberId),
+    queryFn: async (): Promise<PointsSummary> =>
+      unwrap(
+        await api.GET('/v1/dashboard/members/{memberId}/points', {
+          params: { path: { memberId } },
+        }),
+      ),
+  });
+
+/** A member's points transactions, newest first, loaded page by page. */
+export const memberPointsHistoryQuery = (memberId: string) =>
+  infiniteQueryOptions({
+    queryKey: keys.memberPointsHistory(memberId),
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }): Promise<PointsHistoryPage> =>
+      unwrap(
+        await api.GET('/v1/dashboard/members/{memberId}/points/history', {
+          params: {
+            path: { memberId },
+            query: { limit: 25, ...(pageParam ? { cursor: pageParam } : {}) },
+          },
+        }),
+      ),
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
   });
 
 /** The signed-in user's security history, newest first, loaded page by page. */

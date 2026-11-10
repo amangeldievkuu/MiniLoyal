@@ -152,7 +152,8 @@
       "stores": "Stores",
       "staff": "Staff",
       "apiKeys": "API keys",
-      "members": "Members"
+      "members": "Members",
+      "points": "Points"
     },
     "settings": {
       "title": "App settings",
@@ -176,6 +177,20 @@
       "webhookStep1": "Open the Messaging API channel in the LINE Developers Console.",
       "webhookStep2": "Paste this URL into Webhook URL under the Messaging API settings and click Verify.",
       "webhookStep3": "Turn on Use webhook."
+    },
+    "security": {
+      "title": "Security",
+      "hs256Label": "Accept HS256 ID tokens",
+      "hs256Help": "Only needed for LINE web login. LINE MINI Apps and LIFF use ES256 tokens, so leave this off unless a web login flow signs members in.",
+      "hs256On": "HS256 tokens are accepted.",
+      "hs256Off": "Only ES256 tokens are accepted.",
+      "signOutTitle": "Sign out all members",
+      "signOutHelp": "Every member session issued before now stops working. Members sign in again through LINE automatically the next time they open the MINI App.",
+      "signOutButton": "Sign out all members",
+      "signOutBody": "All members of this app are signed out. Type {{phrase}} to confirm.",
+      "phraseLabel": "Confirmation",
+      "signedOutAt": "Last signed out everyone: {{date}}",
+      "neverSignedOut": "Members have never been signed out all at once."
     }
   },
   "channels": {
@@ -228,7 +243,13 @@
     "inviteTitle": "Staff invite code",
     "inviteHelp": "Give this code to the staff member to enter in the staff app on first sign-in.",
     "empty": "No staff yet.",
-    "deleteConfirm": "Remove the staff member \"{{name}}\"?"
+    "deleteConfirm": "Remove the staff member \"{{name}}\"?",
+    "lastLogin": "Last sign-in",
+    "neverLoggedIn": "Never",
+    "newInvite": "New invite code",
+    "resetConfirmTitle": "Issue a new invite code",
+    "resetConfirmBody": "\"{{name}}\" is signed out of the staff app and their LINE account is unlinked. They sign in again with the new code.",
+    "resetInviteHelp": "Give this 12-character code to the staff member. In the staff app, they sign in with LINE and enter the code once; it expires in 7 days."
   },
   "apiKeys": {
     "title": "API keys",
@@ -352,7 +373,91 @@
       "eraseTitle": "Erase personal data",
       "eraseBody": "Profile, contact details and consent are blanked and the member is signed out. Points and coupon history stay. Type {{phrase}} to confirm.",
       "erasePhraseLabel": "Confirmation",
-      "notAvailable": "—"
+      "notAvailable": "—",
+      "restricted": "Visible to owners and admins"
+    },
+    "card": {
+      "title": "Member card",
+      "help": "If the member lost their phone or shared their card, reset it. Every QR code the member's phone ever showed stops working; their phone shows a new one the next time it refreshes.",
+      "reset": "Reset member card",
+      "confirmTitle": "Reset member card",
+      "confirmBody": "Every QR code this member's card showed stops working at once. Continue?",
+      "done": "Card reset. Old QR codes no longer work (key version {{version}})."
+    }
+  },
+  "points": {
+    "title": "Points",
+    "help": "How members earn points when they buy something. Changes apply to points earned from now on.",
+    "currency": "Currency",
+    "spendPerPoint": "Spend (NT$)",
+    "spendPerPointHint": "The amount a member spends to earn the points below.",
+    "pointsPerUnit": "Points earned",
+    "minSpend": "Minimum spend (NT$)",
+    "minSpendHint": "Purchases below this earn nothing. 0 means no minimum.",
+    "maxPerTxn": "Most points per purchase",
+    "maxPerTxnHint": "Leave empty for no limit.",
+    "expiryDays": "Points expire after (days)",
+    "expiryDaysHint": "Leave empty to keep points forever.",
+    "enabled": "Members earn points",
+    "previewTitle": "What members see",
+    "preview": {
+      "earn_one": "Spend NT${{spend}}, earn {{count}} point",
+      "earn_other": "Spend NT${{spend}}, earn {{count}} points",
+      "expires_one": "points expire after {{count}} day",
+      "expires_other": "points expire after {{count}} days",
+      "never": "points never expire",
+      "minSpend": "Purchases under NT${{amount}} earn nothing.",
+      "cap_one": "At most {{count}} point per purchase.",
+      "cap_other": "At most {{count}} points per purchase.",
+      "disabled": "Earning points is turned off."
+    },
+    "summary": {
+      "title": "Points",
+      "balance": "Balance",
+      "lifetimeEarned": "Earned in total",
+      "expiring": "Expiring soon",
+      "expiringItem": "{{points}} on {{date}}",
+      "noExpiring": "Nothing expires soon."
+    },
+    "history": {
+      "title": "Points history",
+      "empty": "No points activity yet.",
+      "loadMore": "Load more",
+      "kind": "Type",
+      "points": "Points",
+      "balanceAfter": "Balance after",
+      "spend": "Spend",
+      "reference": "Reference",
+      "note": "Note",
+      "store": "Store",
+      "actor": "By",
+      "time": "Time"
+    },
+    "kinds": {
+      "earn": "Earned",
+      "redeem": "Redeemed",
+      "adjust": "Adjusted",
+      "expire": "Expired"
+    },
+    "actors": {
+      "member": "Member",
+      "staff": "Staff",
+      "user": "Dashboard user",
+      "api_key": "API key",
+      "system": "System"
+    },
+    "adjust": {
+      "open": "Adjust points",
+      "title": "Adjust points",
+      "help": "Add points with a positive number or remove them with a negative one. The change is recorded in the history and the audit log.",
+      "delta": "Change",
+      "deltaHint": "For example 50 or -20.",
+      "note": "Reason",
+      "resulting": "Balance after: {{balance}}",
+      "negativeWarning": "This would take the balance below zero.",
+      "submit": "Apply",
+      "insufficient": "The member does not have enough points for this change.",
+      "invalidDelta": "Enter a whole number other than zero."
     }
   }
 }

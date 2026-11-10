@@ -37,6 +37,7 @@ import {
   Td,
   Th,
 } from '../components/ui';
+import { formatDateTime } from '../lib/format';
 import { canManage } from '../lib/roles';
 
 export function StaffPage() {
@@ -48,14 +49,16 @@ export function StaffPage() {
 
 type Editing = { kind: 'create' } | { kind: 'edit'; staff: Staff } | null;
 
-function StaffList({ appId, role }: { appId: string; role: Role | null }) {
+export function StaffList({ appId, role }: { appId: string; role: Role | null }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const staff = useQuery(staffQuery(appId));
   const stores = useQuery(storesQuery(appId));
   const [editing, setEditing] = useState<Editing>(null);
   const [deleting, setDeleting] = useState<Staff | null>(null);
+  const [resetting, setResetting] = useState<Staff | null>(null);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [inviteIsReset, setInviteIsReset] = useState(false);
   const editable = canManage(role);
   const invalidate = () => void qc.invalidateQueries({ queryKey: keys.staff(appId) });
   const storeName = (id: string | null | undefined) =>
@@ -73,7 +76,25 @@ function StaffList({ appId, role }: { appId: string; role: Role | null }) {
       onSuccess: (created) => {
         invalidate();
         setEditing(null);
+        setInviteIsReset(false);
         setInviteCode(created.invite_code);
+      },
+    },
+  );
+
+  const resetInvite = useIdempotentMutation(
+    async (staffId: string, key: string) =>
+      unwrap(
+        await api.POST('/v1/dashboard/staff/{staffId}/invite', {
+          params: { path: { staffId }, header: { 'Idempotency-Key': key } },
+        }),
+      ),
+    {
+      onSuccess: (updated) => {
+        invalidate();
+        setResetting(null);
+        setInviteIsReset(true);
+        setInviteCode(updated.invite_code);
       },
     },
   );
@@ -157,6 +178,7 @@ function StaffList({ appId, role }: { appId: string; role: Role | null }) {
                 <Th>{t('staff.store')}</Th>
                 <Th>{t('staff.role')}</Th>
                 <Th>{t('staff.line')}</Th>
+                <Th>{t('staff.lastLogin')}</Th>
                 <Th>{t('common.status')}</Th>
                 {editable && <Th className="text-right">{t('common.actions')}</Th>}
               </tr>
@@ -172,6 +194,11 @@ function StaffList({ appId, role }: { appId: string; role: Role | null }) {
                       {member.line_linked ? t('staff.linked') : t('staff.notLinked')}
                     </Badge>
                   </Td>
+                  <Td className="whitespace-nowrap">
+                    {member.last_login_at
+                      ? formatDateTime(member.last_login_at)
+                      : t('staff.neverLoggedIn')}
+                  </Td>
                   <Td>
                     <Badge tone={member.status === 'active' ? 'success' : 'warning'}>
                       {t(`statuses.${member.status}`)}
@@ -184,6 +211,9 @@ function StaffList({ appId, role }: { appId: string; role: Role | null }) {
                         onClick={() => setEditing({ kind: 'edit', staff: member })}
                       >
                         {t('common.edit')}
+                      </Button>
+                      <Button variant="ghost" onClick={() => setResetting(member)}>
+                        {t('staff.newInvite')}
                       </Button>
                       <Button variant="ghost" onClick={() => setDeleting(member)}>
                         {t('common.remove')}
@@ -269,9 +299,23 @@ function StaffList({ appId, role }: { appId: string; role: Role | null }) {
       <ShowOnceDialog
         open={inviteCode !== null}
         title={t('staff.inviteTitle')}
-        help={t('staff.inviteHelp')}
+        help={inviteIsReset ? t('staff.resetInviteHelp') : t('staff.inviteHelp')}
         value={inviteCode ?? ''}
         onClose={() => setInviteCode(null)}
+      />
+
+      <ConfirmDialog
+        open={resetting !== null}
+        title={t('staff.resetConfirmTitle')}
+        body={t('staff.resetConfirmBody', { name: resetting?.display_name ?? '' })}
+        confirmLabel={t('staff.newInvite')}
+        pending={resetInvite.isPending}
+        error={resetInvite.error}
+        onCancel={() => {
+          resetInvite.reset();
+          setResetting(null);
+        }}
+        onConfirm={() => resetting && resetInvite.mutate(resetting.id)}
       />
 
       <ConfirmDialog
