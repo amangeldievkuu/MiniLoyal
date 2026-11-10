@@ -2242,9 +2242,10 @@ paths:
         the count starts again from the overflow, completions goes up, and
         the reward coupon (when the card has one) is issued in the same
         transaction with source stamp_reward. Rewards ignore the template's
-        claimable flag and per_member_limit but respect total_limit: when the
-        reward template is sold out the whole request fails with 409
-        coupon_sold_out and nothing is written.
+        claimable flag and per_member_limit but respect total_limit. A reward
+        template that is sold out or archived does not refuse the request:
+        the stamps and the completion are still recorded, no coupon is
+        issued and rewards_unavailable counts the completion.
 
         Errors: 403 scan_invalid, scan_mismatch or self_service as for
         points; 404 when the card is not in the staff member's app; 409
@@ -2280,7 +2281,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: stamp_card_inactive, stamp_visit_limit or coupon_sold_out
+          description: stamp_card_inactive or stamp_visit_limit
           content:
             application/json:
               schema:
@@ -2715,9 +2716,11 @@ paths:
         Owners and admins only; audited. Writes a new stamp event; earlier
         events are never changed. A positive delta that reaches
         stamps_required completes the card and issues the reward, as a staff
-        stamp would. A negative delta cannot take the count below zero (409
-        insufficient_stamps) and does not undo past completions or their
-        rewards (void the reward coupon instead). The per-visit cap does not
+        stamp would; a sold-out or archived reward template does not refuse
+        the request, the completion is recorded without a coupon and counted
+        in rewards_unavailable. A negative delta cannot take the count below
+        zero (409 insufficient_stamps) and does not undo past completions or
+        their rewards (void the reward coupon instead). The per-visit cap does not
         apply; archived cards can be corrected.
       security:
         - dashboardSession: []
@@ -2745,7 +2748,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: insufficient_stamps or coupon_sold_out
+          description: insufficient_stamps
           content:
             application/json:
               schema:
@@ -3744,7 +3747,7 @@ components:
           description: Identifier of the personal-data notice the member accepted, for example 2026-11.
     MemberExport:
       type: object
-      required: [member, consents, exported_at]
+      required: [member, consents, points, coupons, stamps, exported_at]
       properties:
         member:
           $ref: '#/components/schemas/MemberDetail'
@@ -3752,9 +3755,45 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Consent'
+        points:
+          $ref: '#/components/schemas/MemberExportPoints'
+        coupons:
+          type: array
+          description: Every coupon the member holds or held, voided, redeemed and expired ones included, newest first.
+          items:
+            $ref: '#/components/schemas/CouponInstance'
+        stamps:
+          $ref: '#/components/schemas/MemberExportStamps'
         exported_at:
           type: string
           format: date-time
+    MemberExportPoints:
+      type: object
+      description: The member's points balance and full points history.
+      required: [summary, history]
+      properties:
+        summary:
+          $ref: '#/components/schemas/PointsSummary'
+        history:
+          type: array
+          description: Every points transaction of the member, newest first. In the member's own export, note and ref_id are omitted as in /v1/me/points/history.
+          items:
+            $ref: '#/components/schemas/PointsTransaction'
+    MemberExportStamps:
+      type: object
+      description: The member's stamp card progress and full stamp history.
+      required: [progress, events]
+      properties:
+        progress:
+          type: array
+          description: Progress on every stamp card the member has stamps on or that is active, archived cards included.
+          items:
+            $ref: '#/components/schemas/StampProgress'
+        events:
+          type: array
+          description: Every stamp event of the member on any card, newest first.
+          items:
+            $ref: '#/components/schemas/StampEvent'
     MemberPage:
       type: object
       required: [items]
@@ -4683,7 +4722,16 @@ components:
     StampProgress:
       type: object
       required:
-        [stamp_card_id, name, stamps_required, max_stamps_per_visit, status, count, completions]
+        [
+          stamp_card_id,
+          name,
+          stamps_required,
+          max_stamps_per_visit,
+          status,
+          count,
+          completions,
+          unrewarded_completions,
+        ]
       properties:
         stamp_card_id:
           type: string
@@ -4708,6 +4756,9 @@ components:
           description: Times the member completed the card.
         reward:
           $ref: '#/components/schemas/CouponTemplateSummary'
+        unrewarded_completions:
+          type: integer
+          description: Completions on this card whose reward coupon could not be issued because the reward template was sold out or archived. Completions made while the card had no reward do not count.
         updated_at:
           type: string
           format: date-time
@@ -4715,7 +4766,7 @@ components:
           description: Last stamp or adjustment; null when the member has no stamps on the card yet.
     StampResult:
       type: object
-      required: [progress, added, completed, rewards]
+      required: [progress, added, completed, rewards, rewards_unavailable]
       properties:
         progress:
           $ref: '#/components/schemas/StampProgress'
@@ -4727,9 +4778,44 @@ components:
           description: Completions this request caused.
         rewards:
           type: array
-          description: Reward coupons issued by those completions; empty when there were none or the card has no reward.
+          description: Reward coupons issued by those completions; empty when there were none, the card has no reward, or the reward template was sold out or archived (see rewards_unavailable).
           items:
             $ref: '#/components/schemas/CouponInstance'
+        rewards_unavailable:
+          type: integer
+          description: Completions in this request whose reward could not be issued because the reward template was sold out or archived. The stamps and completions are recorded anyway; 0 when every reward was issued or the card has no reward.
+    StampEvent:
+      type: object
+      description: One change to a member's stamps on one card. Events are never changed; corrections are new events.
+      required: [id, stamp_card_id, delta, reason, count_after, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Event ID, increasing over time.
+        stamp_card_id:
+          type: string
+          format: uuid
+          description: The stamp card.
+        delta:
+          type: integer
+          description: Signed change to the count; a completion is negative (minus stamps_required).
+        reason:
+          type: string
+          enum: [stamp, adjust, completion]
+          description: stamp by staff on a scan, adjust from the dashboard, completion when the card filled.
+        count_after:
+          type: integer
+          description: Stamps toward the next completion once the event applied.
+        store_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Store where staff gave the stamps; null for adjustments and when no store was set.
+        created_at:
+          type: string
+          format: date-time
+          description: When the event was recorded.
     StaffStampRequest:
       type: object
       required: [scan_token, stamp_card_id, count]

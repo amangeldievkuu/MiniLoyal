@@ -86,12 +86,23 @@ func toMemberPage(p member.Page) api.MemberPage {
 
 func toMemberExport(e member.Export) api.MemberExport {
 	out := api.MemberExport{
-		Member:     toMemberDetail(e.Member),
-		Consents:   make([]api.Consent, 0, len(e.Consents)),
+		Member:   toMemberDetail(e.Member),
+		Consents: make([]api.Consent, 0, len(e.Consents)),
+		Points: api.MemberExportPoints{
+			Summary: toPointsSummary(e.Points.Summary),
+			History: make([]api.PointsTransaction, 0, len(e.Points.History)),
+		},
+		// filled by the coupon and stamp module
+		Coupons: []api.CouponInstance{},
+		// filled by the coupon and stamp module
+		Stamps:     api.MemberExportStamps{Progress: []api.StampProgress{}, Events: []api.StampEvent{}},
 		ExportedAt: e.ExportedAt,
 	}
 	for _, c := range e.Consents {
 		out.Consents = append(out.Consents, api.Consent{Version: c.Version, AcceptedAt: c.AcceptedAt.Time})
+	}
+	for _, t := range e.Points.History {
+		out.Points.History = append(out.Points.History, toPointsTxn(t))
 	}
 	return out
 }

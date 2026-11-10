@@ -17,6 +17,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/api"
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
+	"github.com/amangeldievkuu/miniloyal/internal/member"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
@@ -137,6 +138,7 @@ func newPointsWorld(t *testing.T) *pointsWorld {
 		Tenants:   tenants,
 		Card:      codec,
 		Points:    points.New(points.Deps{Pool: d.App, Tenants: tenants, Keyring: keyring, Card: codec, Clock: clock.Real{}, Log: log}),
+		MemberSvc: member.New(member.Deps{Pool: d.App, Tenants: tenants, Clock: clock.Real{}, Log: log}),
 	})
 	w.srv = httptest.NewServer(s.Handler())
 	t.Cleanup(w.srv.Close)
