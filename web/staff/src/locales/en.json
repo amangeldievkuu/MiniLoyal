@@ -1,0 +1,102 @@
+{
+  "app": {
+    "title": "MiniLoyal Staff",
+    "language": "Language"
+  },
+  "common": {
+    "signOut": "Sign out",
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "back": "Back",
+    "working": "Working…",
+    "points": "pts",
+    "requestId": "Request ID: {{id}}"
+  },
+  "start": {
+    "loading": "Signing in…",
+    "redirecting": "Opening LINE login…",
+    "notConfigured": "This staff app is not set up yet. Ask your manager.",
+    "liffInit": "LINE could not start. Close the app and open it again.",
+    "noIdToken": "Could not read your LINE sign-in. Open the app again.",
+    "appNotFound": "This shop was not found. Ask your manager.",
+    "server": "The server cannot be reached right now. Try again shortly.",
+    "tryAgain": "Try again",
+    "rateLimited": "Too many attempts. Try again in {{seconds}} s.",
+    "signedOut": "You are signed out.",
+    "expired": "Your session ended. Sign in again.",
+    "signInAgain": "Sign in again"
+  },
+  "invite": {
+    "title": "First sign-in",
+    "help": "Enter the invite code your manager gave you in the dashboard to link your LINE account. You will not need it again.",
+    "label": "Invite code",
+    "hint": "Format XXXX-XXXX-XXXX. Letter case and dashes do not matter.",
+    "submit": "Link and sign in",
+    "wrongCode": "The invite code is wrong or expired. Ask your manager for a new one.",
+    "rateLimited": "Too many attempts. Try again in {{seconds}} s.",
+    "network": "No connection. Check the network and try again."
+  },
+  "header": {
+    "cashier": "Cashier",
+    "manager": "Manager",
+    "noStore": "No store assigned"
+  },
+  "scan": {
+    "button": "Scan member card",
+    "typeCode": "Type the code",
+    "codeLabel": "Card code",
+    "submitCode": "Look up",
+    "cameraTitle": "Point at the member card QR code",
+    "cameraHelp": "Ask the member to open their card and hold the QR code inside the frame.",
+    "cameraError": "The camera is not available. Type the code instead or check permissions.",
+    "scanning": "Reading…",
+    "errors": {
+      "cardExpired": "The card code has expired. Ask the member to refresh their card, then scan again.",
+      "invalidCard": "This is not a valid member card for this shop.",
+      "generic": "The card could not be read. Try again."
+    }
+  },
+  "member": {
+    "anonymous": "Member",
+    "friend": "Friend",
+    "notFriend": "Not a friend",
+    "balance": "Points balance",
+    "expiresIn": "Scan again in {{time}}",
+    "expired": "This scan has timed out. Scan the member card again.",
+    "earn": "Add points",
+    "redeem": "Redeem points",
+    "clear": "Done with this member"
+  },
+  "earn": {
+    "amountLabel": "Purchase amount (NT$)",
+    "pointsLabel": "Points",
+    "fixedPoints": "Give a fixed number of points (manager)",
+    "submit": "Add points",
+    "enterAmount": "Enter an amount"
+  },
+  "redeem": {
+    "pointsLabel": "Points to redeem",
+    "overBalance": "More than the balance of {{balance}} points.",
+    "review": "Review",
+    "confirmTitle": "Confirm redemption",
+    "confirmBody": "Redeem {{points}} points? The new balance will be {{balance}}.",
+    "confirm": "Confirm"
+  },
+  "result": {
+    "earned": "{{points}} points added",
+    "redeemed": "{{points}} points redeemed",
+    "newBalance": "New balance: {{balance}} points",
+    "next": "Next customer"
+  },
+  "errors": {
+    "insufficient": "Not enough points. Balance: {{balance}}.",
+    "scanAgain": "This scan is no longer valid. Scan the member card again.",
+    "network": "Could not reach the server. Try again; points will not be counted twice.",
+    "notAllowed": "Your role does not allow this.",
+    "generic": "Something went wrong. Try again."
+  },
+  "keypad": {
+    "clear": "Clear",
+    "backspace": "Delete one digit"
+  }
+}

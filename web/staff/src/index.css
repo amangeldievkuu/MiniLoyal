@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-brand-50: oklch(0.97 0.02 150);
+  --color-brand-100: oklch(0.93 0.05 150);
+  --color-brand-500: oklch(0.62 0.17 150);
+  --color-brand-600: oklch(0.55 0.17 150);
+  --color-brand-700: oklch(0.47 0.15 150);
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Noto Sans TC', 'PingFang TC',
+    'Microsoft JhengHei', sans-serif;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-zinc-50 font-sans text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+}
+
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-brand-600;
+}
