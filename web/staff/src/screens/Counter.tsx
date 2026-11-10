@@ -1,32 +1,60 @@
 import { useCallback, useState, type FormEvent } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
 import { api, toApiError, unwrap } from '../api/client';
-import type { PointsTransaction, ScannedMember, ScanResult, StaffSession } from '../api/types';
+import type {
+  CouponInstance,
+  PointsTransaction,
+  ScannedMember,
+  ScanResult,
+  StampProgress,
+  StampResult,
+  StaffSession,
+} from '../api/types';
 import { CameraScanner } from '../components/CameraScanner';
 import { MemberPanel } from '../components/MemberPanel';
 import { Alert, Button, Card } from '../components/ui';
 import {
-  sendPointsWrite as send,
+  sendPointsWrite,
+  sendWrite as send,
   setPendingAction,
   usePendingAction,
+  type Applied,
+  type CouponWrite,
   type Outcome,
   type PendingAction,
   type PointsWrite,
+  type StampWrite,
+  type WriteOutcome,
 } from '../lib/pending';
 import { canScanNatively, liff } from '../liff';
 import { describeActionError } from './actionError';
+import { CouponsPanel } from './CouponsPanel';
 import { EarnForm } from './EarnForm';
 import { RedeemForm } from './RedeemForm';
+import { StampsPanel } from './StampsPanel';
+
+type Tab = 'earn' | 'redeem' | 'coupons' | 'stamps';
+const TABS: Tab[] = ['earn', 'redeem', 'coupons', 'stamps'];
 
 type Stage =
   | { name: 'idle' }
   | { name: 'camera' }
-  | { name: 'member'; scan: ScanResult; tab: 'earn' | 'redeem' }
+  | {
+      name: 'member';
+      scan: ScanResult;
+      tab: Tab;
+      /** Coupons redeemed on this scan, as the API returned them. */
+      redeemed: CouponInstance[];
+      /** Stamps given per card on this scan (the per-visit cap counts them). */
+      given: Record<string, number>;
+      results: Record<string, StampResult>;
+    }
   | { name: 'done'; txn: PointsTransaction; member: ScannedMember };
 
 interface Notice {
-  tone: 'warning' | 'danger';
+  tone: 'warning' | 'danger' | 'success';
   text: string;
 }
 
@@ -47,9 +75,58 @@ export function Counter({ session }: { session: StaffSession }) {
   const submitWrite = useCallback(
     (w: PointsWrite, member: ScannedMember): Promise<Outcome> => {
       setConfirmDiscard(false);
-      return send({ ...w, key: crypto.randomUUID(), staffId, member });
+      return sendPointsWrite({ ...w, key: crypto.randomUUID(), staffId, member });
     },
     [staffId],
+  );
+
+  /** Applies a coupon or stamp answer to the member panel, if it is still open. */
+  const applyApplied = useCallback((applied: Applied, memberId: string) => {
+    setStage((prev) => {
+      if (prev.name !== 'member' || prev.scan.member.id !== memberId) return prev;
+      if (applied.kind === 'coupon') {
+        const c = applied.coupon;
+        return {
+          ...prev,
+          scan: { ...prev.scan, coupons: prev.scan.coupons.filter((x) => x.id !== c.id) },
+          redeemed: [...prev.redeemed, c],
+        };
+      }
+      if (applied.kind === 'stamp') {
+        const r = applied.result;
+        const id = r.progress.stamp_card_id;
+        return {
+          ...prev,
+          scan: {
+            ...prev.scan,
+            stamps: prev.scan.stamps.map((s) => (s.stamp_card_id === id ? r.progress : s)),
+          },
+          given: { ...prev.given, [id]: (prev.given[id] ?? 0) + r.added },
+          results: { ...prev.results, [id]: r },
+        };
+      }
+      return prev;
+    });
+  }, []);
+
+  const submitCoupon = useCallback(
+    async (w: CouponWrite, member: ScannedMember): Promise<WriteOutcome> => {
+      setConfirmDiscard(false);
+      const out = await send({ ...w, key: crypto.randomUUID(), staffId, member });
+      if (out.ok) applyApplied(out.applied, member.id);
+      return out;
+    },
+    [staffId, applyApplied],
+  );
+
+  const submitStamp = useCallback(
+    async (w: StampWrite, member: ScannedMember): Promise<WriteOutcome> => {
+      setConfirmDiscard(false);
+      const out = await send({ ...w, key: crypto.randomUUID(), staffId, member });
+      if (out.ok) applyApplied(out.applied, member.id);
+      return out;
+    },
+    [staffId, applyApplied],
   );
 
   /** Resends the pending write with the same key and body. */
@@ -60,8 +137,13 @@ export function Counter({ session }: { session: StaffSession }) {
     try {
       const out = await send(pending);
       if (out.ok) {
-        setNotice(null);
-        setStage({ name: 'done', txn: out.txn, member: pending.member });
+        if (out.applied.kind === 'points') {
+          setNotice(null);
+          setStage({ name: 'done', txn: out.applied.txn, member: pending.member });
+        } else {
+          applyApplied(out.applied, pending.member.id);
+          setNotice({ tone: 'success', text: t('pending.applied') });
+        }
       } else if (!out.ambiguous) {
         const failure = describeActionError(out.error, t, 0);
         setNotice({ tone: 'danger', text: t('pending.notApplied', { reason: failure.message }) });
@@ -86,7 +168,14 @@ export function Counter({ session }: { session: StaffSession }) {
       try {
         const scan = unwrap(await api.POST('/v1/staff/scan', { body: { qr: qr.trim() } }));
         setManual('');
-        setStage({ name: 'member', scan, tab: 'earn' });
+        setStage({
+          name: 'member',
+          scan,
+          tab: 'earn',
+          redeemed: [],
+          given: {},
+          results: {},
+        });
       } catch (err) {
         const e = toApiError(err);
         const text =
@@ -190,7 +279,7 @@ export function Counter({ session }: { session: StaffSession }) {
             onExpire={onExpire}
           />
           <div role="tablist" className="grid grid-cols-2 gap-2">
-            {(['earn', 'redeem'] as const).map((tab) => (
+            {TABS.map((tab) => (
               <button
                 key={tab}
                 role="tab"
@@ -203,7 +292,7 @@ export function Counter({ session }: { session: StaffSession }) {
                     : 'bg-zinc-200 dark:bg-zinc-800'
                 }`}
               >
-                {tab === 'earn' ? t('member.earn') : t('member.redeem')}
+                {t(`member.tabs.${tab}`)}
               </button>
             ))}
           </div>
@@ -216,6 +305,46 @@ export function Counter({ session }: { session: StaffSession }) {
                 blocked={blockedFor(stage.scan.member.id)}
                 onSubmit={(body) => submitWrite({ kind: 'earn', body }, stage.scan.member)}
                 onDone={(txn) => setStage({ name: 'done', txn, member: stage.scan.member })}
+                onScanAgain={scanAgain}
+              />
+            ) : stage.tab === 'coupons' ? (
+              <CouponsPanel
+                scan={stage.scan}
+                redeemed={stage.redeemed}
+                blocked={blockedFor(stage.scan.member.id)}
+                onRedeem={(c) =>
+                  submitCoupon(
+                    {
+                      kind: 'coupon',
+                      couponId: c.id,
+                      couponName: c.template.name,
+                      body: { scan_token: stage.scan.scan_token },
+                    },
+                    stage.scan.member,
+                  )
+                }
+                onScanAgain={scanAgain}
+              />
+            ) : stage.tab === 'stamps' ? (
+              <StampsPanel
+                scan={stage.scan}
+                given={stage.given}
+                results={stage.results}
+                blocked={blockedFor(stage.scan.member.id)}
+                onAdd={(card: StampProgress, count) =>
+                  submitStamp(
+                    {
+                      kind: 'stamp',
+                      cardName: card.name,
+                      body: {
+                        scan_token: stage.scan.scan_token,
+                        stamp_card_id: card.stamp_card_id,
+                        count,
+                      },
+                    },
+                    stage.scan.member,
+                  )
+                }
                 onScanAgain={scanAgain}
               />
             ) : (
@@ -287,12 +416,7 @@ function PendingBanner({
 }) {
   const { t } = useTranslation();
   const name = pending.member.display_name ?? t('member.anonymous');
-  const what =
-    pending.kind === 'redeem'
-      ? t('pending.redeem', { name, points: pending.body.points.toLocaleString() })
-      : 'spend_amount' in pending.body
-        ? t('pending.earnSpend', { name, amount: pending.body.spend_amount.toLocaleString() })
-        : t('pending.earnPoints', { name, points: pending.body.points.toLocaleString() });
+  const what = describePending(pending, name, t);
   const reason = pending.error ? describeActionError(pending.error, t, 0).message : null;
 
   return (
@@ -329,4 +453,19 @@ function PendingBanner({
       </Alert>
     </section>
   );
+}
+
+function describePending(p: PendingAction, name: string, t: TFunction): string {
+  switch (p.kind) {
+    case 'coupon':
+      return t('pending.coupon', { name, coupon: p.couponName });
+    case 'stamp':
+      return t('pending.stamp', { name, card: p.cardName, count: p.body.count });
+    case 'redeem':
+      return t('pending.redeem', { name, points: p.body.points.toLocaleString() });
+    case 'earn':
+      return 'spend_amount' in p.body
+        ? t('pending.earnSpend', { name, amount: p.body.spend_amount.toLocaleString() })
+        : t('pending.earnPoints', { name, points: p.body.points.toLocaleString() });
+  }
 }

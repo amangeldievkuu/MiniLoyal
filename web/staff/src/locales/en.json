@@ -66,7 +66,13 @@
     "expired": "This scan has timed out. Scan the member card again.",
     "earn": "Add points",
     "redeem": "Redeem points",
-    "clear": "Done with this member"
+    "clear": "Done with this member",
+    "tabs": {
+      "earn": "Add points",
+      "redeem": "Redeem points",
+      "coupons": "Coupons",
+      "stamps": "Stamps"
+    }
   },
   "earn": {
     "amountLabel": "Purchase amount (NT$)",
@@ -98,7 +104,10 @@
     "selfService": "You cannot add or redeem points on your own member card. Ask a colleague.",
     "rateLimited": "Too many actions in a short time. Wait {{seconds}} s and try again.",
     "scanUsed": "This scan was already used for a redemption. Scan the member card again.",
-    "pointsDisabled": "Points are turned off for this shop."
+    "pointsDisabled": "Points are turned off for this shop.",
+    "couponUnavailable": "This coupon cannot be used: it was already used, has expired, or belongs to another member.",
+    "stampVisitLimit": "No more stamps can be given on this visit.",
+    "stampCardInactive": "This stamp card is no longer active."
   },
   "keypad": {
     "clear": "Clear",
@@ -117,6 +126,38 @@
     "discardYes": "Discard it",
     "keep": "Keep it",
     "discarded": "The unconfirmed action was discarded.",
-    "notApplied": "The last action was not applied: {{reason}}"
+    "notApplied": "The last action was not applied: {{reason}}",
+    "applied": "The unconfirmed action went through.",
+    "coupon": "Redeem coupon {{coupon}} for {{name}}",
+    "stamp": "Add {{count}} stamp(s) on {{card}} for {{name}}"
+  },
+  "coupons": {
+    "none": "This member has no coupons to redeem.",
+    "amountOff": "NT${{value}} off",
+    "percentOff": "{{value}}% off",
+    "freeItem": "Free item",
+    "expires": "Expires {{date}}",
+    "noExpiry": "No expiry",
+    "redeem": "Redeem",
+    "redeemNamed": "Redeem {{name}}",
+    "confirmBody": "Redeem {{name}} now? This cannot be undone.",
+    "confirm": "Confirm redeem",
+    "redeemedDone": "Redeemed: {{name}}"
+  },
+  "stamps": {
+    "none": "No active stamp cards.",
+    "progress": "{{count}} of {{required}} stamps",
+    "reward": "Reward: {{name}} ({{value}})",
+    "countLabel": "Number of stamps",
+    "less": "Fewer stamps",
+    "more": "More stamps",
+    "cap": "Up to {{remaining}} more on this visit (limit {{max}}).",
+    "limitReached": "The limit of {{max}} stamps for this visit is reached.",
+    "add": "Add {{count}} stamp(s)",
+    "addNamed": "Add {{count}} stamp(s) to {{name}}",
+    "added": "{{count}} stamp(s) added.",
+    "completed": "Card completed ({{count}}x).",
+    "rewardIssued": "Reward coupon issued: {{name}}",
+    "rewardUnavailable": "The reward is not available right now. The stamps are recorded; ask the member to contact the brand."
   }
 }
