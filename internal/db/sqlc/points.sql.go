@@ -308,6 +308,55 @@ func (q *Queries) ListExpiringSoon(ctx context.Context, arg ListExpiringSoonPara
 	return items, nil
 }
 
+const listLedgerByTxns = `-- name: ListLedgerByTxns :many
+SELECT id, tenant_id, app_id, member_id, txn_id, lot_id, delta, balance_after, reason, spend_amount, ref_type, ref_id, note, store_id, actor_type, actor_id, created_at FROM points_ledger
+WHERE member_id = $1 AND txn_id = ANY($2::uuid[])
+ORDER BY id
+`
+
+type ListLedgerByTxnsParams struct {
+	MemberID uuid.UUID   `json:"member_id"`
+	TxnIds   []uuid.UUID `json:"txn_ids"`
+}
+
+func (q *Queries) ListLedgerByTxns(ctx context.Context, arg ListLedgerByTxnsParams) ([]PointsLedger, error) {
+	rows, err := q.db.Query(ctx, listLedgerByTxns, arg.MemberID, arg.TxnIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PointsLedger
+	for rows.Next() {
+		var i PointsLedger
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.AppID,
+			&i.MemberID,
+			&i.TxnID,
+			&i.LotID,
+			&i.Delta,
+			&i.BalanceAfter,
+			&i.Reason,
+			&i.SpendAmount,
+			&i.RefType,
+			&i.RefID,
+			&i.Note,
+			&i.StoreID,
+			&i.ActorType,
+			&i.ActorID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOpenLotsForUpdate = `-- name: ListOpenLotsForUpdate :many
 SELECT id, tenant_id, app_id, member_id, earned, remaining, expires_at, created_at FROM points_lots
 WHERE member_id = $1 AND remaining > 0
@@ -345,22 +394,8 @@ func (q *Queries) ListOpenLotsForUpdate(ctx context.Context, memberID uuid.UUID)
 	return items, nil
 }
 
-const listPointsTransactions = `-- name: ListPointsTransactions :many
-SELECT
-  txn_id,
-  max(id)::bigint                 AS last_id,
-  min(reason)                     AS reason,
-  sum(delta)::bigint              AS delta,
-  min(balance_after)::bigint      AS balance_after_min,
-  max(balance_after)::bigint      AS balance_after_max,
-  max(spend_amount)               AS spend_amount,
-  max(ref_type)                   AS ref_type,
-  max(ref_id)                     AS ref_id,
-  max(note)                       AS note,
-  (array_agg(store_id))[1]::uuid  AS store_id,
-  min(actor_type)                 AS actor_type,
-  (array_agg(actor_id))[1]::uuid  AS actor_id,
-  min(created_at)::timestamptz    AS created_at
+const listPointsTxnPage = `-- name: ListPointsTxnPage :many
+SELECT txn_id, max(id)::bigint AS last_id
 FROM points_ledger
 WHERE member_id = $1
 GROUP BY txn_id
@@ -369,55 +404,28 @@ ORDER BY max(id) DESC
 LIMIT $3
 `
 
-type ListPointsTransactionsParams struct {
+type ListPointsTxnPageParams struct {
 	MemberID  uuid.UUID `json:"member_id"`
 	BeforeID  *int64    `json:"before_id"`
 	PageLimit int32     `json:"page_limit"`
 }
 
-type ListPointsTransactionsRow struct {
-	TxnID           uuid.UUID          `json:"txn_id"`
-	LastID          int64              `json:"last_id"`
-	Reason          interface{}        `json:"reason"`
-	Delta           int64              `json:"delta"`
-	BalanceAfterMin int64              `json:"balance_after_min"`
-	BalanceAfterMax int64              `json:"balance_after_max"`
-	SpendAmount     interface{}        `json:"spend_amount"`
-	RefType         interface{}        `json:"ref_type"`
-	RefID           interface{}        `json:"ref_id"`
-	Note            interface{}        `json:"note"`
-	StoreID         uuid.UUID          `json:"store_id"`
-	ActorType       interface{}        `json:"actor_type"`
-	ActorID         uuid.UUID          `json:"actor_id"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+type ListPointsTxnPageRow struct {
+	TxnID  uuid.UUID `json:"txn_id"`
+	LastID int64     `json:"last_id"`
 }
 
 // One row per operation (txn_id), newest first; keyset on the last ledger id.
-func (q *Queries) ListPointsTransactions(ctx context.Context, arg ListPointsTransactionsParams) ([]ListPointsTransactionsRow, error) {
-	rows, err := q.db.Query(ctx, listPointsTransactions, arg.MemberID, arg.BeforeID, arg.PageLimit)
+func (q *Queries) ListPointsTxnPage(ctx context.Context, arg ListPointsTxnPageParams) ([]ListPointsTxnPageRow, error) {
+	rows, err := q.db.Query(ctx, listPointsTxnPage, arg.MemberID, arg.BeforeID, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListPointsTransactionsRow
+	var items []ListPointsTxnPageRow
 	for rows.Next() {
-		var i ListPointsTransactionsRow
-		if err := rows.Scan(
-			&i.TxnID,
-			&i.LastID,
-			&i.Reason,
-			&i.Delta,
-			&i.BalanceAfterMin,
-			&i.BalanceAfterMax,
-			&i.SpendAmount,
-			&i.RefType,
-			&i.RefID,
-			&i.Note,
-			&i.StoreID,
-			&i.ActorType,
-			&i.ActorID,
-			&i.CreatedAt,
-		); err != nil {
+		var i ListPointsTxnPageRow
+		if err := rows.Scan(&i.TxnID, &i.LastID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -443,6 +451,26 @@ func (q *Queries) LockPointsAccount(ctx context.Context, memberID uuid.UUID) (Po
 		&i.LifetimeEarned,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const lockPointsLot = `-- name: LockPointsLot :one
+SELECT id, tenant_id, app_id, member_id, earned, remaining, expires_at, created_at FROM points_lots WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockPointsLot(ctx context.Context, id int64) (PointsLot, error) {
+	row := q.db.QueryRow(ctx, lockPointsLot, id)
+	var i PointsLot
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.AppID,
+		&i.MemberID,
+		&i.Earned,
+		&i.Remaining,
+		&i.ExpiresAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }

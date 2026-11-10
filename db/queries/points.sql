@@ -69,29 +69,23 @@ GROUP BY expires_at
 ORDER BY expires_at
 LIMIT 3;
 
--- name: ListPointsTransactions :many
+-- name: ListPointsTxnPage :many
 -- One row per operation (txn_id), newest first; keyset on the last ledger id.
-SELECT
-  txn_id,
-  max(id)::bigint                 AS last_id,
-  min(reason)                     AS reason,
-  sum(delta)::bigint              AS delta,
-  min(balance_after)::bigint      AS balance_after_min,
-  max(balance_after)::bigint      AS balance_after_max,
-  max(spend_amount)               AS spend_amount,
-  max(ref_type)                   AS ref_type,
-  max(ref_id)                     AS ref_id,
-  max(note)                       AS note,
-  (array_agg(store_id))[1]::uuid  AS store_id,
-  min(actor_type)                 AS actor_type,
-  (array_agg(actor_id))[1]::uuid  AS actor_id,
-  min(created_at)::timestamptz    AS created_at
+SELECT txn_id, max(id)::bigint AS last_id
 FROM points_ledger
 WHERE member_id = sqlc.arg('member_id')
 GROUP BY txn_id
 HAVING sqlc.narg('before_id')::bigint IS NULL OR max(id) < sqlc.narg('before_id')::bigint
 ORDER BY max(id) DESC
 LIMIT sqlc.arg('page_limit');
+
+-- name: ListLedgerByTxns :many
+SELECT * FROM points_ledger
+WHERE member_id = sqlc.arg('member_id') AND txn_id = ANY(sqlc.arg('txn_ids')::uuid[])
+ORDER BY id;
+
+-- name: LockPointsLot :one
+SELECT * FROM points_lots WHERE id = $1 FOR UPDATE;
 
 -- name: ListDueLots :many
 -- Expiry job: lots past their expiry that still hold points, oldest first.
