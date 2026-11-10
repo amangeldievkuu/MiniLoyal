@@ -195,7 +195,7 @@
   },
   "channels": {
     "title": "LINE MINI App 頻道",
-    "help": "一個 MINI App 頻道有三個內部頻道（開發中、審核中、已發布），各自有不同的 LIFF ID。請分別填寫，系統會接受每一個已設定的 Channel ID 作為 ID token 的 audience。",
+    "help": "MINI App 頻道有三個內部頻道（developing、review、published），各有自己的 LIFF ID，請分別填寫；每個已設定的頻道 ID 都會被接受為會員 ID token 的 audience。店員 App 使用自己的 LINE Login 頻道，請在第四列設定。",
     "environment": "環境",
     "channelId": "Channel ID",
     "liffId": "LIFF ID",
@@ -208,10 +208,12 @@
     "env": {
       "developing": "開發中",
       "review": "審核中",
-      "published": "已發布"
+      "published": "已發布",
+      "staff": "店員 App（LINE Login 頻道）"
     },
     "verified": "已驗證",
-    "notVerified": "尚未驗證"
+    "notVerified": "尚未驗證",
+    "staffHelp": "請在同一個 provider 下另外建立一個 LINE Login 頻道給店員 App 使用，並在此填入它的 LIFF App。店員登入只接受這個頻道，會員登入則永遠不接受，因此 MINI App 的會員 token 無法開啟店員 App。此頻道 ID 必須與 MINI App 頻道不同。"
   },
   "stores": {
     "title": "門市",

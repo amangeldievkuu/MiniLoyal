@@ -220,6 +220,17 @@ func (s *Service) UpdateApp(ctx context.Context, p principal.Principal, appID uu
 				return sqlc.App{}, fmt.Errorf("tenant: set HS256: %w", err)
 			}
 			changed = append(changed, "allow_hs256_id_tokens")
+			// Switching HS256 off also ends member sessions that may have
+			// been minted from HS256 tokens.
+			if !*in.AllowHS256 {
+				app, err = q.EndMemberSessions(ctx, sqlc.EndMemberSessionsParams{
+					ID: appID, MemberSessionsValidFrom: pgtype.Timestamptz{Time: s.clock.Now().Truncate(time.Millisecond), Valid: true},
+				})
+				if err != nil {
+					return sqlc.App{}, fmt.Errorf("tenant: end member sessions: %w", err)
+				}
+				changed = append(changed, "member_sessions_valid_from")
+			}
 		}
 		if in.OAChannelID != nil || in.OABasicID != nil || in.OAChannelSecret != nil {
 			params := sqlc.UpdateAppOAParams{
@@ -376,6 +387,20 @@ func (s *Service) PutChannel(ctx context.Context, p principal.Principal, appID u
 				return sqlc.AppChannel{}, err
 			}
 			verified = pgtype.Timestamptz{Time: s.clock.Now(), Valid: true}
+		}
+		// The staff channel must differ from every MINI App channel of the
+		// app, or a member's ID token would also open the staff app.
+		existing, err := sqlc.New(tx).ListAppChannels(ctx, appID)
+		if err != nil {
+			return sqlc.AppChannel{}, fmt.Errorf("tenant: list channels: %w", err)
+		}
+		for _, ch := range existing {
+			if ch.Environment == environment || ch.ChannelID != in.ChannelID {
+				continue
+			}
+			if ch.Environment == StaffEnvironment || environment == StaffEnvironment {
+				return sqlc.AppChannel{}, apierr.Validation(map[string]string{"channel_id": "the staff app needs its own LINE Login channel, separate from the MINI App"})
+			}
 		}
 		enc, err := s.keyring.Encrypt(ctx, []byte(*in.Secret), channelSecretAAD(appID, environment))
 		if err != nil {

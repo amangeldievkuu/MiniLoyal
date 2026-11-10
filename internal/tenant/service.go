@@ -32,6 +32,9 @@ type Service struct {
 	clock    clock.Clock
 	log      *slog.Logger
 	verifier ChannelVerifier
+	// inviteKey keys the HMAC that stores staff invite codes. SetInviteKey
+	// derives it from the session signing key; see invitekey.go.
+	inviteKey []byte
 }
 
 // New returns a Service. Idempotent outcomes are stored encrypted with the

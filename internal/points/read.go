@@ -148,6 +148,11 @@ func (s *Service) History(ctx context.Context, p principal.Principal, memberID u
 		out.Items = make([]Txn, 0, len(heads))
 		for _, h := range heads {
 			if t, ok := byTxn[h.TxnID]; ok {
+				// Notes and references are for the brand (adjustment reasons,
+				// receipt numbers); members see what happened, not why.
+				if p.IsMember() {
+					t.Note, t.RefID = nil, nil
+				}
 				out.Items = append(out.Items, *t)
 			}
 		}

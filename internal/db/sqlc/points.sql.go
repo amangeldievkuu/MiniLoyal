@@ -23,6 +23,19 @@ func (q *Queries) CountPointsAccounts(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const deleteOldScanTokenUses = `-- name: DeleteOldScanTokenUses :execrows
+DELETE FROM scan_token_uses WHERE used_at < $1
+`
+
+// Scan tokens live five minutes; a day of history is plenty.
+func (q *Queries) DeleteOldScanTokenUses(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOldScanTokenUses, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const ensurePointsAccount = `-- name: EnsurePointsAccount :exec
 INSERT INTO points_accounts (member_id, tenant_id, app_id)
 VALUES ($1, $2, $3)
@@ -229,18 +242,22 @@ func (q *Queries) InsertPointsLot(ctx context.Context, arg InsertPointsLotParams
 const listDueLots = `-- name: ListDueLots :many
 SELECT id, tenant_id, app_id, member_id, earned, remaining, expires_at, created_at FROM points_lots
 WHERE remaining > 0 AND expires_at IS NOT NULL AND expires_at <= $1
+  AND NOT (id = ANY($2::bigint[]))
 ORDER BY expires_at, id
-LIMIT $2
+LIMIT $3
 `
 
 type ListDueLotsParams struct {
-	Now   pgtype.Timestamptz `json:"now"`
-	Batch int32              `json:"batch"`
+	Now      pgtype.Timestamptz `json:"now"`
+	Excluded []int64            `json:"excluded"`
+	Batch    int32              `json:"batch"`
 }
 
 // Expiry job: lots past their expiry that still hold points, oldest first.
+// Lots that failed earlier in the same run are skipped so one bad account
+// cannot stall expiry for everyone.
 func (q *Queries) ListDueLots(ctx context.Context, arg ListDueLotsParams) ([]PointsLot, error) {
-	rows, err := q.db.Query(ctx, listDueLots, arg.Now, arg.Batch)
+	rows, err := q.db.Query(ctx, listDueLots, arg.Now, arg.Excluded, arg.Batch)
 	if err != nil {
 		return nil, err
 	}
@@ -345,6 +362,49 @@ func (q *Queries) ListLedgerByTxns(ctx context.Context, arg ListLedgerByTxnsPara
 			&i.StoreID,
 			&i.ActorType,
 			&i.ActorID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMemberDueLotsForUpdate = `-- name: ListMemberDueLotsForUpdate :many
+SELECT id, tenant_id, app_id, member_id, earned, remaining, expires_at, created_at FROM points_lots
+WHERE member_id = $1 AND remaining > 0 AND expires_at IS NOT NULL AND expires_at <= $2
+ORDER BY expires_at, id
+FOR UPDATE
+`
+
+type ListMemberDueLotsForUpdateParams struct {
+	MemberID uuid.UUID          `json:"member_id"`
+	Now      pgtype.Timestamptz `json:"now"`
+}
+
+// A write transaction expires the locked member's due lots before it touches
+// the balance, so expired points are never spent.
+func (q *Queries) ListMemberDueLotsForUpdate(ctx context.Context, arg ListMemberDueLotsForUpdateParams) ([]PointsLot, error) {
+	rows, err := q.db.Query(ctx, listMemberDueLotsForUpdate, arg.MemberID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PointsLot
+	for rows.Next() {
+		var i PointsLot
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.AppID,
+			&i.MemberID,
+			&i.Earned,
+			&i.Remaining,
+			&i.ExpiresAt,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -636,4 +696,31 @@ func (q *Queries) UpsertPointsRules(ctx context.Context, arg UpsertPointsRulesPa
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const useScanToken = `-- name: UseScanToken :execrows
+INSERT INTO scan_token_uses (jti, tenant_id, app_id, used_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (jti) DO NOTHING
+`
+
+type UseScanTokenParams struct {
+	Jti      string             `json:"jti"`
+	TenantID uuid.UUID          `json:"tenant_id"`
+	AppID    uuid.UUID          `json:"app_id"`
+	UsedAt   pgtype.Timestamptz `json:"used_at"`
+}
+
+// Zero rows means the scan token already paid for a redemption.
+func (q *Queries) UseScanToken(ctx context.Context, arg UseScanTokenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, useScanToken,
+		arg.Jti,
+		arg.TenantID,
+		arg.AppID,
+		arg.UsedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

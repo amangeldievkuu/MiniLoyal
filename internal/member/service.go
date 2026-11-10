@@ -252,7 +252,13 @@ func (s *Service) List(ctx context.Context, p principal.Principal, appID uuid.UU
 			role = r
 		}
 		defer func() { redactFor(p, role, page.Items) }()
-		params := sqlc.ListMembersParams{AppID: appID, PageLimit: int32(limit + 1)}
+		// Matching an exact LINE user ID tells the caller that the LINE
+		// account is a member, so the staff role (which never sees LINE IDs)
+		// may search names only.
+		params := sqlc.ListMembersParams{
+			AppID: appID, PageLimit: int32(limit + 1),
+			MatchLineUserID: !p.IsUser() || role.AtLeast(principal.RoleAdmin),
+		}
 		if in.Q != "" {
 			q := escapeLike(in.Q)
 			params.Q = &q

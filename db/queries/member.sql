@@ -85,7 +85,7 @@ WHERE app_id = sqlc.arg('app_id')
   AND (
     sqlc.narg('q')::text IS NULL
     OR lower(display_name) LIKE '%' || lower(sqlc.narg('q')::text) || '%'
-    OR line_user_id = sqlc.narg('q')::text
+    OR (sqlc.arg('match_line_user_id')::boolean AND line_user_id = sqlc.narg('q')::text)
   )
   AND (
     sqlc.narg('before_created_at')::timestamptz IS NULL

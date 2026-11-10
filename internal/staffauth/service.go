@@ -78,6 +78,9 @@ type Service struct {
 	sessionTTL  time.Duration
 	ipLimit     *auth.Limiter
 	inviteLimit *auth.Limiter
+	// inviteKey is the invite-code HMAC key, derived like the tenant
+	// service's from the session signing key.
+	inviteKey []byte
 }
 
 // New builds a Service.
@@ -123,6 +126,7 @@ func New(d Deps) (*Service, error) {
 		sessionTTL:  cfg.SessionTTL,
 		ipLimit:     auth.NewLimiter(d.Clock, cfg.IPPerMinute, cfg.IPPerMinute),
 		inviteLimit: auth.NewLimiter(d.Clock, cfg.InvitePerMinute, cfg.InvitePerMinute),
+		inviteKey:   tenant.InviteKey(cfg.SigningKey),
 	}, nil
 }
 
@@ -204,7 +208,7 @@ func (s *Service) LoginWithLine(ctx context.Context, in LoginInput, c Client) (*
 		}
 	}
 
-	app, claims, err := s.lineauth.VerifyIDTokenForApp(ctx, in.AppID, in.IDToken, "")
+	app, claims, err := s.lineauth.VerifyIDTokenForApp(ctx, in.AppID, in.IDToken, "", lineauth.AudienceStaff)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +224,7 @@ func (s *Service) LoginWithLine(ctx context.Context, in LoginInput, c Client) (*
 			if code == "" {
 				return errStaffLogin
 			}
-			hash := tenant.HashInviteCode(code)
+			hash := tenant.HashInviteCodeWithKey(s.inviteKey, code)
 			invited, err := q.GetStaffByInviteHash(ctx, sqlc.GetStaffByInviteHashParams{
 				AppID: app.ID, InviteCodeHash: &hash, Now: pgtype.Timestamptz{Time: s.clock.Now(), Valid: true},
 			})
@@ -357,6 +361,7 @@ func (s *Service) Scan(ctx context.Context, p principal.Principal, qr string) (S
 		return ScanResult{}, errBadCard
 	}
 	var out ScanResult
+	var keyVersion int
 	err = db.WithTenant(ctx, s.pool, p.TenantID, func(ctx context.Context, tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		m, err := q.GetMember(ctx, parsed.MemberID)
@@ -369,12 +374,15 @@ func (s *Service) Scan(ctx context.Context, p principal.Principal, qr string) (S
 		if m.AppID != p.AppID || m.AnonymizedAt.Valid {
 			return errBadCard
 		}
+		// Verify checks the MAC before the window, so card_expired is only
+		// ever said about a code this server issued.
 		if err := s.card.Verify(parsed, int(m.QrKeyVersion)); err != nil {
 			if errors.Is(err, card.ErrExpired) {
 				return errCardExpired
 			}
 			return errBadCard
 		}
+		keyVersion = int(m.QrKeyVersion)
 		acct, err := q.GetPointsAccount(ctx, m.ID)
 		switch {
 		case err == nil:
@@ -389,7 +397,7 @@ func (s *Service) Scan(ctx context.Context, p principal.Principal, qr string) (S
 	if err != nil {
 		return ScanResult{}, err
 	}
-	out.ScanToken, out.ExpiresAt, err = s.card.IssueScanToken(p.StaffID, out.Member.ID, p.AppID, p.TenantID)
+	out.ScanToken, out.ExpiresAt, err = s.card.IssueScanToken(p.StaffID, out.Member.ID, p.AppID, p.TenantID, keyVersion)
 	if err != nil {
 		return ScanResult{}, err
 	}

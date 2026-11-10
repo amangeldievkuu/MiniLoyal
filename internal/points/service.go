@@ -19,6 +19,7 @@ import (
 
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
 	"github.com/amangeldievkuu/miniloyal/internal/audit"
+	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
 	"github.com/amangeldievkuu/miniloyal/internal/idempotency"
@@ -46,11 +47,28 @@ const (
 // MaxPointsPerOperation bounds one operation so a lot always fits its column.
 const MaxPointsPerOperation = 1_000_000
 
+// MaxEarnPerOperation is the platform ceiling on points one purchase or one
+// fixed grant can earn, whatever an app's rule says. Dashboard adjustments
+// (audited, owners and admins only) may go up to MaxPointsPerOperation.
+const MaxEarnPerOperation = 100_000
+
+// DefaultMaxPointsPerTxn caps an earn for apps that never saved a rule.
+const DefaultMaxPointsPerTxn = 10_000
+
+// MaxSpendAmount bounds spend_amount (currency units) in the service, not
+// only in the API spec.
+const MaxSpendAmount = 100_000_000
+
+// defaultStaffWritesPerMinute limits points writes per staff member.
+const defaultStaffWritesPerMinute = 30
+
 var (
 	errInsufficient = apierr.New(409, "insufficient_points", "the member does not have enough points")
 	errDisabled     = apierr.New(409, "points_disabled", "points are disabled for this app")
 	errScanInvalid  = apierr.New(403, "scan_invalid", "scan the member card again")
 	errScanMismatch = apierr.New(403, "scan_mismatch", "this scan belongs to another staff member or app")
+	errScanUsed     = apierr.New(409, "scan_used", "this scan already paid for a redemption; scan the member card again")
+	errSelfService  = apierr.New(403, "self_service", "staff cannot give or spend points on their own member card")
 	errNotFound     = apierr.NotFound("member")
 )
 
@@ -65,6 +83,9 @@ type Deps struct {
 	Card  *card.Codec
 	Clock clock.Clock
 	Log   *slog.Logger
+	// StaffWritesPerMinute limits points writes per staff member. Zero
+	// means the default (30); a negative value turns the limit off (tests).
+	StaffWritesPerMinute int
 }
 
 // Service is the points domain.
@@ -75,6 +96,8 @@ type Service struct {
 	card    *card.Codec
 	clock   clock.Clock
 	log     *slog.Logger
+	// staffLimit is nil when the per-staff limit is off.
+	staffLimit *auth.Limiter
 }
 
 // New returns a Service.
@@ -89,13 +112,21 @@ func New(d Deps) *Service {
 	if d.Keyring != nil {
 		codec = idempotency.NewEncryptedCodec(d.Keyring)
 	}
+	var staffLimit *auth.Limiter
+	switch n := d.StaffWritesPerMinute; {
+	case n == 0:
+		staffLimit = auth.NewLimiter(d.Clock, defaultStaffWritesPerMinute, defaultStaffWritesPerMinute)
+	case n > 0:
+		staffLimit = auth.NewLimiter(d.Clock, n, n)
+	}
 	return &Service{
-		pool:    d.Pool,
-		tenants: d.Tenants,
-		idem:    idempotency.New(d.Pool, codec, d.Clock),
-		card:    d.Card,
-		clock:   d.Clock,
-		log:     d.Log,
+		pool:       d.Pool,
+		tenants:    d.Tenants,
+		idem:       idempotency.New(d.Pool, codec, d.Clock),
+		card:       d.Card,
+		clock:      d.Clock,
+		log:        d.Log,
+		staffLimit: staffLimit,
 	}
 }
 
@@ -146,6 +177,9 @@ func (s *Service) apply(ctx context.Context, q *sqlc.Queries, m sqlc.Member, rul
 	if op.delta > MaxPointsPerOperation || op.delta < -MaxPointsPerOperation {
 		return Txn{}, apierr.Validation(map[string]string{"points": fmt.Sprintf("must be at most %d per operation", MaxPointsPerOperation)})
 	}
+	if op.kind == KindEarn && op.delta > MaxEarnPerOperation {
+		return Txn{}, apierr.Validation(map[string]string{"points": fmt.Sprintf("one purchase earns at most %d points", MaxEarnPerOperation)})
+	}
 	if err := q.EnsurePointsAccount(ctx, sqlc.EnsurePointsAccountParams{MemberID: m.ID, TenantID: m.TenantID, AppID: m.AppID}); err != nil {
 		return Txn{}, fmt.Errorf("points: ensure account: %w", err)
 	}
@@ -154,8 +188,14 @@ func (s *Service) apply(ctx context.Context, q *sqlc.Queries, m sqlc.Member, rul
 		return Txn{}, fmt.Errorf("points: lock account: %w", err)
 	}
 	now := s.clock.Now()
+	// Expired lots are expired before anything else touches the balance, so
+	// points past their expiry are never spent even before the job runs.
+	current, err := s.expireMemberDue(ctx, q, m, acct.Balance, now)
+	if err != nil {
+		return Txn{}, err
+	}
 	txnID := uuid.Must(uuid.NewV7())
-	balance := acct.Balance + op.delta
+	balance := current + op.delta
 	if balance < 0 {
 		return Txn{}, errInsufficient
 	}
@@ -419,4 +459,39 @@ func (s *Service) Adjust(ctx context.Context, p principal.Principal, memberID uu
 			return t, nil
 		}, &out)
 	return out, err
+}
+
+// expireMemberDue expires the member's lots whose expiry passed, inside the
+// caller's transaction, which already holds the member's account lock. It
+// writes one expire row per lot (the unique index keeps that to one per
+// lot) and returns the balance afterwards.
+func (s *Service) expireMemberDue(ctx context.Context, q *sqlc.Queries, m sqlc.Member, balance int64, now time.Time) (int64, error) {
+	lots, err := q.ListMemberDueLotsForUpdate(ctx, sqlc.ListMemberDueLotsForUpdateParams{MemberID: m.ID, Now: pgtype.Timestamptz{Time: now, Valid: true}})
+	if err != nil {
+		return 0, fmt.Errorf("points: due lots: %w", err)
+	}
+	if len(lots) == 0 {
+		return balance, nil
+	}
+	for _, lot := range lots {
+		balance -= int64(lot.Remaining)
+		if balance < 0 {
+			return 0, fmt.Errorf("points: member %s balance is below its expiring lot %d", m.ID, lot.ID)
+		}
+		lotID := lot.ID
+		if _, err := q.InsertLedgerEntry(ctx, sqlc.InsertLedgerEntryParams{
+			TenantID: lot.TenantID, AppID: lot.AppID, MemberID: lot.MemberID,
+			TxnID: uuid.Must(uuid.NewV7()), LotID: &lotID, Delta: -lot.Remaining, BalanceAfter: balance,
+			Reason: KindExpire, ActorType: "system",
+		}); err != nil {
+			return 0, fmt.Errorf("points: expire lot %d: %w", lot.ID, err)
+		}
+		if err := q.SetLotRemaining(ctx, sqlc.SetLotRemainingParams{ID: lot.ID, Remaining: 0}); err != nil {
+			return 0, fmt.Errorf("points: empty lot %d: %w", lot.ID, err)
+		}
+	}
+	if err := q.SetPointsBalance(ctx, sqlc.SetPointsBalanceParams{MemberID: m.ID, Balance: balance}); err != nil {
+		return 0, fmt.Errorf("points: set balance after expiry: %w", err)
+	}
+	return balance, nil
 }

@@ -3,6 +3,7 @@ package points
 import (
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -30,9 +31,20 @@ type Rules struct {
 	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
 }
 
-// DefaultRules is NT$100 = 1 point, no minimum, no cap, no expiry.
+// DefaultRules is NT$100 = 1 point, no minimum, at most 10,000 points per
+// purchase, no expiry.
 func DefaultRules() Rules {
-	return Rules{Currency: "TWD", SpendPerPoint: 100, PointsPerUnit: 1, Enabled: true}
+	limit := DefaultMaxPointsPerTxn
+	return Rules{Currency: "TWD", SpendPerPoint: 100, PointsPerUnit: 1, MaxPointsPerTxn: &limit, Enabled: true}
+}
+
+// earnCap is the most one purchase or fixed grant may earn under the rule:
+// its max_points_per_txn, never above the platform ceiling.
+func (r Rules) earnCap() int64 {
+	if r.MaxPointsPerTxn != nil && int64(*r.MaxPointsPerTxn) < MaxEarnPerOperation {
+		return int64(*r.MaxPointsPerTxn)
+	}
+	return MaxEarnPerOperation
 }
 
 func fromRow(r sqlc.PointsRule) Rules {
@@ -77,8 +89,8 @@ func (r Rules) PointsFor(spend int) (int64, error) {
 	if !r.Enabled {
 		return 0, errDisabled
 	}
-	if spend < 0 {
-		return 0, apierr.Validation(map[string]string{"spend_amount": "must not be negative"})
+	if spend < 0 || spend > MaxSpendAmount {
+		return 0, apierr.Validation(map[string]string{"spend_amount": fmt.Sprintf("must be 0 to %d", MaxSpendAmount)})
 	}
 	if spend < r.MinSpend {
 		return 0, apierr.Validation(map[string]string{"spend_amount": fmt.Sprintf("must be at least %d to earn points", r.MinSpend)})
@@ -86,9 +98,11 @@ func (r Rules) PointsFor(spend int) (int64, error) {
 	if r.SpendPerPoint <= 0 || r.PointsPerUnit <= 0 {
 		return 0, fmt.Errorf("points: invalid rule %+v", r)
 	}
-	pts := int64(spend/r.SpendPerPoint) * int64(r.PointsPerUnit)
-	if r.MaxPointsPerTxn != nil && pts > int64(*r.MaxPointsPerTxn) {
-		pts = int64(*r.MaxPointsPerTxn)
+	// int64 throughout: spend <= 1e8 and points_per_unit <= 1e3 cannot
+	// overflow, and the cap below bounds the result.
+	pts := (int64(spend) / int64(r.SpendPerPoint)) * int64(r.PointsPerUnit)
+	if limit := r.earnCap(); pts > limit {
+		pts = limit
 	}
 	if pts <= 0 {
 		return 0, apierr.Validation(map[string]string{"spend_amount": "earns no points under the current rule"})
@@ -235,9 +249,15 @@ func (s *Service) PutRules(ctx context.Context, p principal.Principal, appID uui
 	return out, err
 }
 
+// int32Ptr narrows a validated value for an integer column. Values are
+// bounded before they get here (spend <= MaxSpendAmount, rule fields by
+// validateRules); anything outside int32 is a programming error.
 func int32Ptr(v *int) *int32 {
 	if v == nil {
 		return nil
+	}
+	if *v > math.MaxInt32 || *v < math.MinInt32 {
+		panic(fmt.Sprintf("points: %d does not fit an int32 column", *v))
 	}
 	x := int32(*v)
 	return &x

@@ -47,7 +47,8 @@ func TestPointsForRuleTable(t *testing.T) {
 		{"min spend met", points.Rules{Currency: "TWD", SpendPerPoint: 100, PointsPerUnit: 1, MinSpend: 300, Enabled: true}, 300, 3, ""},
 		{"cap", points.Rules{Currency: "TWD", SpendPerPoint: 10, PointsPerUnit: 1, MaxPointsPerTxn: intp(50), Enabled: true}, 10000, 50, ""},
 		{"disabled", points.Rules{Currency: "TWD", SpendPerPoint: 100, PointsPerUnit: 1, Enabled: false}, 1000, 0, "points_disabled"},
-		{"overflow beyond one operation", points.Rules{Currency: "TWD", SpendPerPoint: 1, PointsPerUnit: 1000, Enabled: true}, 100_000_000, 0, "validation_failed"},
+		{"capped at the platform ceiling", points.Rules{Currency: "TWD", SpendPerPoint: 1, PointsPerUnit: 1000, Enabled: true}, 100_000_000, points.MaxEarnPerOperation, ""},
+		{"spend beyond the maximum", points.Rules{Currency: "TWD", SpendPerPoint: 1, PointsPerUnit: 1, Enabled: true}, 100_000_001, 0, "validation_failed"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -101,7 +102,7 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	e := &env{d: d, clk: clk, codec: codec}
-	e.svc = points.New(points.Deps{Pool: d.App, Tenants: tenant.New(d.App, keyring, clk, log), Keyring: keyring, Card: codec, Clock: clk, Log: log})
+	e.svc = points.New(points.Deps{Pool: d.App, Tenants: tenant.New(d.App, keyring, clk, log), Keyring: keyring, Card: codec, Clock: clk, Log: log, StaffWritesPerMinute: -1})
 	e.tenant = d.NewTenant(t, "Alpha")
 	e.app = e.newApp(t, e.tenant)
 	e.owner = e.user(t, e.tenant, "owner")
@@ -145,7 +146,7 @@ func (e *env) staff(role string) principal.Principal {
 
 func (e *env) scan(t *testing.T, st principal.Principal, memberID uuid.UUID) string {
 	t.Helper()
-	tok, _, err := e.codec.IssueScanToken(st.StaffID, memberID, st.AppID, st.TenantID)
+	tok, _, err := e.codec.IssueScanToken(st.StaffID, memberID, st.AppID, st.TenantID, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +298,7 @@ func TestStaffRulesAndScanBinding(t *testing.T) {
 		t.Errorf("someone else's scan: %v", err)
 	}
 	foreignApp := e.newApp(t, e.tenant)
-	tok, _, _ := e.codec.IssueScanToken(cashier.StaffID, m, foreignApp, e.tenant)
+	tok, _, _ := e.codec.IssueScanToken(cashier.StaffID, m, foreignApp, e.tenant, 1)
 	if _, err := e.svc.StaffRedeem(ctx, cashier, idem(), tok, 1, nil); code(err) != "scan_mismatch" {
 		t.Errorf("scan for another app: %v", err)
 	}

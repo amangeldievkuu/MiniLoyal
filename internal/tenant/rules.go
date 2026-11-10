@@ -23,8 +23,13 @@ var Scopes = []string{
 	"config:read",
 }
 
-// Environments of a LINE MINI App channel.
-var Environments = []string{"developing", "review", "published"}
+// Environments of an app's LINE channels: the three internal channels of the
+// MINI App, and the LINE Login channel the staff app signs in with.
+var Environments = []string{"developing", "review", "published", StaffEnvironment}
+
+// StaffEnvironment is the staff app's own LINE Login channel. Member sign-in
+// never accepts it and staff sign-in accepts nothing else.
+const StaffEnvironment = "staff"
 
 var (
 	slugPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$`)
@@ -162,7 +167,7 @@ func validateStaffRole(role string) error {
 
 func validateEnvironment(env string) error {
 	if !slices.Contains(Environments, env) {
-		return apierr.Validation(map[string]string{"environment": "must be developing, review or published"})
+		return apierr.Validation(map[string]string{"environment": "must be developing, review, published or staff"})
 	}
 	return nil
 }

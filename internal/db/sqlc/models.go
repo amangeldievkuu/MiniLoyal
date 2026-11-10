@@ -215,6 +215,14 @@ type RefreshToken struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type ScanTokenUse struct {
+	Jti       string             `json:"jti"`
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	AppID     uuid.UUID          `json:"app_id"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type SecurityEvent struct {
 	ID        int64              `json:"id"`
 	UserID    uuid.UUID          `json:"user_id"`

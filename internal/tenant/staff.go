@@ -2,8 +2,6 @@ package tenant
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -85,7 +83,7 @@ func (s *Service) CreateStaff(ctx context.Context, p principal.Principal, appID 
 			return StaffCreated{}, err
 		}
 		code := randomInviteCode()
-		hash := hashInvite(code)
+		hash := s.hashInvite(code)
 		st, err := q.CreateStaff(ctx, sqlc.CreateStaffParams{
 			ID: newID(), TenantID: tenantID, AppID: appID, StoreID: storeID,
 			DisplayName: in.DisplayName, Role: role,
@@ -144,6 +142,17 @@ func (s *Service) UpdateStaff(ctx context.Context, p principal.Principal, staffI
 		if err != nil {
 			return sqlc.Staff{}, fmt.Errorf("tenant: update staff: %w", err)
 		}
+		// Disabling or demoting a staff member ends their sessions, so
+		// re-enabling them later cannot revive a token issued before.
+		disabled := current.Status == "active" && st.Status != "active"
+		demoted := current.Role == "manager" && st.Role != "manager"
+		if disabled || demoted {
+			now := pgtype.Timestamptz{Time: s.clock.Now().Truncate(time.Millisecond), Valid: true}
+			if err := q.EndStaffSessions(ctx, sqlc.EndStaffSessionsParams{ID: st.ID, SessionsValidFrom: now}); err != nil {
+				return sqlc.Staff{}, fmt.Errorf("tenant: end staff sessions: %w", err)
+			}
+			st.SessionsValidFrom = now
+		}
 		return st, audit.Record(ctx, tx, audit.Entry{
 			TenantID: tenantID, AppID: &st.AppID, Actor: p, Action: audit.StaffUpdate,
 			TargetType: "staff", TargetID: st.ID.String(),
@@ -195,11 +204,6 @@ func (s *Service) storeInApp(ctx context.Context, q *sqlc.Queries, storeID *uuid
 	return uuid.NullUUID{UUID: st.ID, Valid: true}, nil
 }
 
-func hashInvite(code string) string {
-	sum := sha256.Sum256([]byte(code))
-	return hex.EncodeToString(sum[:])
-}
-
 func nullUUIDString(v uuid.NullUUID) any {
 	if !v.Valid {
 		return nil
@@ -219,7 +223,7 @@ func (s *Service) ResetStaffInvite(ctx context.Context, p principal.Principal, s
 		q := sqlc.New(tx)
 		now := s.clock.Now()
 		code := randomInviteCode()
-		hash := hashInvite(code)
+		hash := s.hashInvite(code)
 		st, err := q.ResetStaffInvite(ctx, sqlc.ResetStaffInviteParams{
 			ID:                staffID,
 			InviteCodeHash:    &hash,
@@ -234,12 +238,6 @@ func (s *Service) ResetStaffInvite(ctx context.Context, p principal.Principal, s
 			TargetType: "staff", TargetID: st.ID.String(),
 		})
 	})
-}
-
-// HashInviteCode normalizes a code as typed by a person (case, spaces and
-// dashes do not matter) and returns its stored form.
-func HashInviteCode(code string) string {
-	return hashInvite(NormalizeInviteCode(code))
 }
 
 // NormalizeInviteCode uppercases a code and strips spaces and dashes.

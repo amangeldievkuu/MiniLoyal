@@ -164,7 +164,7 @@ func (w *pointsWorld) user(tenantID uuid.UUID, role string) uuid.UUID {
 }
 
 func (w *pointsWorld) scan(st principal.Principal, memberID uuid.UUID) string {
-	tok, _, err := w.codec.IssueScanToken(st.StaffID, memberID, st.AppID, st.TenantID)
+	tok, _, err := w.codec.IssueScanToken(st.StaffID, memberID, st.AppID, st.TenantID, 1)
 	if err != nil {
 		w.t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestStaffEarnAndRedeemOverHTTP(t *testing.T) {
 		t.Fatalf("manager fixed points: %d %s", r.status, r.body)
 	}
 	// Someone else's scan, another app's scan, garbage.
-	foreignTok, _, _ := w.codec.IssueScanToken(w.cashier.StaffID, w.member, uuid.New(), w.tenant)
+	foreignTok, _, _ := w.codec.IssueScanToken(w.cashier.StaffID, w.member, uuid.New(), w.tenant, 1)
 	for name, token := range map[string]string{"another staff member": w.scan(w.manager, w.member), "another app": foreignTok, "garbage": "st1.x.y"} {
 		r := w.call(http.MethodPost, "/v1/staff/points/redeem", "bearer:cashier", "r-"+name, map[string]any{"scan_token": token, "points": 1})
 		if r.status != http.StatusForbidden {
@@ -267,7 +267,11 @@ func TestStaffEarnAndRedeemOverHTTP(t *testing.T) {
 	if tx.Points != -60 || tx.BalanceAfter != 2 {
 		t.Fatalf("redeem txn = %+v", tx)
 	}
-	if r := w.call(http.MethodPost, "/v1/staff/points/redeem", "bearer:cashier", "redeem-2", map[string]any{"scan_token": tok, "points": 3}); r.status != http.StatusConflict || r.code(t) != "insufficient_points" {
+	// One scan pays for one redemption; a fresh scan is needed for the next.
+	if r := w.call(http.MethodPost, "/v1/staff/points/redeem", "bearer:cashier", "redeem-2", map[string]any{"scan_token": tok, "points": 1}); r.status != http.StatusConflict || r.code(t) != "scan_used" {
+		t.Fatalf("second redemption on one scan: %d %s", r.status, r.body)
+	}
+	if r := w.call(http.MethodPost, "/v1/staff/points/redeem", "bearer:cashier", "redeem-2b", map[string]any{"scan_token": w.scan(w.cashier, w.member), "points": 3}); r.status != http.StatusConflict || r.code(t) != "insufficient_points" {
 		t.Fatalf("overspend: %d %s", r.status, r.body)
 	}
 	// A member token cannot act as staff, and a staff token cannot reach member routes.

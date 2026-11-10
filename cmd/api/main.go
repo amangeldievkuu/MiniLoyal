@@ -95,6 +95,9 @@ func run() int {
 		return 1
 	}
 	tenants := tenant.New(pool, keyring, clock.Real{}, logger)
+	// Staff invite codes are stored as HMACs under a key derived from the
+	// signing key; staff sign-in derives the same key.
+	tenants.SetInviteKey(cfg.SessionSigningKey)
 
 	// LINE Platform clients. Credentials are proven against LINE before they
 	// are stored, webhooks are verified with the stored secret, and member
