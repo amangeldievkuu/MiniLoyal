@@ -25,11 +25,13 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/audit"
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
+	"github.com/amangeldievkuu/miniloyal/internal/coupon"
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
 	"github.com/amangeldievkuu/miniloyal/internal/lineauth"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/principal"
+	"github.com/amangeldievkuu/miniloyal/internal/stamp"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 )
 
@@ -163,6 +165,10 @@ type ScanResult struct {
 	Balance   int64
 	ScanToken string
 	ExpiresAt time.Time
+	// Coupons staff can redeem now and progress on every active stamp
+	// card, read in the same transaction as the balance.
+	Coupons []coupon.Instance
+	Stamps  []stamp.Progress
 }
 
 var (
@@ -395,6 +401,13 @@ func (s *Service) Scan(ctx context.Context, p principal.Principal, qr string) (S
 		case db.IsNotFound(err):
 		default:
 			return fmt.Errorf("staffauth: load points: %w", err)
+		}
+		now := s.clock.Now()
+		if out.Coupons, err = coupon.Redeemable(ctx, q, m, now); err != nil {
+			return err
+		}
+		if out.Stamps, err = stamp.ProgressFor(ctx, q, m, false); err != nil {
+			return err
 		}
 		out.Member = m
 		return nil

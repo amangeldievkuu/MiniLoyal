@@ -15,10 +15,12 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/amangeldievkuu/miniloyal/internal/access"
 	"github.com/amangeldievkuu/miniloyal/internal/api"
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/auth/authtest"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
+	"github.com/amangeldievkuu/miniloyal/internal/coupon"
 	"github.com/amangeldievkuu/miniloyal/internal/lineauth"
 	"github.com/amangeldievkuu/miniloyal/internal/lineauth/lineauthtest"
 	"github.com/amangeldievkuu/miniloyal/internal/member"
@@ -26,6 +28,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
 	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"github.com/amangeldievkuu/miniloyal/internal/staffauth"
+	"github.com/amangeldievkuu/miniloyal/internal/stamp"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 	"github.com/amangeldievkuu/miniloyal/internal/testutil"
 	"github.com/amangeldievkuu/miniloyal/internal/webhook"
@@ -87,6 +90,7 @@ func newMemberEnvWith(t *testing.T, staffCfg staffauth.Config) *memberEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
+	staffLimit := access.NewStaffLimiter(e.clk, 0)
 	e.handler = New(Deps{
 		Config:    &config.Config{Env: config.Development, PublicBaseURL: "http://localhost:8080"},
 		Log:       logger,
@@ -100,7 +104,9 @@ func newMemberEnvWith(t *testing.T, staffCfg staffauth.Config) *memberEnv {
 		Webhooks:  webhook.New(d.App, tenants, logger),
 		Card:      e.cards,
 		StaffAuth: staffSvc,
-		Points:    points.New(points.Deps{Pool: d.App, Tenants: tenants, Keyring: keyring, Card: e.cards, Clock: e.clk, Log: logger}),
+		Points:    points.New(points.Deps{Pool: d.App, Tenants: tenants, Keyring: keyring, Card: e.cards, Clock: e.clk, Log: logger, StaffLimiter: staffLimit}),
+		Coupons:   coupon.New(coupon.Deps{Pool: d.App, Tenants: tenants, Keyring: keyring, Card: e.cards, Clock: e.clk, Log: logger, StaffLimiter: staffLimit}),
+		Stamps:    stamp.New(stamp.Deps{Pool: d.App, Tenants: tenants, Keyring: keyring, Card: e.cards, Clock: e.clk, Log: logger, StaffLimiter: staffLimit}),
 	}).Handler()
 	return e
 }

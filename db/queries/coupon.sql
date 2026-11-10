@@ -32,12 +32,16 @@ LIMIT sqlc.arg('page_limit');
 
 -- name: ListCouponOffers :many
 -- Templates a member may claim right now, with how many the member already
--- holds from each (voided ones excluded). The claim itself re-checks every
--- limit under the template lock.
+-- holds from each (voided ones excluded). held_from_claims counts only the
+-- member's own claims, which is what per_member_limit limits. The claim
+-- itself re-checks every limit under the template lock.
 SELECT t.*,
   (SELECT count(*) FROM coupon_instances i
    WHERE i.app_id = t.app_id AND i.template_id = t.id AND i.member_id = sqlc.arg('member_id')
-     AND i.status <> 'voided')::integer AS held
+     AND i.status <> 'voided')::integer AS held,
+  (SELECT count(*) FROM coupon_instances i
+   WHERE i.app_id = t.app_id AND i.template_id = t.id AND i.member_id = sqlc.arg('member_id')
+     AND i.status <> 'voided' AND i.source = 'claim')::integer AS held_from_claims
 FROM coupon_templates t
 WHERE t.app_id = sqlc.arg('app_id')
   AND t.status = 'active'

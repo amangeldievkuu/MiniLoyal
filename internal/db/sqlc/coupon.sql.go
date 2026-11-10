@@ -398,7 +398,10 @@ const listCouponOffers = `-- name: ListCouponOffers :many
 SELECT t.id, t.tenant_id, t.app_id, t.name, t.description, t.type, t.value, t.total_limit, t.per_member_limit, t.valid_from, t.valid_to, t.validity_days, t.claimable, t.claimed_count, t.status, t.created_at, t.updated_at,
   (SELECT count(*) FROM coupon_instances i
    WHERE i.app_id = t.app_id AND i.template_id = t.id AND i.member_id = $1
-     AND i.status <> 'voided')::integer AS held
+     AND i.status <> 'voided')::integer AS held,
+  (SELECT count(*) FROM coupon_instances i
+   WHERE i.app_id = t.app_id AND i.template_id = t.id AND i.member_id = $1
+     AND i.status <> 'voided' AND i.source = 'claim')::integer AS held_from_claims
 FROM coupon_templates t
 WHERE t.app_id = $2
   AND t.status = 'active'
@@ -434,11 +437,13 @@ type ListCouponOffersRow struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	Held           int32              `json:"held"`
+	HeldFromClaims int32              `json:"held_from_claims"`
 }
 
 // Templates a member may claim right now, with how many the member already
-// holds from each (voided ones excluded). The claim itself re-checks every
-// limit under the template lock.
+// holds from each (voided ones excluded). held_from_claims counts only the
+// member's own claims, which is what per_member_limit limits. The claim
+// itself re-checks every limit under the template lock.
 func (q *Queries) ListCouponOffers(ctx context.Context, arg ListCouponOffersParams) ([]ListCouponOffersRow, error) {
 	rows, err := q.db.Query(ctx, listCouponOffers, arg.MemberID, arg.AppID, arg.Now)
 	if err != nil {
@@ -467,6 +472,7 @@ func (q *Queries) ListCouponOffers(ctx context.Context, arg ListCouponOffersPara
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Held,
+			&i.HeldFromClaims,
 		); err != nil {
 			return nil, err
 		}

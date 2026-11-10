@@ -405,7 +405,7 @@ ON CONFLICT (app_id, line_user_id) DO UPDATE SET
   is_friend         = true,
   friend_changed_at = now(),
   updated_at        = now()
-RETURNING id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at, qr_key_version
+RETURNING id, tenant_id, app_id, line_user_id, display_name, picture_url, language, is_friend, friend_changed_at, phone, birthday, gender, custom_fields, consent_version, consent_at, last_login_at, anonymized_at, created_at, updated_at, qr_key_version, (xmax = 0) AS created
 `
 
 type UpsertMemberFromFollowParams struct {
@@ -415,15 +415,39 @@ type UpsertMemberFromFollowParams struct {
 	LineUserID string    `json:"line_user_id"`
 }
 
+type UpsertMemberFromFollowRow struct {
+	ID              uuid.UUID          `json:"id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	AppID           uuid.UUID          `json:"app_id"`
+	LineUserID      string             `json:"line_user_id"`
+	DisplayName     *string            `json:"display_name"`
+	PictureUrl      *string            `json:"picture_url"`
+	Language        *string            `json:"language"`
+	IsFriend        bool               `json:"is_friend"`
+	FriendChangedAt pgtype.Timestamptz `json:"friend_changed_at"`
+	Phone           *string            `json:"phone"`
+	Birthday        pgtype.Date        `json:"birthday"`
+	Gender          *string            `json:"gender"`
+	CustomFields    []byte             `json:"custom_fields"`
+	ConsentVersion  *string            `json:"consent_version"`
+	ConsentAt       pgtype.Timestamptz `json:"consent_at"`
+	LastLoginAt     pgtype.Timestamptz `json:"last_login_at"`
+	AnonymizedAt    pgtype.Timestamptz `json:"anonymized_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	QrKeyVersion    int32              `json:"qr_key_version"`
+	Created         bool               `json:"created"`
+}
+
 // A follow webhook may arrive before the member ever opened the MINI App.
-func (q *Queries) UpsertMemberFromFollow(ctx context.Context, arg UpsertMemberFromFollowParams) (Member, error) {
+func (q *Queries) UpsertMemberFromFollow(ctx context.Context, arg UpsertMemberFromFollowParams) (UpsertMemberFromFollowRow, error) {
 	row := q.db.QueryRow(ctx, upsertMemberFromFollow,
 		arg.ID,
 		arg.TenantID,
 		arg.AppID,
 		arg.LineUserID,
 	)
-	var i Member
+	var i UpsertMemberFromFollowRow
 	err := row.Scan(
 		&i.ID,
 		&i.TenantID,
@@ -445,6 +469,7 @@ func (q *Queries) UpsertMemberFromFollow(ctx context.Context, arg UpsertMemberFr
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.QrKeyVersion,
+		&i.Created,
 	)
 	return i, err
 }

@@ -151,6 +151,37 @@ func (q *Queries) GetStampCard(ctx context.Context, arg GetStampCardParams) (Sta
 	return i, err
 }
 
+const getStampCardForShare = `-- name: GetStampCardForShare :one
+SELECT id, tenant_id, app_id, name, description, stamps_required, reward_coupon_template_id, max_stamps_per_visit, status, created_at, updated_at FROM stamp_cards WHERE app_id = $1 AND id = $2 FOR SHARE
+`
+
+type GetStampCardForShareParams struct {
+	AppID uuid.UUID `json:"app_id"`
+	ID    uuid.UUID `json:"id"`
+}
+
+// The card as a stamp or adjustment sees it, held until the transaction
+// ends so a concurrent update waits for it. Share locks do not block each
+// other, so stamps of different members on one card still run in parallel.
+func (q *Queries) GetStampCardForShare(ctx context.Context, arg GetStampCardForShareParams) (StampCard, error) {
+	row := q.db.QueryRow(ctx, getStampCardForShare, arg.AppID, arg.ID)
+	var i StampCard
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.AppID,
+		&i.Name,
+		&i.Description,
+		&i.StampsRequired,
+		&i.RewardCouponTemplateID,
+		&i.MaxStampsPerVisit,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getStampCardScope = `-- name: GetStampCardScope :one
 SELECT tenant_id, app_id FROM stamp_cards WHERE id = $1
 `
@@ -472,6 +503,37 @@ func (q *Queries) ListStampEvents(ctx context.Context, arg ListStampEventsParams
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockStampCard = `-- name: LockStampCard :one
+SELECT id, tenant_id, app_id, name, description, stamps_required, reward_coupon_template_id, max_stamps_per_visit, status, created_at, updated_at FROM stamp_cards WHERE app_id = $1 AND id = $2 FOR UPDATE
+`
+
+type LockStampCardParams struct {
+	AppID uuid.UUID `json:"app_id"`
+	ID    uuid.UUID `json:"id"`
+}
+
+// Serializes dashboard changes of one card with each other and with stamps
+// (which hold GetStampCardForShare), so stamps_required cannot change
+// between the in-use check and a first stamp.
+func (q *Queries) LockStampCard(ctx context.Context, arg LockStampCardParams) (StampCard, error) {
+	row := q.db.QueryRow(ctx, lockStampCard, arg.AppID, arg.ID)
+	var i StampCard
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.AppID,
+		&i.Name,
+		&i.Description,
+		&i.StampsRequired,
+		&i.RewardCouponTemplateID,
+		&i.MaxStampsPerVisit,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const lockStampProgress = `-- name: LockStampProgress :one

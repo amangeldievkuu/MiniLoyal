@@ -4,9 +4,6 @@ package httpserver
 
 import (
 	"context"
-	"github.com/amangeldievkuu/miniloyal/internal/card"
-	"github.com/amangeldievkuu/miniloyal/internal/points"
-	"github.com/amangeldievkuu/miniloyal/internal/staffauth"
 	"log/slog"
 	"net/http"
 	"time"
@@ -15,9 +12,14 @@ import (
 
 	"github.com/amangeldievkuu/miniloyal/internal/api"
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
+	"github.com/amangeldievkuu/miniloyal/internal/card"
+	"github.com/amangeldievkuu/miniloyal/internal/coupon"
 	"github.com/amangeldievkuu/miniloyal/internal/lineauth"
 	"github.com/amangeldievkuu/miniloyal/internal/member"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
+	"github.com/amangeldievkuu/miniloyal/internal/points"
+	"github.com/amangeldievkuu/miniloyal/internal/staffauth"
+	"github.com/amangeldievkuu/miniloyal/internal/stamp"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 	"github.com/amangeldievkuu/miniloyal/internal/webhook"
 )
@@ -49,6 +51,12 @@ type Deps struct {
 	// Points serves earn rules, balances, history, adjustments and staff
 	// earn and redeem (internal/points). Nil answers those routes 503.
 	Points *points.Service
+	// Coupons serves coupon templates, claims, issues, voids and staff
+	// redeems (internal/coupon). Nil answers those routes 503.
+	Coupons *coupon.Service
+	// Stamps serves stamp cards, progress, staff stamps and adjustments
+	// (internal/stamp). Nil answers those routes 503.
+	Stamps *stamp.Service
 	// StaffAuth serves the staff app (sign-in, profile, card scans) and the
 	// member's own card. It also verifies staff sessions, so Staff defaults
 	// to it.
@@ -79,6 +87,8 @@ type Server struct {
 	staff     StaffAuthenticator
 	card      *card.Codec
 	points    *points.Service
+	coupons   *coupon.Service
+	stamps    *stamp.Service
 	staffAuth *staffauth.Service
 	tenants   *tenant.Service
 	lineauth  *lineauth.Service
@@ -118,6 +128,8 @@ func New(d Deps) *Server {
 		staff:     d.Staff,
 		card:      d.Card,
 		points:    d.Points,
+		coupons:   d.Coupons,
+		stamps:    d.Stamps,
 		staffAuth: d.StaffAuth,
 		tenants:   d.Tenants,
 		lineauth:  d.LineAuth,

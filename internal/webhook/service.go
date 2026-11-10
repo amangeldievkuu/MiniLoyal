@@ -16,6 +16,7 @@ import (
 
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
+	"github.com/amangeldievkuu/miniloyal/internal/events"
 	"github.com/amangeldievkuu/miniloyal/internal/line"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
@@ -134,10 +135,24 @@ func (s *Service) apply(ctx context.Context, q *sqlc.Queries, app sqlc.App, ev l
 			res.Ignored++
 			return nil
 		}
-		if _, err := q.UpsertMemberFromFollow(ctx, sqlc.UpsertMemberFromFollowParams{
+		row, err := q.UpsertMemberFromFollow(ctx, sqlc.UpsertMemberFromFollowParams{
 			ID: uuid.Must(uuid.NewV7()), TenantID: app.TenantID, AppID: app.ID, LineUserID: userID,
-		}); err != nil {
+		})
+		if err != nil {
 			return fmt.Errorf("webhook: follow: %w", err)
+		}
+		// A follow can be the first time the brand hears of the member.
+		if row.Created {
+			at := time.Now()
+			if ev.Timestamp > 0 {
+				at = time.UnixMilli(ev.Timestamp)
+			}
+			if err := events.Emit(ctx, q, events.Event{
+				TenantID: app.TenantID, AppID: app.ID, Type: events.MemberCreated, MemberID: row.ID, OccurredAt: at,
+				Payload: map[string]any{"member_id": row.ID, "source": "follow"},
+			}); err != nil {
+				return err
+			}
 		}
 		res.Processed++
 	case line.EventUnfollow:

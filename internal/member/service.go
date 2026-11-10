@@ -21,12 +21,14 @@ import (
 
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
 	"github.com/amangeldievkuu/miniloyal/internal/audit"
+	"github.com/amangeldievkuu/miniloyal/internal/coupon"
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
 	"github.com/amangeldievkuu/miniloyal/internal/idempotency"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"github.com/amangeldievkuu/miniloyal/internal/principal"
+	"github.com/amangeldievkuu/miniloyal/internal/stamp"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 )
 
@@ -103,13 +105,13 @@ type Update struct {
 	CustomFields map[string]any
 }
 
-// Export is everything stored about a member. Coupons and stamps are not
-// read here yet; the HTTP layer answers them as empty lists until the
-// coupon and stamp module fills them.
+// Export is everything stored about a member.
 type Export struct {
 	Member     sqlc.Member
 	Consents   []sqlc.MemberConsent
 	Points     points.MemberData
+	Coupons    []coupon.Instance
+	Stamps     stamp.MemberData
 	ExportedAt time.Time
 }
 
@@ -434,7 +436,15 @@ func (s *Service) export(ctx context.Context, q *sqlc.Queries, m sqlc.Member, fo
 	if err != nil {
 		return Export{}, fmt.Errorf("member: export points: %w", err)
 	}
-	return Export{Member: m, Consents: consents, Points: pts, ExportedAt: now}, nil
+	coupons, err := coupon.ExportMember(ctx, q, m, now)
+	if err != nil {
+		return Export{}, fmt.Errorf("member: export coupons: %w", err)
+	}
+	stamps, err := stamp.ExportMember(ctx, q, m)
+	if err != nil {
+		return Export{}, fmt.Errorf("member: export stamps: %w", err)
+	}
+	return Export{Member: m, Consents: consents, Points: pts, Coupons: coupons, Stamps: stamps, ExportedAt: now}, nil
 }
 
 func (s *Service) audit(ctx context.Context, tx pgx.Tx, p principal.Principal, m sqlc.Member, action string) error {

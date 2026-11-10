@@ -18,7 +18,7 @@ ON CONFLICT (app_id, line_user_id) DO UPDATE SET
   is_friend         = true,
   friend_changed_at = now(),
   updated_at        = now()
-RETURNING *;
+RETURNING *, (xmax = 0) AS created;
 
 -- name: SetMemberFriendByLineUserID :execrows
 UPDATE members SET is_friend = $3, friend_changed_at = now(), updated_at = now()

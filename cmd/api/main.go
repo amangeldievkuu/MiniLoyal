@@ -6,9 +6,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/amangeldievkuu/miniloyal/internal/access"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
+	"github.com/amangeldievkuu/miniloyal/internal/coupon"
 	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"github.com/amangeldievkuu/miniloyal/internal/staffauth"
+	"github.com/amangeldievkuu/miniloyal/internal/stamp"
 	"net"
 	"net/http"
 	"os"
@@ -134,7 +137,11 @@ func run() int {
 		logger.Error("card codec setup failed", "err", err)
 		return 1
 	}
-	pointsSvc := points.New(points.Deps{Pool: pool, Tenants: tenants, Keyring: keyring, Card: cards, Clock: clock.Real{}, Log: logger})
+	// One limiter counts every staff write (points, coupons, stamps) together.
+	staffLimit := access.NewStaffLimiter(clock.Real{}, 0)
+	pointsSvc := points.New(points.Deps{Pool: pool, Tenants: tenants, Keyring: keyring, Card: cards, Clock: clock.Real{}, Log: logger, StaffLimiter: staffLimit})
+	couponSvc := coupon.New(coupon.Deps{Pool: pool, Tenants: tenants, Keyring: keyring, Card: cards, Clock: clock.Real{}, Log: logger, StaffLimiter: staffLimit})
+	stampSvc := stamp.New(stamp.Deps{Pool: pool, Tenants: tenants, Keyring: keyring, Card: cards, Clock: clock.Real{}, Log: logger, StaffLimiter: staffLimit})
 	staffAuth, err := staffauth.New(staffauth.Deps{
 		Pool: pool, LineAuth: lineAuth, Card: cards, Clock: clock.Real{}, Log: logger,
 		Config: staffauth.Config{SigningKey: cfg.SessionSigningKey},
@@ -158,6 +165,8 @@ func run() int {
 			Webhooks:  webhooks,
 			Card:      cards,
 			Points:    pointsSvc,
+			Coupons:   couponSvc,
+			Stamps:    stampSvc,
 			StaffAuth: staffAuth,
 			Staff:     staffAuth,
 		}).Handler(),

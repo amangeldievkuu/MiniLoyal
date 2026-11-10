@@ -136,3 +136,15 @@ WHERE app_id = sqlc.arg('app_id') AND member_id = sqlc.arg('member_id')
   AND (sqlc.narg('before_id')::bigint IS NULL OR id < sqlc.narg('before_id')::bigint)
 ORDER BY id DESC
 LIMIT sqlc.arg('page_limit');
+
+-- name: LockStampCard :one
+-- Serializes dashboard changes of one card with each other and with stamps
+-- (which hold GetStampCardForShare), so stamps_required cannot change
+-- between the in-use check and a first stamp.
+SELECT * FROM stamp_cards WHERE app_id = $1 AND id = $2 FOR UPDATE;
+
+-- name: GetStampCardForShare :one
+-- The card as a stamp or adjustment sees it, held until the transaction
+-- ends so a concurrent update waits for it. Share locks do not block each
+-- other, so stamps of different members on one card still run in parallel.
+SELECT * FROM stamp_cards WHERE app_id = $1 AND id = $2 FOR SHARE;
