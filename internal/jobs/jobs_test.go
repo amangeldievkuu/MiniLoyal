@@ -212,7 +212,9 @@ func TestMaintenanceRunsThroughRiver(t *testing.T) {
 		_ = client.StopAndCancel(stopCtx)
 	})
 
-	inserter, err := NewInserter(d.App)
+	// The API role enqueues nothing since 00010, so the worker's own pool
+	// inserts.
+	inserter, err := NewInserter(d.Worker)
 	if err != nil {
 		t.Fatal(err)
 	}

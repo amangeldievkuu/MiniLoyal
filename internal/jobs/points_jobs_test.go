@@ -40,9 +40,9 @@ func (c *countingExpirer) ExpireDue(ctx context.Context, now time.Time, batch in
 
 // Invariant: the worker connects as miniloyal_worker, which is neither a
 // superuser, nor exempt from row-level security, nor the owner of the points
-// tables, and the real points expiry runs through River under it. The API
-// role enqueues the job. A points expiry job inserted twice in one period is
-// stored once and runs once.
+// tables, and the real points expiry runs through River under it and emits
+// points.changed into the outbox. A points expiry job inserted twice in one
+// period is stored once and runs once.
 func TestPointsExpiryJobRunsOnceAsTheWorkerRole(t *testing.T) {
 	d := testutil.NewDB(t)
 	ctx := context.Background()
@@ -74,16 +74,17 @@ func TestPointsExpiryJobRunsOnceAsTheWorkerRole(t *testing.T) {
 	svc := points.New(points.Deps{Pool: d.Worker, Tenants: tenant.New(d.Worker, crypto.Static(bytes.Repeat([]byte{5}, 32)), clock.Real{}, log), Clock: clock.Real{}, Log: log})
 	exp := &countingExpirer{next: svc}
 
-	// Two inserts in one period from the API role, which may only insert:
-	// the duplicate goes through River's ON CONFLICT path.
+	// Two inserts in one period: the duplicate goes through River's ON
+	// CONFLICT path. The worker inserts; the API role enqueues nothing
+	// since 00010.
 	pinned := time.Now().Add(-24 * time.Hour).Truncate(ExpiryInterval).Add(ExpiryInterval / 2)
-	inserter, err := river.NewClient(riverpgxv5.New(d.App), &river.Config{Test: river.TestConfig{Time: fixedRiverTime{pinned}}})
+	inserter, err := river.NewClient(riverpgxv5.New(d.Worker), &river.Config{Test: river.TestConfig{Time: fixedRiverTime{pinned}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	first, err := inserter.Insert(ctx, PointsExpiryArgs{}, nil)
 	if err != nil {
-		t.Fatalf("insert as the application role: %v", err)
+		t.Fatalf("insert as the worker role: %v", err)
 	}
 	second, err := inserter.Insert(ctx, PointsExpiryArgs{}, nil)
 	if err != nil {
@@ -131,14 +132,19 @@ wait:
 		}
 	}
 
-	var jobs, remaining, expireRows int
+	var jobs, remaining, expireRows, changed int
 	var balance int64
 	if err := d.Admin.QueryRow(ctx, `SELECT
 		(SELECT count(*) FROM river_job WHERE kind = 'points_expiry'),
 		(SELECT remaining FROM points_lots WHERE member_id = $1),
 		(SELECT count(*) FROM points_ledger WHERE member_id = $1 AND reason = 'expire'),
-		(SELECT balance FROM points_accounts WHERE member_id = $1)`, member).Scan(&jobs, &remaining, &expireRows, &balance); err != nil {
+		(SELECT balance FROM points_accounts WHERE member_id = $1),
+		(SELECT count(*) FROM outbound_events WHERE member_id = $1 AND type = 'points.changed')`, member).Scan(&jobs, &remaining, &expireRows, &balance, &changed); err != nil {
 		t.Fatal(err)
+	}
+	// The worker role writes the outbox through its miniloyal_app membership.
+	if changed != 1 {
+		t.Errorf("points.changed events from the expiry = %d, want 1", changed)
 	}
 	if jobs != 1 || exp.calls.Load() != 1 {
 		t.Fatalf("expiry jobs stored %d, runs %d; want one of each", jobs, exp.calls.Load())

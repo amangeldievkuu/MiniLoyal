@@ -140,6 +140,17 @@ type Invitation struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
+type LoyaltyReconciliationRun struct {
+	ID               int64              `json:"id"`
+	StartedAt        pgtype.Timestamptz `json:"started_at"`
+	FinishedAt       pgtype.Timestamptz `json:"finished_at"`
+	ProgressChecked  int32              `json:"progress_checked"`
+	TemplatesChecked int32              `json:"templates_checked"`
+	Mismatches       int32              `json:"mismatches"`
+	Details          []byte             `json:"details"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
 type Member struct {
 	ID              uuid.UUID          `json:"id"`
 	TenantID        uuid.UUID          `json:"tenant_id"`
@@ -269,6 +280,15 @@ type RefreshToken struct {
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
 	UserAgent *string            `json:"user_agent"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type ScanCouponRedeem struct {
+	Jti       string             `json:"jti"`
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	AppID     uuid.UUID          `json:"app_id"`
+	Redeems   int32              `json:"redeems"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 

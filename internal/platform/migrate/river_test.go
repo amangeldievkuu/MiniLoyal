@@ -43,7 +43,8 @@ func TestRiverSchemaBelongsToTheWorker(t *testing.T) {
 		}
 		return s
 	}
-	secured := state{workerOwned: 4, apiInsert: true}
+	// Since 00010 the API role has no River grants at all.
+	secured := state{workerOwned: 4}
 	if got := read(); got != secured {
 		t.Fatalf("after Up: %+v, want %+v", got, secured)
 	}
