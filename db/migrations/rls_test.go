@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -330,6 +331,111 @@ var rlsTables = []tenantTable{
 		_, err := x.Exec(ctx, "INSERT INTO scan_token_uses (jti, tenant_id, app_id, used_at) VALUES ($1, $2, $3, now())", randHex(16), f.tenant, f.app)
 		return err
 	}},
+	// Phase 4. Templates and cards are archived, never deleted; instances are
+	// voided; stamp events and outbound events are append-only.
+	{name: "coupon_templates", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		_, err := f.couponTemplate(ctx, x)
+		return err
+	}},
+	{name: "coupon_instances", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		_, err := f.couponInstance(ctx, x)
+		return err
+	}},
+	{name: "stamp_cards", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		_, err := f.stampCard(ctx, x)
+		return err
+	}},
+	{name: "stamp_progress", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		memberID, err := f.member(ctx, x)
+		if err != nil {
+			return err
+		}
+		cardID, err := f.stampCard(ctx, x)
+		if err != nil {
+			return err
+		}
+		_, err = x.Exec(ctx, "INSERT INTO stamp_progress (member_id, stamp_card_id, tenant_id, app_id, count) VALUES ($1, $2, $3, $4, 1)", memberID, cardID, f.tenant, f.app)
+		return err
+	}},
+	{name: "stamp_events", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		_, err := f.stampEvent(ctx, x)
+		return err
+	}},
+	{name: "outbound_events", col: "tenant_id", seeded: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		_, err := f.outboundEvent(ctx, x)
+		return err
+	}},
+}
+
+// member inserts a member of f.app through x and returns its ID.
+func (f rlsFixture) member(ctx context.Context, x execer) (uuid.UUID, error) {
+	id := testutil.NewID()
+	_, err := x.Exec(ctx, "INSERT INTO members (id, tenant_id, app_id, line_user_id) VALUES ($1, $2, $3, $4)", id, f.tenant, f.app, "U"+randHex(16))
+	return id, err
+}
+
+func (f rlsFixture) couponTemplate(ctx context.Context, x execer) (uuid.UUID, error) {
+	id := testutil.NewID()
+	_, err := x.Exec(ctx, "INSERT INTO coupon_templates (id, tenant_id, app_id, name, type, value) VALUES ($1, $2, $3, 'NT$50 off', 'amount_off', 50)", id, f.tenant, f.app)
+	return id, err
+}
+
+func (f rlsFixture) couponInstance(ctx context.Context, x execer) (uuid.UUID, error) {
+	memberID, err := f.member(ctx, x)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	templateID, err := f.couponTemplate(ctx, x)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	id := testutil.NewID()
+	_, err = x.Exec(ctx, "INSERT INTO coupon_instances (id, tenant_id, app_id, template_id, member_id, code, source, txn_id, issued_at, issued_by_type) VALUES ($1, $2, $3, $4, $5, $6, 'issue', $7, now(), 'system')",
+		id, f.tenant, f.app, templateID, memberID, strings.ToUpper(randHex(5)), testutil.NewID())
+	return id, err
+}
+
+func (f rlsFixture) stampCard(ctx context.Context, x execer) (uuid.UUID, error) {
+	templateID, err := f.couponTemplate(ctx, x)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	id := testutil.NewID()
+	_, err = x.Exec(ctx, "INSERT INTO stamp_cards (id, tenant_id, app_id, name, stamps_required, reward_coupon_template_id) VALUES ($1, $2, $3, 'Coffee', 10, $4)", id, f.tenant, f.app, templateID)
+	return id, err
+}
+
+func (f rlsFixture) stampEvent(ctx context.Context, x execer) (int64, error) {
+	memberID, err := f.member(ctx, x)
+	if err != nil {
+		return 0, err
+	}
+	cardID, err := f.stampCard(ctx, x)
+	if err != nil {
+		return 0, err
+	}
+	var id int64
+	err = queryRow(ctx, x, "INSERT INTO stamp_events (tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, scan_id, actor_type) VALUES ($1, $2, $3, $4, $5, 1, 1, 0, 'stamp', $6, 'system') RETURNING id",
+		f.tenant, f.app, memberID, cardID, testutil.NewID(), randHex(16)).Scan(&id)
+	return id, err
+}
+
+func (f rlsFixture) outboundEvent(ctx context.Context, x execer) (int64, error) {
+	memberID, err := f.member(ctx, x)
+	if err != nil {
+		return 0, err
+	}
+	var id int64
+	err = queryRow(ctx, x, "INSERT INTO outbound_events (tenant_id, app_id, type, member_id, payload, occurred_at) VALUES ($1, $2, 'member.created', $3, '{}', now()) RETURNING id",
+		f.tenant, f.app, memberID).Scan(&id)
+	return id, err
+}
+
+// queryRow runs a single-row query on a pgx.Tx or a pool.
+func queryRow(ctx context.Context, x execer, sql string, args ...any) pgx.Row {
+	return x.(interface {
+		QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	}).QueryRow(ctx, sql, args...)
 }
 
 // TestEveryTenantTableIsListed keeps rlsTables in step with the schema: a
@@ -527,6 +633,29 @@ func TestApplicationRoleGrants(t *testing.T) {
 		{"security_events", "INSERT", true},
 		{"security_events", "UPDATE", false},
 		{"security_events", "DELETE", false},
+		// Phase 4. Templates, cards and instances are archived or voided,
+		// never deleted; their tenant and app never change. Stamp events and
+		// outbound events are append-only.
+		{"coupon_templates", "SELECT", true},
+		{"coupon_templates", "INSERT", true},
+		{"coupon_templates", "DELETE", false},
+		{"coupon_instances", "SELECT", true},
+		{"coupon_instances", "INSERT", true},
+		{"coupon_instances", "DELETE", false},
+		{"stamp_cards", "SELECT", true},
+		{"stamp_cards", "INSERT", true},
+		{"stamp_cards", "DELETE", false},
+		{"stamp_progress", "SELECT", true},
+		{"stamp_progress", "INSERT", true},
+		{"stamp_progress", "DELETE", false},
+		{"stamp_events", "SELECT", true},
+		{"stamp_events", "INSERT", true},
+		{"stamp_events", "UPDATE", false},
+		{"stamp_events", "DELETE", false},
+		{"outbound_events", "SELECT", true},
+		{"outbound_events", "INSERT", true},
+		{"outbound_events", "UPDATE", false},
+		{"outbound_events", "DELETE", false},
 	}
 	for _, role := range []string{migrate.GroupRole, migrate.LoginRole} {
 		for _, tc := range cases {

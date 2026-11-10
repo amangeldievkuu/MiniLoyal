@@ -70,6 +70,51 @@ type AuditLog struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
+type CouponInstance struct {
+	ID                uuid.UUID          `json:"id"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	AppID             uuid.UUID          `json:"app_id"`
+	TemplateID        uuid.UUID          `json:"template_id"`
+	MemberID          uuid.UUID          `json:"member_id"`
+	Code              string             `json:"code"`
+	Status            string             `json:"status"`
+	Source            string             `json:"source"`
+	TxnID             uuid.UUID          `json:"txn_id"`
+	IssuedAt          pgtype.Timestamptz `json:"issued_at"`
+	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
+	IssuedByType      string             `json:"issued_by_type"`
+	IssuedByID        uuid.NullUUID      `json:"issued_by_id"`
+	RedeemedAt        pgtype.Timestamptz `json:"redeemed_at"`
+	RedeemedByStaffID uuid.NullUUID      `json:"redeemed_by_staff_id"`
+	RedeemedAtStoreID uuid.NullUUID      `json:"redeemed_at_store_id"`
+	VoidedAt          pgtype.Timestamptz `json:"voided_at"`
+	VoidedByType      *string            `json:"voided_by_type"`
+	VoidedByID        uuid.NullUUID      `json:"voided_by_id"`
+	VoidReason        *string            `json:"void_reason"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type CouponTemplate struct {
+	ID             uuid.UUID          `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	AppID          uuid.UUID          `json:"app_id"`
+	Name           string             `json:"name"`
+	Description    *string            `json:"description"`
+	Type           string             `json:"type"`
+	Value          *int32             `json:"value"`
+	TotalLimit     *int32             `json:"total_limit"`
+	PerMemberLimit int32              `json:"per_member_limit"`
+	ValidFrom      pgtype.Timestamptz `json:"valid_from"`
+	ValidTo        pgtype.Timestamptz `json:"valid_to"`
+	ValidityDays   *int32             `json:"validity_days"`
+	Claimable      bool               `json:"claimable"`
+	ClaimedCount   int32              `json:"claimed_count"`
+	Status         string             `json:"status"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type IdempotencyKey struct {
 	TenantID     uuid.UUID          `json:"tenant_id"`
 	Scope        string             `json:"scope"`
@@ -136,6 +181,18 @@ type MfaChallenge struct {
 	UsedAt    pgtype.Timestamptz `json:"used_at"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type OutboundEvent struct {
+	ID         int64              `json:"id"`
+	EventID    uuid.UUID          `json:"event_id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	AppID      uuid.UUID          `json:"app_id"`
+	Type       string             `json:"type"`
+	MemberID   uuid.NullUUID      `json:"member_id"`
+	Payload    []byte             `json:"payload"`
+	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
 type PointsAccount struct {
@@ -248,6 +305,53 @@ type Staff struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	SessionsValidFrom pgtype.Timestamptz `json:"sessions_valid_from"`
 	LastLoginAt       pgtype.Timestamptz `json:"last_login_at"`
+}
+
+type StampCard struct {
+	ID                     uuid.UUID          `json:"id"`
+	TenantID               uuid.UUID          `json:"tenant_id"`
+	AppID                  uuid.UUID          `json:"app_id"`
+	Name                   string             `json:"name"`
+	Description            *string            `json:"description"`
+	StampsRequired         int32              `json:"stamps_required"`
+	RewardCouponTemplateID uuid.NullUUID      `json:"reward_coupon_template_id"`
+	MaxStampsPerVisit      int32              `json:"max_stamps_per_visit"`
+	Status                 string             `json:"status"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+}
+
+type StampEvent struct {
+	ID               int64              `json:"id"`
+	TenantID         uuid.UUID          `json:"tenant_id"`
+	AppID            uuid.UUID          `json:"app_id"`
+	MemberID         uuid.UUID          `json:"member_id"`
+	StampCardID      uuid.UUID          `json:"stamp_card_id"`
+	TxnID            uuid.UUID          `json:"txn_id"`
+	Delta            int32              `json:"delta"`
+	CountAfter       int32              `json:"count_after"`
+	CompletionsAfter int32              `json:"completions_after"`
+	Reason           string             `json:"reason"`
+	CouponInstanceID uuid.NullUUID      `json:"coupon_instance_id"`
+	ScanID           *string            `json:"scan_id"`
+	Note             *string            `json:"note"`
+	StaffID          uuid.NullUUID      `json:"staff_id"`
+	StoreID          uuid.NullUUID      `json:"store_id"`
+	ActorType        string             `json:"actor_type"`
+	ActorID          uuid.NullUUID      `json:"actor_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
+type StampProgress struct {
+	MemberID      uuid.UUID          `json:"member_id"`
+	StampCardID   uuid.UUID          `json:"stamp_card_id"`
+	TenantID      uuid.UUID          `json:"tenant_id"`
+	AppID         uuid.UUID          `json:"app_id"`
+	Count         int32              `json:"count"`
+	Completions   int32              `json:"completions"`
+	LastStampedAt pgtype.Timestamptz `json:"last_stamped_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Store struct {
