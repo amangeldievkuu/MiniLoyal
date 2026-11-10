@@ -1408,9 +1408,10 @@ export interface paths {
          *     the count starts again from the overflow, completions goes up, and
          *     the reward coupon (when the card has one) is issued in the same
          *     transaction with source stamp_reward. Rewards ignore the template's
-         *     claimable flag and per_member_limit but respect total_limit: when the
-         *     reward template is sold out the whole request fails with 409
-         *     coupon_sold_out and nothing is written.
+         *     claimable flag and per_member_limit but respect total_limit. A reward
+         *     template that is sold out or archived does not refuse the request:
+         *     the stamps and the completion are still recorded, no coupon is
+         *     issued and rewards_unavailable counts the completion.
          *
          *     Errors: 403 scan_invalid, scan_mismatch or self_service as for
          *     points; 404 when the card is not in the staff member's app; 409
@@ -1639,9 +1640,11 @@ export interface paths {
          * @description Owners and admins only; audited. Writes a new stamp event; earlier
          *     events are never changed. A positive delta that reaches
          *     stamps_required completes the card and issues the reward, as a staff
-         *     stamp would. A negative delta cannot take the count below zero (409
-         *     insufficient_stamps) and does not undo past completions or their
-         *     rewards (void the reward coupon instead). The per-visit cap does not
+         *     stamp would; a sold-out or archived reward template does not refuse
+         *     the request, the completion is recorded without a coupon and counted
+         *     in rewards_unavailable. A negative delta cannot take the count below
+         *     zero (409 insufficient_stamps) and does not undo past completions or
+         *     their rewards (void the reward coupon instead). The per-visit cap does not
          *     apply; archived cards can be corrected.
          */
         post: operations["adjustMemberStamps"];
@@ -2064,8 +2067,25 @@ export interface components {
         MemberExport: {
             member: components["schemas"]["MemberDetail"];
             consents: components["schemas"]["Consent"][];
+            points: components["schemas"]["MemberExportPoints"];
+            /** @description Every coupon the member holds or held, voided, redeemed and expired ones included, newest first. */
+            coupons: components["schemas"]["CouponInstance"][];
+            stamps: components["schemas"]["MemberExportStamps"];
             /** Format: date-time */
             exported_at: string;
+        };
+        /** @description The member's points balance and full points history. */
+        MemberExportPoints: {
+            summary: components["schemas"]["PointsSummary"];
+            /** @description Every points transaction of the member, newest first. In the member's own export, note and ref_id are omitted as in /v1/me/points/history. */
+            history: components["schemas"]["PointsTransaction"][];
+        };
+        /** @description The member's stamp card progress and full stamp history. */
+        MemberExportStamps: {
+            /** @description Progress on every stamp card the member has stamps on or that is active, archived cards included. */
+            progress: components["schemas"]["StampProgress"][];
+            /** @description Every stamp event of the member on any card, newest first. */
+            events: components["schemas"]["StampEvent"][];
         };
         MemberPage: {
             items: components["schemas"]["MemberDetail"][];
@@ -2621,6 +2641,8 @@ export interface components {
             /** @description Times the member completed the card. */
             completions: number;
             reward?: components["schemas"]["CouponTemplateSummary"];
+            /** @description Completions on this card whose reward coupon could not be issued because the reward template was sold out or archived. Completions made while the card had no reward do not count. */
+            unrewarded_completions: number;
             /**
              * Format: date-time
              * @description Last stamp or adjustment; null when the member has no stamps on the card yet.
@@ -2633,8 +2655,42 @@ export interface components {
             added: number;
             /** @description Completions this request caused. */
             completed: number;
-            /** @description Reward coupons issued by those completions; empty when there were none or the card has no reward. */
+            /** @description Reward coupons issued by those completions; empty when there were none, the card has no reward, or the reward template was sold out or archived (see rewards_unavailable). */
             rewards: components["schemas"]["CouponInstance"][];
+            /** @description Completions in this request whose reward could not be issued because the reward template was sold out or archived. The stamps and completions are recorded anyway; 0 when every reward was issued or the card has no reward. */
+            rewards_unavailable: number;
+        };
+        /** @description One change to a member's stamps on one card. Events are never changed; corrections are new events. */
+        StampEvent: {
+            /**
+             * Format: int64
+             * @description Event ID, increasing over time.
+             */
+            id: number;
+            /**
+             * Format: uuid
+             * @description The stamp card.
+             */
+            stamp_card_id: string;
+            /** @description Signed change to the count; a completion is negative (minus stamps_required). */
+            delta: number;
+            /**
+             * @description stamp by staff on a scan, adjust from the dashboard, completion when the card filled.
+             * @enum {string}
+             */
+            reason: "stamp" | "adjust" | "completion";
+            /** @description Stamps toward the next completion once the event applied. */
+            count_after: number;
+            /**
+             * Format: uuid
+             * @description Store where staff gave the stamps; null for adjustments and when no store was set.
+             */
+            store_id?: string | null;
+            /**
+             * Format: date-time
+             * @description When the event was recorded.
+             */
+            created_at: string;
         };
         StaffStampRequest: {
             /** @description From a scan of the member card in the last five minutes. */
@@ -5109,7 +5165,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["NotFound"];
-            /** @description stamp_card_inactive, stamp_visit_limit or coupon_sold_out */
+            /** @description stamp_card_inactive or stamp_visit_limit */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5560,7 +5616,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            /** @description insufficient_stamps or coupon_sold_out */
+            /** @description insufficient_stamps */
             409: {
                 headers: {
                     [name: string]: unknown;

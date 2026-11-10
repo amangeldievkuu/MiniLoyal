@@ -273,6 +273,10 @@ SELECT
   c.reward_coupon_template_id, c.status,
   coalesce(p.count, 0)::integer AS count,
   coalesce(p.completions, 0)::integer AS completions,
+  (SELECT count(*) FROM stamp_events e
+    WHERE e.app_id = c.app_id AND e.stamp_card_id = c.id AND e.member_id = $1
+      AND e.reason = 'completion' AND e.coupon_instance_id IS NULL
+      AND e.note = 'reward_unavailable')::integer AS unrewarded_completions,
   p.last_stamped_at,
   p.updated_at AS progress_updated_at,
   r.name AS reward_name, r.description AS reward_description,
@@ -303,6 +307,7 @@ type ListMemberStampProgressRow struct {
 	Status                 string             `json:"status"`
 	Count                  int32              `json:"count"`
 	Completions            int32              `json:"completions"`
+	UnrewardedCompletions  int32              `json:"unrewarded_completions"`
 	LastStampedAt          pgtype.Timestamptz `json:"last_stamped_at"`
 	ProgressUpdatedAt      pgtype.Timestamptz `json:"progress_updated_at"`
 	RewardName             *string            `json:"reward_name"`
@@ -315,7 +320,12 @@ type ListMemberStampProgressRow struct {
 // member has none yet) and the reward template summary (NULL columns when
 // the card has no reward). include_archived adds archived cards the member
 // has progress on, for history and the PDPA export. progress_updated_at is
-// NULL until the member's first stamp or adjustment.
+// NULL until the member's first stamp or adjustment. unrewarded_completions
+// counts completion events whose reward could not be issued (template sold
+// out or archived): the stamp service writes them with no coupon and the
+// note 'reward_unavailable'. The note, not the card's current reward, marks
+// them because a reward set later must not count earlier rewardless
+// completions.
 func (q *Queries) ListMemberStampProgress(ctx context.Context, arg ListMemberStampProgressParams) ([]ListMemberStampProgressRow, error) {
 	rows, err := q.db.Query(ctx, listMemberStampProgress, arg.MemberID, arg.AppID, arg.IncludeArchived)
 	if err != nil {
@@ -335,6 +345,7 @@ func (q *Queries) ListMemberStampProgress(ctx context.Context, arg ListMemberSta
 			&i.Status,
 			&i.Count,
 			&i.Completions,
+			&i.UnrewardedCompletions,
 			&i.LastStampedAt,
 			&i.ProgressUpdatedAt,
 			&i.RewardName,

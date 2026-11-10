@@ -25,6 +25,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/idempotency"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
+	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"github.com/amangeldievkuu/miniloyal/internal/principal"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 )
@@ -102,10 +103,13 @@ type Update struct {
 	CustomFields map[string]any
 }
 
-// Export is everything stored about a member.
+// Export is everything stored about a member. Coupons and stamps are not
+// read here yet; the HTTP layer answers them as empty lists until the
+// coupon and stamp module fills them.
 type Export struct {
 	Member     sqlc.Member
 	Consents   []sqlc.MemberConsent
+	Points     points.MemberData
 	ExportedAt time.Time
 }
 
@@ -197,7 +201,7 @@ func (s *Service) ExportSelf(ctx context.Context, p principal.Principal) (Export
 		if err != nil {
 			return err
 		}
-		out, err = s.export(ctx, q, m)
+		out, err = s.export(ctx, q, m, true)
 		return err
 	})
 	return out, err
@@ -306,7 +310,7 @@ func (s *Service) Export(ctx context.Context, p principal.Principal, memberID uu
 	var out Export
 	err := s.readMember(ctx, p, memberID, principal.RoleAdmin, func(ctx context.Context, tx pgx.Tx, m sqlc.Member, _ principal.Role) error {
 		var err error
-		out, err = s.export(ctx, sqlc.New(tx), m)
+		out, err = s.export(ctx, sqlc.New(tx), m, false)
 		if err != nil {
 			return err
 		}
@@ -417,12 +421,20 @@ func (s *Service) ownMember(ctx context.Context, q *sqlc.Queries, p principal.Pr
 	return m, nil
 }
 
-func (s *Service) export(ctx context.Context, q *sqlc.Queries, m sqlc.Member) (Export, error) {
+// export reads everything in the caller's tenant transaction so the copy is
+// one snapshot. forMember applies the member-facing redaction of the points
+// history (no brand notes or references).
+func (s *Service) export(ctx context.Context, q *sqlc.Queries, m sqlc.Member, forMember bool) (Export, error) {
+	now := s.clock.Now()
 	consents, err := q.ListMemberConsents(ctx, m.ID)
 	if err != nil {
 		return Export{}, fmt.Errorf("member: list consents: %w", err)
 	}
-	return Export{Member: m, Consents: consents, ExportedAt: s.clock.Now()}, nil
+	pts, err := points.ExportMember(ctx, q, m, now, forMember)
+	if err != nil {
+		return Export{}, fmt.Errorf("member: export points: %w", err)
+	}
+	return Export{Member: m, Consents: consents, Points: pts, ExportedAt: now}, nil
 }
 
 func (s *Service) audit(ctx context.Context, tx pgx.Tx, p principal.Principal, m sqlc.Member, action string) error {
