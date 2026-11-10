@@ -13,13 +13,16 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/amangeldievkuu/miniloyal/internal/api"
+	"github.com/amangeldievkuu/miniloyal/internal/lineauth"
 	"github.com/amangeldievkuu/miniloyal/internal/principal"
+	"github.com/amangeldievkuu/miniloyal/internal/testutil"
 )
 
 // The coverage matrix: one entry per operation in api/openapi.yaml, grouped
 // by the principal it serves. tenantOps are dashboard operations on a
 // tenant's resources; memberOps act on the signed-in MINI App member;
-// serverOps are the API-key routes. TestEveryOperationIsInTheCoverageTable
+// serverOps are the API-key routes; staffOps are the staff app routes
+// (coverage_staff_matrix_test.go). TestEveryOperationIsInTheCoverageTable
 // fails when the spec gains an operation that is in none of the tables nor
 // otherCoveredOps, so new endpoints cannot ship without a cross-tenant,
 // role, idempotency and credential-kind test.
@@ -34,6 +37,17 @@ type matrixFixtures struct {
 	invitation api.InvitationCreated
 	member     api.MemberSession // a LINE member of app A, signed in
 	channel    string            // environment of the fixture channel
+
+	// second is another member of app A and annex another app of tenant A:
+	// the alternative targets for body-less writes in the idempotency matrix.
+	second api.MemberSession
+	annex  uuid.UUID
+	// cashier is a second staff member of app A. staffSess and cashierSess
+	// are their staff app sessions (f.staff is the manager).
+	cashier                api.StaffCreated
+	staffSess, cashierSess api.StaffSession
+	// scan is the scan token staff request bodies carry; tests set it.
+	scan string
 }
 
 // Fixture channel and LINE user of tenant A's app.
@@ -60,8 +74,16 @@ type opCase struct {
 	created int
 	// creates is the table that gains one row on a successful write; upsert
 	// marks writes that replace an existing row when run a second time.
+	// more lists further tables that gain one row per successful run.
 	creates string
 	upsert  bool
+	more    []string
+	// altPath is the same operation on another resource. Body-less writes
+	// use it for the idempotency mismatch case: the key is bound to the
+	// path, so reusing it elsewhere is a different request.
+	altPath func(f *matrixFixtures) string
+	// scope is the API key scope a server operation needs.
+	scope string
 }
 
 // opKey normalises an operationId: oapi-codegen UpperCamelCases the IDs in
@@ -142,6 +164,34 @@ var tenantOps = []opCase{
 	// handled by owners and admins and audited.
 	{id: "exportMember", method: http.MethodGet, path: func(f *matrixFixtures) string { return memberPath(f) + "/export" }, min: principal.RoleAdmin},
 	{id: "eraseMember", method: http.MethodDelete, path: memberPath, min: principal.RoleAdmin},
+	// Member cards and sessions are reset by owners and admins only; neither
+	// takes a body, so the mismatch case reuses the key on another target.
+	{id: "rotateMemberCard", method: http.MethodPost, path: func(f *matrixFixtures) string { return memberPath(f) + "/card/rotate" },
+		altPath: func(f *matrixFixtures) string {
+			return "/v1/dashboard/members/" + f.second.Member.Id.String() + "/card/rotate"
+		},
+		idem: true, min: principal.RoleAdmin, created: 200},
+	{id: "endMemberSessions", method: http.MethodPost, path: func(f *matrixFixtures) string { return appPath(f) + "/member-sessions/end" },
+		altPath: func(f *matrixFixtures) string {
+			return "/v1/dashboard/apps/" + f.annex.String() + "/member-sessions/end"
+		},
+		idem: true, min: principal.RoleAdmin, created: 200},
+	{id: "resetStaffInvite", method: http.MethodPost, path: func(f *matrixFixtures) string { return "/v1/dashboard/staff/" + f.staff.Id.String() + "/invite" },
+		altPath: func(f *matrixFixtures) string { return "/v1/dashboard/staff/" + f.cashier.Id.String() + "/invite" },
+		idem:    true, min: principal.RoleAdmin, created: 200},
+	// points
+	{id: "getPointsRules", method: http.MethodGet, path: func(f *matrixFixtures) string { return appPath(f) + "/points-rules" }, min: principal.RoleStaff},
+	{id: "putPointsRules", method: http.MethodPut, path: func(f *matrixFixtures) string { return appPath(f) + "/points-rules" },
+		body: rulesBody(50), alt: rulesBody(60), idem: true, min: principal.RoleAdmin, created: 200, creates: "points_rules", upsert: true},
+	{id: "getMemberPoints", method: http.MethodGet, path: func(f *matrixFixtures) string { return memberPath(f) + "/points" }, min: principal.RoleStaff},
+	{id: "listMemberPointsHistory", method: http.MethodGet, path: func(f *matrixFixtures) string { return memberPath(f) + "/points/history" }, min: principal.RoleStaff},
+	{id: "adjustMemberPoints", method: http.MethodPost, path: func(f *matrixFixtures) string { return memberPath(f) + "/points/adjustments" },
+		body: obj("delta", 5, "note", "goodwill"), alt: obj("delta", 6, "note", "goodwill"), idem: true, min: principal.RoleAdmin, created: 200,
+		creates: "points_lots", more: []string{"points_ledger"}},
+}
+
+func rulesBody(spendPerPoint int) func(*matrixFixtures) any {
+	return obj("currency", "TWD", "spend_per_point", spendPerPoint, "points_per_unit", 1, "min_spend", 0, "expiry_days", 365, "enabled", true)
 }
 
 func memberPath(f *matrixFixtures) string {
@@ -158,15 +208,26 @@ var memberOps = []opCase{
 	{id: "recordConsent", method: http.MethodPost, path: func(*matrixFixtures) string { return "/v1/me/consent" },
 		body: obj("version", "2026-11"), alt: obj("version", "2026-12"), idem: true, created: 200, creates: "member_consents"},
 	{id: "exportMe", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/me/export" }},
+	{id: "getMyCard", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/me/card" }},
+	{id: "getMyPoints", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/me/points" }},
+	{id: "listMyPointsHistory", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/me/points/history" }},
 	// deleteMe ends the session, so it is always exercised last.
 	{id: "deleteMe", method: http.MethodDelete, path: func(*matrixFixtures) string { return "/v1/me" }},
 }
 
-// serverOps are the API-key routes that read members. getCurrentApp needs
-// no scope and is covered by TestCredentialKindMatrix.
+// serverOps are the API-key routes, each with the scope it needs.
+// getCurrentApp needs no scope and is covered by TestCredentialKindMatrix.
 var serverOps = []opCase{
-	{id: "serverListMembers", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/members" }},
-	{id: "serverGetMember", method: http.MethodGet, path: func(f *matrixFixtures) string { return "/v1/members/" + f.member.Member.Id.String() }},
+	{id: "serverListMembers", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/members" }, scope: "members:read"},
+	{id: "serverGetMember", method: http.MethodGet, path: func(f *matrixFixtures) string { return "/v1/members/" + f.member.Member.Id.String() }, scope: "members:read"},
+	{id: "serverGetMemberPoints", method: http.MethodGet, path: serverPointsPath, scope: "members:read"},
+	{id: "serverPostPoints", method: http.MethodPost, path: serverPointsPath,
+		body: obj("type", "earn", "points", 7, "ref_type", "receipt", "ref_id", "R-1"), alt: obj("type", "earn", "points", 8, "ref_type", "receipt", "ref_id", "R-1"),
+		idem: true, created: 200, creates: "points_lots", more: []string{"points_ledger"}, scope: "points:write"},
+}
+
+func serverPointsPath(f *matrixFixtures) string {
+	return "/v1/members/" + f.member.Member.Id.String() + "/points"
 }
 
 // otherCoveredOps are operations that act on no tenant resource: health,
@@ -181,13 +242,9 @@ var otherCoveredOps = []string{
 	"listTenants", "getCurrentApp",
 	"loginWithLine", "receiveLineWebhook",
 	"acceptInvitation", "listSecurityEvents",
-	// Phase 3 operations: covered by their own suites as the features land;
-	// the test-engineer pass moves them into the matrices.
-	"getMyCard", "getMyPoints", "listMyPointsHistory",
-	"staffLoginWithLine", "getStaffMe", "staffScan", "staffEarnPoints", "staffRedeemPoints",
-	"getPointsRules", "putPointsRules", "getMemberPoints", "listMemberPointsHistory", "adjustMemberPoints",
-	"rotateMemberCard", "endMemberSessions", "resetStaffInvite",
-	"serverGetMemberPoints", "serverPostPoints",
+	// Staff sign-in acts on no resource until it succeeds; staff_card_test.go
+	// and coverage_staff_signin_test.go cover it.
+	"staffLoginWithLine",
 }
 
 // matrixTables maps each operation table to the security scheme the spec
@@ -199,6 +256,7 @@ var matrixTables = []struct {
 	{tenantOps, "dashboardSession"},
 	{memberOps, "memberSession"},
 	{serverOps, "apiKey"},
+	{staffOps, "staffSession"},
 }
 
 // deletesWithoutIdempotencyKey lists the write operations the spec exempts
@@ -236,7 +294,7 @@ func TestEveryOperationIsInTheCoverageTable(t *testing.T) {
 			inSpec[id] = true
 			tc, tabled := byID[id]
 			if !tabled && !slices.Contains(otherCoveredOps, id) {
-				t.Errorf("%s %s (%s) is not in tenantOps, memberOps, serverOps or otherCoveredOps: add cross-tenant, role, idempotency and credential tests", method, path, id)
+				t.Errorf("%s %s (%s) is not in tenantOps, memberOps, serverOps, staffOps or otherCoveredOps: add cross-tenant, role, idempotency and credential tests", method, path, id)
 				continue
 			}
 			hasIdem := false
@@ -310,14 +368,58 @@ func newMatrixFixtures(t *testing.T, w *world) *matrixFixtures {
 	r = owner.post(tenantPath(f)+"/invitations", uuid.NewString(), map[string]any{"email": "pending@example.com", "role": "staff"})
 	want(t, r, http.StatusCreated)
 	r.into(t, &f.invitation)
+
+	// Member A holds points, so reads have history and redemptions succeed;
+	// the account row exists before any matrix write.
+	r = owner.post(memberPath(f)+"/points/adjustments", uuid.NewString(), map[string]any{"delta": 100, "note": "opening balance"})
+	want(t, r, http.StatusOK)
+	f.second = w.lineLogin(f.app, fixtureChannelID, "Ufixturea0000000000000000000004", "Second")
+	f.annex = testutil.NewID()
+	w.db.Exec(t, "INSERT INTO apps (id, tenant_id, name, slug) VALUES ($1, $2, 'Annex', $3)", f.annex, w.tenantA, "annex-"+f.annex.String()[24:])
+
+	r = owner.post(base+"/staff", uuid.NewString(), map[string]any{"display_name": "Kenji", "role": "cashier"})
+	want(t, r, http.StatusCreated)
+	r.into(t, &f.cashier)
+	f.staffSess = w.staffSession(f.app, fixtureChannelID, fixtureStaffLine, f.staff.InviteCode)
+	f.cashierSess = w.staffSession(f.app, fixtureChannelID, fixtureCashierLine, f.cashier.InviteCode)
 	return f
+}
+
+// LINE accounts of app A's staff.
+const (
+	fixtureStaffLine   = "Ufixturestaff000000000000000001"
+	fixtureCashierLine = "Ufixturestaff000000000000000002"
+)
+
+// staffLogin signs a LINE account in to the staff app of app through
+// /v1/staff/auth/line; code is the invite code, empty after binding.
+func (w *world) staffLogin(app api.App, channelID, sub, code string) tresp {
+	w.t.Helper()
+	token := "staff-idtoken-" + sub + "-" + uuid.NewString()
+	w.verifier.Add(token, lineauth.Claims{Sub: sub, Name: "Staff " + sub, Aud: channelID})
+	body := map[string]any{"app_id": app.Id, "id_token": token}
+	if code != "" {
+		body["invite_code"] = code
+	}
+	return w.call(http.MethodPost, "/v1/staff/auth/line", "", "", "", body)
+}
+
+func (w *world) staffSession(app api.App, channelID, sub, code string) api.StaffSession {
+	w.t.Helper()
+	r := w.staffLogin(app, channelID, sub, code)
+	if r.code != http.StatusOK {
+		w.t.Fatalf("staff login: %d %s", r.code, r.body)
+	}
+	var sess api.StaffSession
+	r.into(w.t, &sess)
+	return sess
 }
 
 // fixtureMarkers are strings from tenant A's data that must never appear in
 // a response to an outsider.
 func (f *matrixFixtures) markers() []string {
-	return []string{"Cafe", "Main", "TPE01", "Mei", f.key.Key, f.key.Prefix, fixtureChannelID, "dev-secret", f.app.Slug, "pending@example.com", f.invitation.InviteUrl,
-		fixtureLineName, fixtureLineUser, f.member.Member.Id.String(), f.member.SessionToken}
+	return []string{"Cafe", "Main", "TPE01", "Mei", "Kenji", "Annex", "goodwill", "opening balance", f.key.Key, f.key.Prefix, fixtureChannelID, "dev-secret", f.app.Slug, "pending@example.com", f.invitation.InviteUrl,
+		fixtureLineName, fixtureLineUser, f.member.Member.Id.String(), f.member.SessionToken, f.staffSess.SessionToken, f.staff.Id.String()}
 }
 
 // tenantTables are every table that carries tenant data, with the column
@@ -336,6 +438,10 @@ var tenantTables = []struct{ name, col string }{
 	{"members", "tenant_id"},
 	{"member_consents", "tenant_id"},
 	{"webhook_inbound_events", "tenant_id"},
+	{"points_rules", "tenant_id"},
+	{"points_accounts", "tenant_id"},
+	{"points_lots", "tenant_id"},
+	{"points_ledger", "tenant_id"},
 }
 
 // snapshot fingerprints every row of tenantID in every tenant table.
@@ -391,14 +497,35 @@ func assertUnchangedExcept(t *testing.T, before, after map[string]string, contex
 // send runs the operation as token with the given body and an Idempotency-Key
 // when the spec requires one.
 func (f *matrixFixtures) send(op opCase, token string, body func(*matrixFixtures) any, key string) tresp {
-	var b any
-	if body != nil {
-		b = body(f)
-	}
+	return f.sendTo(op, op.path(f), token, body, key)
+}
+
+func (f *matrixFixtures) sendTo(op opCase, path, token string, body func(*matrixFixtures) any, key string) tresp {
 	if !op.idem {
 		key = ""
 	}
-	return f.w.call(op.method, op.path(f), token, "", key, b)
+	return f.w.call(op.method, path, token, "", key, bodyOf(f, body))
+}
+
+// mismatch sends the idempotency mismatch request: the alternative body, or
+// for a body-less write the same key on another target.
+func (f *matrixFixtures) mismatch(t *testing.T, op opCase, token, key string) tresp {
+	t.Helper()
+	switch {
+	case op.alt != nil:
+		return f.send(op, token, op.alt, key)
+	case op.altPath != nil:
+		return f.sendTo(op, op.altPath(f), token, nil, key)
+	}
+	t.Fatalf("%s: an idempotent write needs alt or altPath", op.id)
+	return tresp{}
+}
+
+func bodyOf(f *matrixFixtures, body func(*matrixFixtures) any) any {
+	if body == nil {
+		return nil
+	}
+	return body(f)
 }
 
 // Invariant: a user from another tenant and a user with no tenant get 404
@@ -542,14 +669,14 @@ func TestIdempotencyMatrix(t *testing.T) {
 			if !bytes.Equal(first.body, replay.body) {
 				t.Errorf("replay body differs:\n%s\n%s", first.body, replay.body)
 			}
-			mismatch := f.send(op, "owner-a", op.alt, key)
+			mismatch := f.mismatch(t, op, "owner-a", key)
 			if mismatch.code != http.StatusUnprocessableEntity {
 				t.Fatalf("mismatch: status = %d, want 422; body %s", mismatch.code, mismatch.body)
 			}
 			if code := mismatch.errCode(t); code != "idempotency_mismatch" {
 				t.Errorf("mismatch code = %s", code)
 			}
-			noKey := w.call(op.method, op.path(f), "owner-a", "", "", op.body(f))
+			noKey := w.call(op.method, op.path(f), "owner-a", "", "", bodyOf(f, op.body))
 			if noKey.code != http.StatusBadRequest {
 				t.Fatalf("no key: status = %d, want 400; body %s", noKey.code, noKey.body)
 			}
@@ -575,6 +702,10 @@ func TestIdempotencyMatrix(t *testing.T) {
 					wantDelta = runs
 					if op.upsert {
 						wantDelta = 1
+					}
+				default:
+					if slices.Contains(op.more, tbl.name) {
+						wantDelta = runs
 					}
 				}
 				if got := after[tbl.name] - before[tbl.name]; got != wantDelta {
@@ -607,6 +738,9 @@ func TestCredentialKindMatrix(t *testing.T) {
 			cases := map[string]tresp{
 				"api key":        w.call(op.method, op.path(f), "", f.key.Key, key, body),
 				"no credentials": w.call(op.method, op.path(f), "", "", key, body),
+				// Member and staff sessions share the signing key, not the kind.
+				"member token": w.call(op.method, op.path(f), f.member.SessionToken, "", key, body),
+				"staff token":  w.call(op.method, op.path(f), f.staffSess.SessionToken, "", key, body),
 				"api key and bearer": func() tresp {
 					// X-API-Key wins in the middleware; the key is still not a user.
 					return w.call(op.method, op.path(f), "owner-a", f.key.Key, key, body)

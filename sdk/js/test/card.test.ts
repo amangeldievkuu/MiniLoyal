@@ -260,6 +260,114 @@ describe('watchCard', () => {
   });
 });
 
+/**
+ * A fetch whose /v1/me/card responses the test settles by hand, one per
+ * request, so it can stop the watcher while a request is in flight.
+ */
+function heldFetch() {
+  const { fetch } = routedFetch(() => json(200, card(0)));
+  const pending: Array<{ resolve: (r: Response) => void; reject: (e: unknown) => void }> = [];
+  const held = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (new URL(String(input)).pathname === '/v1/me/card') {
+      return new Promise<Response>((resolve, reject) => pending.push({ resolve, reject }));
+    }
+    return fetch(input, init);
+  });
+  const cardRequests = () =>
+    held.mock.calls.filter(([input]) => new URL(String(input)).pathname === '/v1/me/card').length;
+  return { fetch: held as unknown as typeof globalThis.fetch, pending, cardRequests };
+}
+
+describe('watchCard stopped during an in-flight fetch', () => {
+  it('leaves no timer and fetches nothing more when the fetch then succeeds', async () => {
+    const { fetch, pending, cardRequests } = heldFetch();
+    const ml = await client(fetch);
+    const seen: string[] = [];
+    const errors: MiniLoyalError[] = [];
+    const stop = ml.watchCard(
+      (c) => seen.push(c.qr),
+      (e) => errors.push(e),
+    );
+    await flush();
+    expect(cardRequests()).toBe(1);
+    stop();
+    pending[0]?.resolve(json(200, card(1, 1)));
+    await flush();
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(seen).toEqual([]);
+    expect(errors).toEqual([]);
+    expect(cardRequests()).toBe(1);
+  });
+
+  it('reports nothing and schedules no retry when the fetch then fails', async () => {
+    const { fetch, pending, cardRequests } = heldFetch();
+    const ml = await client(fetch);
+    const errors: MiniLoyalError[] = [];
+    const stop = ml.watchCard(
+      () => {},
+      (e) => errors.push(e),
+    );
+    await flush();
+    stop();
+    pending[0]?.reject(new TypeError('network down'));
+    await flush();
+    expect(errors).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(cardRequests()).toBe(1);
+  });
+
+  it('ignores visibility changes after stop, even with a fetch still in flight', async () => {
+    const { fetch, pending, cardRequests } = heldFetch();
+    const ml = await client(fetch);
+    const seen: string[] = [];
+    const stop = ml.watchCard((c) => seen.push(c.qr));
+    await flush();
+    stop();
+    doc.setHidden(true);
+    doc.setHidden(false);
+    await flush();
+    pending[0]?.resolve(json(200, card(1)));
+    await flush();
+    expect(cardRequests()).toBe(1);
+    expect(seen).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('never runs two fetches at once when the page becomes visible mid-fetch', async () => {
+    const { fetch, pending, cardRequests } = heldFetch();
+    const ml = await client(fetch);
+    const seen: string[] = [];
+    const stop = ml.watchCard((c) => seen.push(c.qr));
+    await flush();
+    doc.setHidden(true);
+    doc.setHidden(false);
+    await flush();
+    expect(cardRequests()).toBe(1);
+    pending[0]?.resolve(json(200, card(1, 20)));
+    await flush();
+    expect(seen).toEqual(['ml1.payload-1']);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(cardRequests()).toBe(2);
+    stop();
+    pending[1]?.resolve(json(200, card(2, 20)));
+    await flush();
+    expect(seen).toEqual(['ml1.payload-1']);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('can be stopped twice', async () => {
+    const { fetch } = heldFetch();
+    const ml = await client(fetch);
+    const stop = ml.watchCard(() => {});
+    await flush();
+    stop();
+    expect(() => stop()).not.toThrow();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
 describe('points', () => {
   const summary: PointsSummary = {
     member_id: memberId,
