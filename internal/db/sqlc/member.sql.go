@@ -336,6 +336,26 @@ func (q *Queries) SetMemberFriendByLineUserID(ctx context.Context, arg SetMember
 	return result.RowsAffected(), nil
 }
 
+const shareLockMember = `-- name: ShareLockMember :one
+SELECT anonymized_at FROM members WHERE app_id = $1 AND id = $2 FOR SHARE
+`
+
+type ShareLockMemberParams struct {
+	AppID uuid.UUID `json:"app_id"`
+	ID    uuid.UUID `json:"id"`
+}
+
+// Writes that store staff free text about a member (stamp adjustment notes,
+// coupon void reasons) take this lock first. An erasure updates the member
+// row, so it waits for such a write to commit and then blanks its text, or
+// the write waits for the erasure and sees anonymized_at.
+func (q *Queries) ShareLockMember(ctx context.Context, arg ShareLockMemberParams) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, shareLockMember, arg.AppID, arg.ID)
+	var anonymized_at pgtype.Timestamptz
+	err := row.Scan(&anonymized_at)
+	return anonymized_at, err
+}
+
 const updateMemberProfile = `-- name: UpdateMemberProfile :one
 UPDATE members SET
   display_name  = coalesce($1, display_name),

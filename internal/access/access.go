@@ -99,6 +99,25 @@ func LoadMember(ctx context.Context, q *sqlc.Queries, memberID, appID uuid.UUID)
 	return m, nil
 }
 
+// ShareMember takes a FOR SHARE lock on the member row and refuses an erased
+// member with ErrMemberNotFound. Writes that store staff free text about the
+// member call it before writing, so a PDPA erasure, which updates the row,
+// either waits for them and then blanks their text, or runs first and they
+// see anonymized_at.
+func ShareMember(ctx context.Context, q *sqlc.Queries, appID, memberID uuid.UUID) error {
+	anonymizedAt, err := q.ShareLockMember(ctx, sqlc.ShareLockMemberParams{AppID: appID, ID: memberID})
+	if err != nil {
+		if db.IsNotFound(err) {
+			return ErrMemberNotFound
+		}
+		return fmt.Errorf("access: lock member: %w", err)
+	}
+	if anonymizedAt.Valid {
+		return ErrMemberNotFound
+	}
+	return nil
+}
+
 // MemberTenant resolves a member to its tenant with a system lookup.
 func MemberTenant(ctx context.Context, pool *pgxpool.Pool, memberID uuid.UUID) (uuid.UUID, error) {
 	var tenantID uuid.UUID

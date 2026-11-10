@@ -131,8 +131,20 @@ func (s *Service) Void(ctx context.Context, p principal.Principal, instanceID uu
 	var out Instance
 	err = s.writer.Write(ctx, sc.TenantID, access.ScopeOf(p), idem,
 		func(ctx context.Context, tx pgx.Tx) error {
-			_, err := s.tenants.Authorize(ctx, tx, p, sc.TenantID, principal.RoleAdmin)
-			return err
+			if _, err := s.tenants.Authorize(ctx, tx, p, sc.TenantID, principal.RoleAdmin); err != nil {
+				return err
+			}
+			// The reason is personal text an erasure must blank. An erased
+			// member's coupons cannot be voided (not even a replay, which
+			// would return the reason), and the share lock serializes a
+			// void with an erasure in progress.
+			if err := access.ShareMember(ctx, sqlc.New(tx), sc.AppID, sc.MemberID); err != nil {
+				if errors.Is(err, access.ErrMemberNotFound) {
+					return errCouponNotFound
+				}
+				return err
+			}
+			return nil
 		},
 		func(ctx context.Context, tx pgx.Tx) (any, error) {
 			q := sqlc.New(tx)

@@ -27,6 +27,13 @@ WHERE app_id = $1 AND line_user_id = $2 AND is_friend <> $3;
 -- name: GetMember :one
 SELECT * FROM members WHERE id = $1;
 
+-- name: ShareLockMember :one
+-- Writes that store staff free text about a member (stamp adjustment notes,
+-- coupon void reasons) take this lock first. An erasure updates the member
+-- row, so it waits for such a write to commit and then blanks its text, or
+-- the write waits for the erasure and sees anonymized_at.
+SELECT anonymized_at FROM members WHERE app_id = $1 AND id = $2 FOR SHARE;
+
 -- name: GetMemberTenant :one
 SELECT tenant_id FROM members WHERE id = $1;
 
