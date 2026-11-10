@@ -10,6 +10,7 @@ import (
 
 	"github.com/amangeldievkuu/miniloyal/internal/access"
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
+	"github.com/amangeldievkuu/miniloyal/internal/audit"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
 	"github.com/amangeldievkuu/miniloyal/internal/principal"
@@ -120,7 +121,26 @@ func (s *Service) staffOp(ctx context.Context, p principal.Principal, cl card.Sc
 			}
 			op.actorType, op.actorID = actorOf(p)
 			op.storeID = p.StoreID
-			return s.apply(ctx, q, m, rules, op)
+			t, err := s.apply(ctx, q, m, rules, op)
+			if err != nil {
+				return nil, err
+			}
+			action := ActionStaffEarn
+			if op.kind == KindRedeem {
+				action = ActionStaffRedeem
+			}
+			appID := m.AppID
+			meta := map[string]any{"staff_id": p.StaffID.String(), "txn_id": t.ID.String(), "points": t.Points}
+			if p.StoreID != uuid.Nil {
+				meta["store_id"] = p.StoreID.String()
+			}
+			if err := audit.Record(ctx, tx, audit.Entry{
+				TenantID: m.TenantID, AppID: &appID, Actor: p, Action: action,
+				TargetType: "member", TargetID: m.ID.String(), Metadata: meta,
+			}); err != nil {
+				return nil, err
+			}
+			return t, nil
 		}, &out)
 	return out, err
 }

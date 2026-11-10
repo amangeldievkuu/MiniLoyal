@@ -31,8 +31,10 @@ import (
 
 // Audit actions.
 const (
-	ActionAdjust = "points.adjust"
-	ActionRules  = "points.rules"
+	ActionAdjust      = "points.adjust"
+	ActionStaffEarn   = "points.earn"
+	ActionStaffRedeem = "points.redeem"
+	ActionRules       = "points.rules"
 )
 
 // Ledger reasons, which are also the transaction kinds.
@@ -332,7 +334,8 @@ func (s *Service) Adjust(ctx context.Context, p principal.Principal, memberID uu
 			if err := audit.Record(ctx, tx, audit.Entry{
 				TenantID: m.TenantID, AppID: &appID, Actor: p, Action: ActionAdjust,
 				TargetType: "member", TargetID: m.ID.String(),
-				Metadata: map[string]any{"delta": delta, "note": note, "txn_id": t.ID.String()},
+				// No note: audit rows outlive a PDPA erasure.
+				Metadata: map[string]any{"delta": delta, "txn_id": t.ID.String()},
 			}); err != nil {
 				return nil, err
 			}

@@ -192,7 +192,7 @@ func (s *Server) StaffEarnPoints(ctx context.Context, req api.StaffEarnPointsReq
 	if err != nil {
 		return nil, err
 	}
-	t, err := svc.StaffEarn(ctx, p, pointsIdem(ctx, req.Params.IdempotencyKey, body), points.StaffEarnInput{
+	t, err := svc.StaffEarn(s.auditContext(ctx), p, pointsIdem(ctx, req.Params.IdempotencyKey, body), points.StaffEarnInput{
 		ScanToken: body.ScanToken, Spend: body.SpendAmount, Points: body.Points, Note: body.Note,
 	})
 	if err != nil {
@@ -214,7 +214,7 @@ func (s *Server) StaffRedeemPoints(ctx context.Context, req api.StaffRedeemPoint
 	if err != nil {
 		return nil, err
 	}
-	t, err := svc.StaffRedeem(ctx, p, pointsIdem(ctx, req.Params.IdempotencyKey, body), body.ScanToken, body.Points, body.Note)
+	t, err := svc.StaffRedeem(s.auditContext(ctx), p, pointsIdem(ctx, req.Params.IdempotencyKey, body), body.ScanToken, body.Points, body.Note)
 	if err != nil {
 		return nil, err
 	}

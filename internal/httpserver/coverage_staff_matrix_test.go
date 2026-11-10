@@ -26,11 +26,11 @@ var staffOps = []opCase{
 	{id: "staffEarnPoints", method: http.MethodPost, path: func(*matrixFixtures) string { return "/v1/staff/points/earn" },
 		body: func(f *matrixFixtures) any { return map[string]any{"scan_token": f.scan, "spend_amount": 500} },
 		alt:  func(f *matrixFixtures) any { return map[string]any{"scan_token": f.scan, "spend_amount": 600} },
-		idem: true, created: 200, creates: "points_lots", more: []string{"points_ledger", "outbound_events"}},
+		idem: true, created: 200, creates: "points_lots", more: []string{"points_ledger", "outbound_events", "audit_log"}},
 	{id: "staffRedeemPoints", method: http.MethodPost, path: func(*matrixFixtures) string { return "/v1/staff/points/redeem" },
 		body: func(f *matrixFixtures) any { return map[string]any{"scan_token": f.scan, "points": 3} },
 		alt:  func(f *matrixFixtures) any { return map[string]any{"scan_token": f.scan, "points": 4} },
-		idem: true, created: 200, more: []string{"points_ledger", "outbound_events"}},
+		idem: true, created: 200, more: []string{"points_ledger", "outbound_events", "audit_log"}},
 	// A coupon redeems once, so refresh issues fresh ones; the mismatch case
 	// reuses the key on the spare coupon (the body is only the scan).
 	{id: "staffRedeemCoupon", method: http.MethodPost, path: func(f *matrixFixtures) string { return "/v1/staff/coupons/" + f.coupon.String() + "/redeem" },
