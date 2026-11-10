@@ -31,8 +31,8 @@ services:
       ENV: ${ENV:-production}
       # The owner connection: creates the application roles, then applies migrations.
       DATABASE_URL: postgres://${POSTGRES_USER:-miniloyal}:${POSTGRES_PASSWORD:-miniloyal}@db:5432/${POSTGRES_DB:-miniloyal}?sslmode=disable
-      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-miniloyal_api}
-      WORKER_DB_PASSWORD: ${WORKER_DB_PASSWORD:-miniloyal_worker}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD}
+      WORKER_DB_PASSWORD: ${WORKER_DB_PASSWORD:?set WORKER_DB_PASSWORD}
       SESSION_SIGNING_KEY: ${SESSION_SIGNING_KEY:-}
       KEK_FILE: ${KEK_FILE:-}
       KMS_KEY_NAME: ${KMS_KEY_NAME:-}
@@ -46,7 +46,7 @@ services:
     environment:
       ENV: ${ENV:-production}
       API_ADDR: ':8080'
-      DATABASE_URL: postgres://miniloyal_api:${APP_DB_PASSWORD:-miniloyal_api}@db:5432/${POSTGRES_DB:-miniloyal}?sslmode=disable
+      DATABASE_URL: postgres://miniloyal_api:${APP_DB_PASSWORD:?set APP_DB_PASSWORD}@db:5432/${POSTGRES_DB:-miniloyal}?sslmode=disable
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_FORMAT: json
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
@@ -67,8 +67,8 @@ services:
       migrate: { condition: service_completed_successfully }
     environment:
       ENV: ${ENV:-production}
-      # Its own role: owns River's tables, works jobs; the API role may only enqueue.
-      WORKER_DATABASE_URL: postgres://miniloyal_worker:${WORKER_DB_PASSWORD:-miniloyal_worker}@db:5432/${POSTGRES_DB:-miniloyal}?sslmode=disable
+      # Its own role: owns River's tables and works jobs; the API role has no River grants.
+      WORKER_DATABASE_URL: postgres://miniloyal_worker:${WORKER_DB_PASSWORD:?set WORKER_DB_PASSWORD}@db:5432/${POSTGRES_DB:-miniloyal}?sslmode=disable
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_FORMAT: json
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
