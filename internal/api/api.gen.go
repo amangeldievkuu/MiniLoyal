@@ -59,16 +59,34 @@ func (e ApiKeyScope) Valid() bool {
 
 // Defines values for AppStatus.
 const (
-	Active   AppStatus = "active"
-	Disabled AppStatus = "disabled"
+	AppStatusActive   AppStatus = "active"
+	AppStatusDisabled AppStatus = "disabled"
 )
 
 // Valid indicates whether the value is a known member of the AppStatus enum.
 func (e AppStatus) Valid() bool {
 	switch e {
-	case Active:
+	case AppStatusActive:
 		return true
-	case Disabled:
+	case AppStatusDisabled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArchiveStatus.
+const (
+	ArchiveStatusActive   ArchiveStatus = "active"
+	ArchiveStatusArchived ArchiveStatus = "archived"
+)
+
+// Valid indicates whether the value is a known member of the ArchiveStatus enum.
+func (e ArchiveStatus) Valid() bool {
+	switch e {
+	case ArchiveStatusActive:
+		return true
+	case ArchiveStatusArchived:
 		return true
 	default:
 		return false
@@ -117,6 +135,123 @@ func (e ChannelEnvironment) Valid() bool {
 	case ChannelEnvironmentReview:
 		return true
 	case ChannelEnvironmentStaff:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CouponInstanceStatus.
+const (
+	CouponInstanceStatusIssued   CouponInstanceStatus = "issued"
+	CouponInstanceStatusRedeemed CouponInstanceStatus = "redeemed"
+	CouponInstanceStatusVoided   CouponInstanceStatus = "voided"
+)
+
+// Valid indicates whether the value is a known member of the CouponInstanceStatus enum.
+func (e CouponInstanceStatus) Valid() bool {
+	switch e {
+	case CouponInstanceStatusIssued:
+		return true
+	case CouponInstanceStatusRedeemed:
+		return true
+	case CouponInstanceStatusVoided:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CouponSource.
+const (
+	Claim       CouponSource = "claim"
+	Issue       CouponSource = "issue"
+	StampReward CouponSource = "stamp_reward"
+)
+
+// Valid indicates whether the value is a known member of the CouponSource enum.
+func (e CouponSource) Valid() bool {
+	switch e {
+	case Claim:
+		return true
+	case Issue:
+		return true
+	case StampReward:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CouponState.
+const (
+	CouponStateAvailable CouponState = "available"
+	CouponStateExpired   CouponState = "expired"
+	CouponStateRedeemed  CouponState = "redeemed"
+	CouponStateVoided    CouponState = "voided"
+)
+
+// Valid indicates whether the value is a known member of the CouponState enum.
+func (e CouponState) Valid() bool {
+	switch e {
+	case CouponStateAvailable:
+		return true
+	case CouponStateExpired:
+		return true
+	case CouponStateRedeemed:
+		return true
+	case CouponStateVoided:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CouponTemplateClearable.
+const (
+	Description  CouponTemplateClearable = "description"
+	TotalLimit   CouponTemplateClearable = "total_limit"
+	ValidFrom    CouponTemplateClearable = "valid_from"
+	ValidTo      CouponTemplateClearable = "valid_to"
+	ValidityDays CouponTemplateClearable = "validity_days"
+	Value        CouponTemplateClearable = "value"
+)
+
+// Valid indicates whether the value is a known member of the CouponTemplateClearable enum.
+func (e CouponTemplateClearable) Valid() bool {
+	switch e {
+	case Description:
+		return true
+	case TotalLimit:
+		return true
+	case ValidFrom:
+		return true
+	case ValidTo:
+		return true
+	case ValidityDays:
+		return true
+	case Value:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CouponType.
+const (
+	AmountOff  CouponType = "amount_off"
+	FreeItem   CouponType = "free_item"
+	PercentOff CouponType = "percent_off"
+)
+
+// Valid indicates whether the value is a known member of the CouponType enum.
+func (e CouponType) Valid() bool {
+	switch e {
+	case AmountOff:
+		return true
+	case FreeItem:
+		return true
+	case PercentOff:
 		return true
 	default:
 		return false
@@ -315,6 +450,21 @@ func (e StaffSessionTokenType) Valid() bool {
 	}
 }
 
+// Defines values for StampCardClearable.
+const (
+	RewardCouponTemplateId StampCardClearable = "reward_coupon_template_id"
+)
+
+// Valid indicates whether the value is a known member of the StampCardClearable enum.
+func (e StampCardClearable) Valid() bool {
+	switch e {
+	case RewardCouponTemplateId:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TenantType.
 const (
 	Agency TenantType = "agency"
@@ -327,6 +477,48 @@ func (e TenantType) Valid() bool {
 	case Agency:
 		return true
 	case Brand:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MemberCouponFilter.
+const (
+	MemberCouponFilterAvailable MemberCouponFilter = "available"
+	MemberCouponFilterExpired   MemberCouponFilter = "expired"
+	MemberCouponFilterUsed      MemberCouponFilter = "used"
+)
+
+// Valid indicates whether the value is a known member of the MemberCouponFilter enum.
+func (e MemberCouponFilter) Valid() bool {
+	switch e {
+	case MemberCouponFilterAvailable:
+		return true
+	case MemberCouponFilterExpired:
+		return true
+	case MemberCouponFilterUsed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListMyCouponsParamsState.
+const (
+	ListMyCouponsParamsStateAvailable ListMyCouponsParamsState = "available"
+	ListMyCouponsParamsStateExpired   ListMyCouponsParamsState = "expired"
+	ListMyCouponsParamsStateUsed      ListMyCouponsParamsState = "used"
+)
+
+// Valid indicates whether the value is a known member of the ListMyCouponsParamsState enum.
+func (e ListMyCouponsParamsState) Valid() bool {
+	switch e {
+	case ListMyCouponsParamsStateAvailable:
+		return true
+	case ListMyCouponsParamsStateExpired:
+		return true
+	case ListMyCouponsParamsStateUsed:
 		return true
 	default:
 		return false
@@ -476,6 +668,9 @@ type AppUpdate struct {
 	Status          *AppStatus `json:"status,omitempty"`
 }
 
+// ArchiveStatus Archived coupon templates and stamp cards stop new claims, issues and stamps; nothing is deleted.
+type ArchiveStatus string
+
 // AuditActorType defines model for AuditActorType.
 type AuditActorType string
 
@@ -516,6 +711,234 @@ type Consent struct {
 type ConsentRequest struct {
 	// Version Identifier of the personal-data notice the member accepted, for example 2026-11.
 	Version string `json:"version"`
+}
+
+// CouponInstance defines model for CouponInstance.
+type CouponInstance struct {
+	// Code Short code unique within the app, for receipts and support. Not a credential; redeeming needs a scan of the member card.
+	Code string `json:"code"`
+
+	// ExpiresAt Fixed at issue; null when the coupon never expires. Redeeming at or after this time fails.
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+
+	// Id Coupon ID; staff redeem with it.
+	Id openapi_types.UUID `json:"id"`
+
+	// IssuedAt When the member got the coupon.
+	IssuedAt time.Time `json:"issued_at"`
+
+	// MemberId The member holding the coupon.
+	MemberId openapi_types.UUID `json:"member_id"`
+
+	// RedeemedAt When staff redeemed it.
+	RedeemedAt *time.Time `json:"redeemed_at,omitempty"`
+
+	// Source claim by the member, issue from the dashboard or server API, stamp_reward on completing a stamp card.
+	Source CouponSource `json:"source"`
+
+	// State Effective state. available is issued and not past expires_at; expired is issued and past it.
+	State CouponState `json:"state"`
+
+	// Status Stored status. Expiry is not a stored status; see CouponState.
+	Status   CouponInstanceStatus  `json:"status"`
+	Store    *StoreRef             `json:"store,omitempty"`
+	Template CouponTemplateSummary `json:"template"`
+}
+
+// CouponInstancePage defines model for CouponInstancePage.
+type CouponInstancePage struct {
+	// Items Coupons, newest first.
+	Items []CouponInstance `json:"items"`
+
+	// NextCursor Pass as cursor for the next page; null on the last page.
+	NextCursor *string `json:"next_cursor,omitempty"`
+}
+
+// CouponInstanceStatus Stored status. Expiry is not a stored status; see CouponState.
+type CouponInstanceStatus string
+
+// CouponIssueRequest defines model for CouponIssueRequest.
+type CouponIssueRequest struct {
+	// TemplateId Template of the member's app to issue from.
+	TemplateId openapi_types.UUID `json:"template_id"`
+}
+
+// CouponOffer defines model for CouponOffer.
+type CouponOffer struct {
+	// CanClaim False when held has reached per_member_limit.
+	CanClaim bool `json:"can_claim"`
+
+	// Held Coupons the member already holds from this template, voided ones excluded.
+	Held int `json:"held"`
+
+	// PerMemberLimit Most coupons the member may hold from this offer.
+	PerMemberLimit int                   `json:"per_member_limit"`
+	Template       CouponTemplateSummary `json:"template"`
+
+	// ValidTo Last moment to claim; also the latest expiry of a claimed coupon.
+	ValidTo *time.Time `json:"valid_to,omitempty"`
+
+	// ValidityDays A claimed coupon expires this many days after the claim, or at valid_to if earlier.
+	ValidityDays *int `json:"validity_days,omitempty"`
+}
+
+// CouponSource claim by the member, issue from the dashboard or server API, stamp_reward on completing a stamp card.
+type CouponSource string
+
+// CouponState Effective state. available is issued and not past expires_at; expired is issued and past it.
+type CouponState string
+
+// CouponTemplate defines model for CouponTemplate.
+type CouponTemplate struct {
+	// AppId The app the template belongs to.
+	AppId openapi_types.UUID `json:"app_id"`
+
+	// Claimable Whether members may claim it themselves. False for issue-only and stamp reward templates.
+	Claimable bool `json:"claimable"`
+
+	// ClaimedCount Coupons issued so far from every source (claim, issue, stamp_reward); counts toward total_limit. Voids do not lower it.
+	ClaimedCount int `json:"claimed_count"`
+
+	// CreatedAt When the template was created.
+	CreatedAt time.Time `json:"created_at"`
+
+	// Description Terms shown to members.
+	Description *string `json:"description,omitempty"`
+
+	// Id Template ID; members claim with it.
+	Id openapi_types.UUID `json:"id"`
+
+	// Name Shown to members and staff, for example "NT$50 off".
+	Name string `json:"name"`
+
+	// PerMemberLimit Most coupons one member may hold from member claims (voided ones excluded). Dashboard, API and stamp reward issues ignore it.
+	PerMemberLimit int `json:"per_member_limit"`
+
+	// Status Archived coupon templates and stamp cards stop new claims, issues and stamps; nothing is deleted.
+	Status ArchiveStatus `json:"status"`
+
+	// TotalLimit Most coupons ever issued from the template, from every source; null for no limit. Never below claimed_count or per_member_limit.
+	TotalLimit *int `json:"total_limit,omitempty"`
+
+	// Type amount_off takes value currency units off, percent_off takes value percent off, free_item gives the item named in the template.
+	Type CouponType `json:"type"`
+
+	// UpdatedAt When the template last changed.
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// ValidFrom Claims and issues are refused before this time; null for no start.
+	ValidFrom *time.Time `json:"valid_from,omitempty"`
+
+	// ValidTo Claims and issues are refused from this time, and coupons expire at it at the latest; null for no end.
+	ValidTo *time.Time `json:"valid_to,omitempty"`
+
+	// ValidityDays A coupon expires this many days after it was issued, or at valid_to if that is earlier; null for no relative expiry.
+	ValidityDays *int `json:"validity_days,omitempty"`
+
+	// Value Currency units for amount_off (1 to 1,000,000), percent for percent_off (1 to 100), null for free_item.
+	Value *int `json:"value"`
+}
+
+// CouponTemplateClearable defines model for CouponTemplateClearable.
+type CouponTemplateClearable string
+
+// CouponTemplateCreate defines model for CouponTemplateCreate.
+type CouponTemplateCreate struct {
+	// Claimable Let members claim it from the offers list. Leave false for reward and issue-only templates.
+	Claimable *bool `json:"claimable,omitempty"`
+
+	// Description Terms shown to members.
+	Description *string `json:"description,omitempty"`
+
+	// Name Shown to members and staff.
+	Name string `json:"name"`
+
+	// PerMemberLimit Most coupons one member may hold from claims; at most total_limit.
+	PerMemberLimit *int `json:"per_member_limit,omitempty"`
+
+	// TotalLimit Most coupons ever issued; omit for no limit. At least per_member_limit.
+	TotalLimit *int `json:"total_limit,omitempty"`
+
+	// Type amount_off takes value currency units off, percent_off takes value percent off, free_item gives the item named in the template.
+	Type CouponType `json:"type"`
+
+	// ValidFrom No claims or issues before this time.
+	ValidFrom *time.Time `json:"valid_from,omitempty"`
+
+	// ValidTo No claims or issues from this time; coupons expire at it at the latest. Must be after valid_from.
+	ValidTo *time.Time `json:"valid_to,omitempty"`
+
+	// ValidityDays Coupons expire this many days after issue (or at valid_to if earlier).
+	ValidityDays *int `json:"validity_days,omitempty"`
+
+	// Value Required for amount_off (1 to 1,000,000 currency units) and percent_off (1 to 100); omit for free_item.
+	Value *int `json:"value,omitempty"`
+}
+
+// CouponTemplateSummary defines model for CouponTemplateSummary.
+type CouponTemplateSummary struct {
+	// Description Terms shown to members.
+	Description *string `json:"description,omitempty"`
+
+	// Id Template ID.
+	Id openapi_types.UUID `json:"id"`
+
+	// Name Template name.
+	Name string `json:"name"`
+
+	// Type amount_off takes value currency units off, percent_off takes value percent off, free_item gives the item named in the template.
+	Type CouponType `json:"type"`
+
+	// Value Currency units for amount_off, percent for percent_off, null for free_item.
+	Value *int `json:"value"`
+}
+
+// CouponTemplateUpdate Only the fields sent change. Fields listed in clear are set to null; a field may not be both sent and cleared.
+type CouponTemplateUpdate struct {
+	// Claimable Let members claim it from the offers list.
+	Claimable *bool `json:"claimable,omitempty"`
+
+	// Clear Fields to reset to null (no limit, no window, no description; value when switching to free_item).
+	Clear *[]CouponTemplateClearable `json:"clear,omitempty"`
+
+	// Description Terms shown to members.
+	Description *string `json:"description,omitempty"`
+
+	// Name Shown to members and staff.
+	Name *string `json:"name,omitempty"`
+
+	// PerMemberLimit Applies to claims from now on; at most total_limit.
+	PerMemberLimit *int `json:"per_member_limit,omitempty"`
+
+	// Status Archived coupon templates and stamp cards stop new claims, issues and stamps; nothing is deleted.
+	Status *ArchiveStatus `json:"status,omitempty"`
+
+	// TotalLimit Cannot go below claimed_count (422) or per_member_limit (400).
+	TotalLimit *int `json:"total_limit,omitempty"`
+
+	// Type amount_off takes value currency units off, percent_off takes value percent off, free_item gives the item named in the template.
+	Type *CouponType `json:"type,omitempty"`
+
+	// ValidFrom Applies to claims and issues from now on.
+	ValidFrom *time.Time `json:"valid_from,omitempty"`
+
+	// ValidTo Applies to claims and issues from now on; issued coupons keep their expires_at.
+	ValidTo *time.Time `json:"valid_to,omitempty"`
+
+	// ValidityDays Applies to coupons issued from now on.
+	ValidityDays *int `json:"validity_days,omitempty"`
+
+	// Value Must agree with type, as on create. Fixed once claimed_count is above zero.
+	Value *int `json:"value,omitempty"`
+}
+
+// CouponType amount_off takes value currency units off, percent_off takes value percent off, free_item gives the item named in the template.
+type CouponType string
+
+// CouponVoidRequest defines model for CouponVoidRequest.
+type CouponVoidRequest struct {
+	// Reason Why the coupon is voided; kept in the audit log.
+	Reason string `json:"reason"`
 }
 
 // Error defines model for Error.
@@ -855,14 +1278,20 @@ type ScanRequest struct {
 	Qr string `json:"qr"`
 }
 
-// ScanResult defines model for ScanResult.
+// ScanResult Carries no personal data beyond ScannedMember, whatever the staff role.
 type ScanResult struct {
-	Balance   int64         `json:"balance"`
-	ExpiresAt time.Time     `json:"expires_at"`
-	Member    ScannedMember `json:"member"`
+	Balance int64 `json:"balance"`
 
-	// ScanToken Authorizes points actions on this member for five minutes; it pays for at most one redemption.
+	// Coupons The member's coupons staff can redeem now (state available), soonest expiry first, at most 50.
+	Coupons   []CouponInstance `json:"coupons"`
+	ExpiresAt time.Time        `json:"expires_at"`
+	Member    ScannedMember    `json:"member"`
+
+	// ScanToken Authorizes points, coupon and stamp actions on this member for five minutes; it pays for at most one points redemption.
 	ScanToken string `json:"scan_token"`
+
+	// Stamps The member's progress on every active stamp card of the app, zero for cards not started.
+	Stamps []StampProgress `json:"stamps"`
 }
 
 // ScannedMember defines model for ScannedMember.
@@ -930,6 +1359,12 @@ type Staff struct {
 	Role       StaffRole           `json:"role"`
 	Status     AppStatus           `json:"status"`
 	StoreId    *openapi_types.UUID `json:"store_id,omitempty"`
+}
+
+// StaffCouponRedeemRequest defines model for StaffCouponRedeemRequest.
+type StaffCouponRedeemRequest struct {
+	// ScanToken From a scan of the coupon holder's card in the last five minutes.
+	ScanToken string `json:"scan_token"`
 }
 
 // StaffCreate defines model for StaffCreate.
@@ -1008,12 +1443,146 @@ type StaffSession struct {
 // StaffSessionTokenType defines model for StaffSession.TokenType.
 type StaffSessionTokenType string
 
+// StaffStampRequest defines model for StaffStampRequest.
+type StaffStampRequest struct {
+	// Count Stamps to add; at most the card's max_stamps_per_visit, counting stamps already given on this scan.
+	Count int `json:"count"`
+
+	// ScanToken From a scan of the member card in the last five minutes.
+	ScanToken string `json:"scan_token"`
+
+	// StampCardId Card of the staff member's app.
+	StampCardId openapi_types.UUID `json:"stamp_card_id"`
+}
+
 // StaffUpdate defines model for StaffUpdate.
 type StaffUpdate struct {
 	DisplayName *string             `json:"display_name,omitempty"`
 	Role        *StaffRole          `json:"role,omitempty"`
 	Status      *AppStatus          `json:"status,omitempty"`
 	StoreId     *openapi_types.UUID `json:"store_id,omitempty"`
+}
+
+// StampAdjustment defines model for StampAdjustment.
+type StampAdjustment struct {
+	// Delta Non-zero.
+	Delta int `json:"delta"`
+
+	// Note Why; kept in the audit log.
+	Note string `json:"note"`
+
+	// StampCardId Card of the member's app.
+	StampCardId openapi_types.UUID `json:"stamp_card_id"`
+}
+
+// StampCard defines model for StampCard.
+type StampCard struct {
+	// AppId The app the card belongs to.
+	AppId openapi_types.UUID `json:"app_id"`
+
+	// CreatedAt When the card was created.
+	CreatedAt time.Time `json:"created_at"`
+
+	// Id Stamp card ID.
+	Id openapi_types.UUID `json:"id"`
+
+	// MaxStampsPerVisit Most stamps staff may give on one scan.
+	MaxStampsPerVisit int `json:"max_stamps_per_visit"`
+
+	// Name Shown to members and staff.
+	Name string `json:"name"`
+
+	// RewardCouponTemplateId Template issued on each completion; null for no reward coupon.
+	RewardCouponTemplateId *openapi_types.UUID `json:"reward_coupon_template_id,omitempty"`
+
+	// StampsRequired Stamps that complete the card.
+	StampsRequired int `json:"stamps_required"`
+
+	// Status Archived coupon templates and stamp cards stop new claims, issues and stamps; nothing is deleted.
+	Status ArchiveStatus `json:"status"`
+
+	// UpdatedAt When the card last changed.
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// StampCardClearable defines model for StampCardClearable.
+type StampCardClearable string
+
+// StampCardCreate defines model for StampCardCreate.
+type StampCardCreate struct {
+	// MaxStampsPerVisit Most stamps staff may give on one scan.
+	MaxStampsPerVisit *int `json:"max_stamps_per_visit,omitempty"`
+
+	// Name Shown to members and staff.
+	Name string `json:"name"`
+
+	// RewardCouponTemplateId Template of the same app issued on each completion.
+	RewardCouponTemplateId *openapi_types.UUID `json:"reward_coupon_template_id,omitempty"`
+
+	// StampsRequired Stamps that complete the card.
+	StampsRequired int `json:"stamps_required"`
+}
+
+// StampCardUpdate Only the fields sent change. Fields listed in clear are set to null; a field may not be both sent and cleared.
+type StampCardUpdate struct {
+	// Clear Fields to reset to null (no reward coupon).
+	Clear *[]StampCardClearable `json:"clear,omitempty"`
+
+	// MaxStampsPerVisit Most stamps staff may give on one scan.
+	MaxStampsPerVisit *int `json:"max_stamps_per_visit,omitempty"`
+
+	// Name Shown to members and staff.
+	Name *string `json:"name,omitempty"`
+
+	// RewardCouponTemplateId Applies to completions from now on.
+	RewardCouponTemplateId *openapi_types.UUID `json:"reward_coupon_template_id,omitempty"`
+
+	// StampsRequired Fixed once any member has a stamp on the card.
+	StampsRequired *int `json:"stamps_required,omitempty"`
+
+	// Status Archived coupon templates and stamp cards stop new claims, issues and stamps; nothing is deleted.
+	Status *ArchiveStatus `json:"status,omitempty"`
+}
+
+// StampProgress defines model for StampProgress.
+type StampProgress struct {
+	// Completions Times the member completed the card.
+	Completions int `json:"completions"`
+
+	// Count Stamps toward the next completion, from 0 to stamps_required minus 1.
+	Count int `json:"count"`
+
+	// MaxStampsPerVisit Most stamps staff may give on one scan.
+	MaxStampsPerVisit int `json:"max_stamps_per_visit"`
+
+	// Name Card name.
+	Name   string                 `json:"name"`
+	Reward *CouponTemplateSummary `json:"reward,omitempty"`
+
+	// StampCardId The stamp card.
+	StampCardId openapi_types.UUID `json:"stamp_card_id"`
+
+	// StampsRequired Stamps that complete the card.
+	StampsRequired int `json:"stamps_required"`
+
+	// Status Archived coupon templates and stamp cards stop new claims, issues and stamps; nothing is deleted.
+	Status ArchiveStatus `json:"status"`
+
+	// UpdatedAt Last stamp or adjustment; null when the member has no stamps on the card yet.
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
+
+// StampResult defines model for StampResult.
+type StampResult struct {
+	// Added Signed change applied by this request.
+	Added int `json:"added"`
+
+	// Completed Completions this request caused.
+	Completed int           `json:"completed"`
+	Progress  StampProgress `json:"progress"`
+
+	// Rewards Reward coupons issued by those completions; empty when there were none or the card has no reward.
+	Rewards []CouponInstance `json:"rewards"`
 }
 
 // Store defines model for Store.
@@ -1128,6 +1697,15 @@ type User struct {
 // AppId defines model for AppId.
 type AppId = openapi_types.UUID
 
+// CouponInstanceId defines model for CouponInstanceId.
+type CouponInstanceId = openapi_types.UUID
+
+// CouponStateFilter Effective state. available is issued and not past expires_at; expired is issued and past it.
+type CouponStateFilter = CouponState
+
+// CouponTemplateId defines model for CouponTemplateId.
+type CouponTemplateId = openapi_types.UUID
+
 // Cursor defines model for Cursor.
 type Cursor = string
 
@@ -1137,11 +1715,20 @@ type IdempotencyKey = string
 // Limit defines model for Limit.
 type Limit = int
 
+// MemberCouponFilter defines model for MemberCouponFilter.
+type MemberCouponFilter string
+
 // MemberId defines model for MemberId.
 type MemberId = openapi_types.UUID
 
 // Query defines model for Query.
 type Query = string
+
+// StampCardId defines model for StampCardId.
+type StampCardId = openapi_types.UUID
+
+// TemplateStatusFilter Archived coupon templates and stamp cards stop new claims, issues and stamps; nothing is deleted.
+type TemplateStatusFilter = ArchiveStatus
 
 // TenantId defines model for TenantId.
 type TenantId = openapi_types.UUID
@@ -1164,6 +1751,12 @@ type TooManyRequests = Error
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
 
+// ClaimCouponParams defines parameters for ClaimCoupon.
+type ClaimCouponParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // UpdateAppParams defines parameters for UpdateApp.
 type UpdateAppParams struct {
 	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
@@ -1178,6 +1771,18 @@ type CreateApiKeyParams struct {
 
 // PutAppChannelParams defines parameters for PutAppChannel.
 type PutAppChannelParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ListCouponTemplatesParams defines parameters for ListCouponTemplates.
+type ListCouponTemplatesParams struct {
+	// Status Only active or only archived entries. Omitted, both.
+	Status *TemplateStatusFilter `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// CreateCouponTemplateParams defines parameters for CreateCouponTemplate.
+type CreateCouponTemplateParams struct {
 	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
@@ -1211,8 +1816,32 @@ type CreateStaffParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// ListStampCardsParams defines parameters for ListStampCards.
+type ListStampCardsParams struct {
+	// Status Only active or only archived entries. Omitted, both.
+	Status *TemplateStatusFilter `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// CreateStampCardParams defines parameters for CreateStampCard.
+type CreateStampCardParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // CreateStoreParams defines parameters for CreateStore.
 type CreateStoreParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// UpdateCouponTemplateParams defines parameters for UpdateCouponTemplate.
+type UpdateCouponTemplateParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// VoidCouponParams defines parameters for VoidCoupon.
+type VoidCouponParams struct {
 	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
@@ -1231,6 +1860,22 @@ type RotateMemberCardParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// ListMemberCouponsParams defines parameters for ListMemberCoupons.
+type ListMemberCouponsParams struct {
+	// State Only coupons in this effective state. Omitted, every coupon.
+	State *CouponStateFilter `form:"state,omitempty" json:"state,omitempty"`
+	Limit *Limit             `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous page's next_cursor.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// IssueMemberCouponParams defines parameters for IssueMemberCoupon.
+type IssueMemberCouponParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // AdjustMemberPointsParams defines parameters for AdjustMemberPoints.
 type AdjustMemberPointsParams struct {
 	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
@@ -1245,6 +1890,12 @@ type ListMemberPointsHistoryParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// AdjustMemberStampsParams defines parameters for AdjustMemberStamps.
+type AdjustMemberStampsParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // UpdateStaffParams defines parameters for UpdateStaff.
 type UpdateStaffParams struct {
 	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
@@ -1253,6 +1904,12 @@ type UpdateStaffParams struct {
 
 // ResetStaffInviteParams defines parameters for ResetStaffInvite.
 type ResetStaffInviteParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// UpdateStampCardParams defines parameters for UpdateStampCard.
+type UpdateStampCardParams struct {
 	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
@@ -1308,6 +1965,19 @@ type RecordConsentParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// ListMyCouponsParams defines parameters for ListMyCoupons.
+type ListMyCouponsParams struct {
+	// State available (issued, not expired), used (redeemed) or expired. Omitted, every coupon except voided ones.
+	State *ListMyCouponsParamsState `form:"state,omitempty" json:"state,omitempty"`
+	Limit *Limit                    `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous page's next_cursor.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ListMyCouponsParamsState defines parameters for ListMyCoupons.
+type ListMyCouponsParamsState string
+
 // ListMyPointsHistoryParams defines parameters for ListMyPointsHistory.
 type ListMyPointsHistoryParams struct {
 	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
@@ -1327,8 +1997,30 @@ type ServerListMembersParams struct {
 	Q *Query `form:"q,omitempty" json:"q,omitempty"`
 }
 
+// ServerListMemberCouponsParams defines parameters for ServerListMemberCoupons.
+type ServerListMemberCouponsParams struct {
+	// State Only coupons in this effective state. Omitted, every coupon.
+	State *CouponStateFilter `form:"state,omitempty" json:"state,omitempty"`
+	Limit *Limit             `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous page's next_cursor.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ServerIssueCouponParams defines parameters for ServerIssueCoupon.
+type ServerIssueCouponParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // ServerPostPointsParams defines parameters for ServerPostPoints.
 type ServerPostPointsParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// StaffRedeemCouponParams defines parameters for StaffRedeemCoupon.
+type StaffRedeemCouponParams struct {
 	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
@@ -1341,6 +2033,12 @@ type StaffEarnPointsParams struct {
 
 // StaffRedeemPointsParams defines parameters for StaffRedeemPoints.
 type StaffRedeemPointsParams struct {
+	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// StaffAddStampsParams defines parameters for StaffAddStamps.
+type StaffAddStampsParams struct {
 	// IdempotencyKey Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
@@ -1362,11 +2060,17 @@ type CreateApiKeyJSONRequestBody = ApiKeyCreate
 // PutAppChannelJSONRequestBody defines body for PutAppChannel for application/json ContentType.
 type PutAppChannelJSONRequestBody = AppChannelPut
 
+// CreateCouponTemplateJSONRequestBody defines body for CreateCouponTemplate for application/json ContentType.
+type CreateCouponTemplateJSONRequestBody = CouponTemplateCreate
+
 // PutPointsRulesJSONRequestBody defines body for PutPointsRules for application/json ContentType.
 type PutPointsRulesJSONRequestBody = PointsRulesPut
 
 // CreateStaffJSONRequestBody defines body for CreateStaff for application/json ContentType.
 type CreateStaffJSONRequestBody = StaffCreate
+
+// CreateStampCardJSONRequestBody defines body for CreateStampCard for application/json ContentType.
+type CreateStampCardJSONRequestBody = StampCardCreate
 
 // CreateStoreJSONRequestBody defines body for CreateStore for application/json ContentType.
 type CreateStoreJSONRequestBody = StoreCreate
@@ -1383,6 +2087,12 @@ type DashboardMfaJSONRequestBody = MfaRequest
 // DashboardRegisterJSONRequestBody defines body for DashboardRegister for application/json ContentType.
 type DashboardRegisterJSONRequestBody = RegisterRequest
 
+// UpdateCouponTemplateJSONRequestBody defines body for UpdateCouponTemplate for application/json ContentType.
+type UpdateCouponTemplateJSONRequestBody = CouponTemplateUpdate
+
+// VoidCouponJSONRequestBody defines body for VoidCoupon for application/json ContentType.
+type VoidCouponJSONRequestBody = CouponVoidRequest
+
 // ChangeDashboardPasswordJSONRequestBody defines body for ChangeDashboardPassword for application/json ContentType.
 type ChangeDashboardPasswordJSONRequestBody = PasswordChangeRequest
 
@@ -1392,11 +2102,20 @@ type DisableTotpJSONRequestBody = TotpDisableRequest
 // ConfirmTotpJSONRequestBody defines body for ConfirmTotp for application/json ContentType.
 type ConfirmTotpJSONRequestBody = TotpCodeRequest
 
+// IssueMemberCouponJSONRequestBody defines body for IssueMemberCoupon for application/json ContentType.
+type IssueMemberCouponJSONRequestBody = CouponIssueRequest
+
 // AdjustMemberPointsJSONRequestBody defines body for AdjustMemberPoints for application/json ContentType.
 type AdjustMemberPointsJSONRequestBody = PointsAdjustment
 
+// AdjustMemberStampsJSONRequestBody defines body for AdjustMemberStamps for application/json ContentType.
+type AdjustMemberStampsJSONRequestBody = StampAdjustment
+
 // UpdateStaffJSONRequestBody defines body for UpdateStaff for application/json ContentType.
 type UpdateStaffJSONRequestBody = StaffUpdate
+
+// UpdateStampCardJSONRequestBody defines body for UpdateStampCard for application/json ContentType.
+type UpdateStampCardJSONRequestBody = StampCardUpdate
 
 // UpdateStoreJSONRequestBody defines body for UpdateStore for application/json ContentType.
 type UpdateStoreJSONRequestBody = StoreUpdate
@@ -1419,11 +2138,17 @@ type UpdateMeJSONRequestBody = MemberUpdate
 // RecordConsentJSONRequestBody defines body for RecordConsent for application/json ContentType.
 type RecordConsentJSONRequestBody = ConsentRequest
 
+// ServerIssueCouponJSONRequestBody defines body for ServerIssueCoupon for application/json ContentType.
+type ServerIssueCouponJSONRequestBody = CouponIssueRequest
+
 // ServerPostPointsJSONRequestBody defines body for ServerPostPoints for application/json ContentType.
 type ServerPostPointsJSONRequestBody = ServerPointsRequest
 
 // StaffLoginWithLineJSONRequestBody defines body for StaffLoginWithLine for application/json ContentType.
 type StaffLoginWithLineJSONRequestBody = StaffLoginRequest
+
+// StaffRedeemCouponJSONRequestBody defines body for StaffRedeemCoupon for application/json ContentType.
+type StaffRedeemCouponJSONRequestBody = StaffCouponRedeemRequest
 
 // StaffEarnPointsJSONRequestBody defines body for StaffEarnPoints for application/json ContentType.
 type StaffEarnPointsJSONRequestBody = StaffEarnRequest
@@ -1433,6 +2158,9 @@ type StaffRedeemPointsJSONRequestBody = StaffRedeemRequest
 
 // StaffScanJSONRequestBody defines body for StaffScan for application/json ContentType.
 type StaffScanJSONRequestBody = ScanRequest
+
+// StaffAddStampsJSONRequestBody defines body for StaffAddStamps for application/json ContentType.
+type StaffAddStampsJSONRequestBody = StaffStampRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1448,6 +2176,12 @@ type ServerInterface interface {
 	// LoginWithLine Exchange a LIFF ID token for a member session
 	// (POST /v1/auth/line)
 	LoginWithLine(w http.ResponseWriter, r *http.Request)
+	// ListCouponOffers Coupons the member can claim now
+	// (GET /v1/coupons/offers)
+	ListCouponOffers(w http.ResponseWriter, r *http.Request)
+	// ClaimCoupon Claim a coupon from an offer
+	// (POST /v1/coupons/{templateId}/claim)
+	ClaimCoupon(w http.ResponseWriter, r *http.Request, templateId CouponTemplateId, params ClaimCouponParams)
 	// RevokeApiKey Revoke an API key
 	// (DELETE /v1/dashboard/api-keys/{keyId})
 	RevokeApiKey(w http.ResponseWriter, r *http.Request, keyId openapi_types.UUID)
@@ -1472,6 +2206,12 @@ type ServerInterface interface {
 	// PutAppChannel Create or replace the channel for an environment
 	// (PUT /v1/dashboard/apps/{appId}/channels/{environment})
 	PutAppChannel(w http.ResponseWriter, r *http.Request, appId AppId, environment ChannelEnvironment, params PutAppChannelParams)
+	// ListCouponTemplates Coupon templates of the app, newest first
+	// (GET /v1/dashboard/apps/{appId}/coupon-templates)
+	ListCouponTemplates(w http.ResponseWriter, r *http.Request, appId AppId, params ListCouponTemplatesParams)
+	// CreateCouponTemplate Create a coupon template
+	// (POST /v1/dashboard/apps/{appId}/coupon-templates)
+	CreateCouponTemplate(w http.ResponseWriter, r *http.Request, appId AppId, params CreateCouponTemplateParams)
 	// EndMemberSessions Sign every member of the app out
 	// (POST /v1/dashboard/apps/{appId}/member-sessions/end)
 	EndMemberSessions(w http.ResponseWriter, r *http.Request, appId AppId, params EndMemberSessionsParams)
@@ -1490,6 +2230,12 @@ type ServerInterface interface {
 	// CreateStaff Add a staff member
 	// (POST /v1/dashboard/apps/{appId}/staff)
 	CreateStaff(w http.ResponseWriter, r *http.Request, appId AppId, params CreateStaffParams)
+	// ListStampCards Stamp cards of the app, newest first
+	// (GET /v1/dashboard/apps/{appId}/stamp-cards)
+	ListStampCards(w http.ResponseWriter, r *http.Request, appId AppId, params ListStampCardsParams)
+	// CreateStampCard Create a stamp card
+	// (POST /v1/dashboard/apps/{appId}/stamp-cards)
+	CreateStampCard(w http.ResponseWriter, r *http.Request, appId AppId, params CreateStampCardParams)
 	// ListStores Stores of the app
 	// (GET /v1/dashboard/apps/{appId}/stores)
 	ListStores(w http.ResponseWriter, r *http.Request, appId AppId)
@@ -1514,6 +2260,15 @@ type ServerInterface interface {
 	// DashboardRegister Create a dashboard account and its first tenant
 	// (POST /v1/dashboard/auth/register)
 	DashboardRegister(w http.ResponseWriter, r *http.Request)
+	// GetCouponTemplate A coupon template
+	// (GET /v1/dashboard/coupon-templates/{templateId})
+	GetCouponTemplate(w http.ResponseWriter, r *http.Request, templateId CouponTemplateId)
+	// UpdateCouponTemplate Change or archive a coupon template
+	// (PATCH /v1/dashboard/coupon-templates/{templateId})
+	UpdateCouponTemplate(w http.ResponseWriter, r *http.Request, templateId CouponTemplateId, params UpdateCouponTemplateParams)
+	// VoidCoupon Void a member's coupon
+	// (POST /v1/dashboard/coupons/{instanceId}/void)
+	VoidCoupon(w http.ResponseWriter, r *http.Request, instanceId CouponInstanceId, params VoidCouponParams)
 	// RevokeInvitation Revoke a pending invitation
 	// (DELETE /v1/dashboard/invitations/{invitationId})
 	RevokeInvitation(w http.ResponseWriter, r *http.Request, invitationId openapi_types.UUID)
@@ -1547,6 +2302,12 @@ type ServerInterface interface {
 	// RotateMemberCard Invalidate every QR code the member's card ever showed
 	// (POST /v1/dashboard/members/{memberId}/card/rotate)
 	RotateMemberCard(w http.ResponseWriter, r *http.Request, memberId MemberId, params RotateMemberCardParams)
+	// ListMemberCoupons A member's coupons, newest first
+	// (GET /v1/dashboard/members/{memberId}/coupons)
+	ListMemberCoupons(w http.ResponseWriter, r *http.Request, memberId MemberId, params ListMemberCouponsParams)
+	// IssueMemberCoupon Give a member a coupon from a template
+	// (POST /v1/dashboard/members/{memberId}/coupons)
+	IssueMemberCoupon(w http.ResponseWriter, r *http.Request, memberId MemberId, params IssueMemberCouponParams)
 	// ExportMember Export a member's data
 	// (GET /v1/dashboard/members/{memberId}/export)
 	ExportMember(w http.ResponseWriter, r *http.Request, memberId MemberId)
@@ -1559,6 +2320,12 @@ type ServerInterface interface {
 	// ListMemberPointsHistory A member's points transactions, newest first
 	// (GET /v1/dashboard/members/{memberId}/points/history)
 	ListMemberPointsHistory(w http.ResponseWriter, r *http.Request, memberId MemberId, params ListMemberPointsHistoryParams)
+	// ListMemberStamps A member's stamp card progress
+	// (GET /v1/dashboard/members/{memberId}/stamps)
+	ListMemberStamps(w http.ResponseWriter, r *http.Request, memberId MemberId)
+	// AdjustMemberStamps Correct a member's stamps
+	// (POST /v1/dashboard/members/{memberId}/stamps/adjustments)
+	AdjustMemberStamps(w http.ResponseWriter, r *http.Request, memberId MemberId, params AdjustMemberStampsParams)
 	// DeleteStaff Remove a staff member
 	// (DELETE /v1/dashboard/staff/{staffId})
 	DeleteStaff(w http.ResponseWriter, r *http.Request, staffId openapi_types.UUID)
@@ -1568,6 +2335,12 @@ type ServerInterface interface {
 	// ResetStaffInvite Issue a new invite code and unlink the staff member's LINE account
 	// (POST /v1/dashboard/staff/{staffId}/invite)
 	ResetStaffInvite(w http.ResponseWriter, r *http.Request, staffId openapi_types.UUID, params ResetStaffInviteParams)
+	// GetStampCard A stamp card
+	// (GET /v1/dashboard/stamp-cards/{stampCardId})
+	GetStampCard(w http.ResponseWriter, r *http.Request, stampCardId StampCardId)
+	// UpdateStampCard Change or archive a stamp card
+	// (PATCH /v1/dashboard/stamp-cards/{stampCardId})
+	UpdateStampCard(w http.ResponseWriter, r *http.Request, stampCardId StampCardId, params UpdateStampCardParams)
 	// DeleteStore Delete a store
 	// (DELETE /v1/dashboard/stores/{storeId})
 	DeleteStore(w http.ResponseWriter, r *http.Request, storeId openapi_types.UUID)
@@ -1622,6 +2395,9 @@ type ServerInterface interface {
 	// RecordConsent Record consent to the current personal-data notice
 	// (POST /v1/me/consent)
 	RecordConsent(w http.ResponseWriter, r *http.Request, params RecordConsentParams)
+	// ListMyCoupons My coupons, newest first
+	// (GET /v1/me/coupons)
+	ListMyCoupons(w http.ResponseWriter, r *http.Request, params ListMyCouponsParams)
 	// ExportMe Everything stored about me
 	// (GET /v1/me/export)
 	ExportMe(w http.ResponseWriter, r *http.Request)
@@ -1631,12 +2407,21 @@ type ServerInterface interface {
 	// ListMyPointsHistory My points transactions, newest first
 	// (GET /v1/me/points/history)
 	ListMyPointsHistory(w http.ResponseWriter, r *http.Request, params ListMyPointsHistoryParams)
+	// ListMyStamps My stamp card progress
+	// (GET /v1/me/stamps)
+	ListMyStamps(w http.ResponseWriter, r *http.Request)
 	// ServerListMembers Members of the app (API key, members:read)
 	// (GET /v1/members)
 	ServerListMembers(w http.ResponseWriter, r *http.Request, params ServerListMembersParams)
 	// ServerGetMember Member details (API key, members:read)
 	// (GET /v1/members/{memberId})
 	ServerGetMember(w http.ResponseWriter, r *http.Request, memberId MemberId)
+	// ServerListMemberCoupons A member's coupons (API key, members:read)
+	// (GET /v1/members/{memberId}/coupons)
+	ServerListMemberCoupons(w http.ResponseWriter, r *http.Request, memberId MemberId, params ServerListMemberCouponsParams)
+	// ServerIssueCoupon Give a member a coupon from a POS or brand backend (API key, coupons:write)
+	// (POST /v1/members/{memberId}/coupons)
+	ServerIssueCoupon(w http.ResponseWriter, r *http.Request, memberId MemberId, params ServerIssueCouponParams)
 	// ServerGetMemberPoints A member's points summary (API key, members:read)
 	// (GET /v1/members/{memberId}/points)
 	ServerGetMemberPoints(w http.ResponseWriter, r *http.Request, memberId MemberId)
@@ -1646,6 +2431,9 @@ type ServerInterface interface {
 	// StaffLoginWithLine Sign in to the staff app with LINE
 	// (POST /v1/staff/auth/line)
 	StaffLoginWithLine(w http.ResponseWriter, r *http.Request)
+	// StaffRedeemCoupon Redeem a member's coupon at the counter
+	// (POST /v1/staff/coupons/{instanceId}/redeem)
+	StaffRedeemCoupon(w http.ResponseWriter, r *http.Request, instanceId CouponInstanceId, params StaffRedeemCouponParams)
 	// GetStaffMe The signed-in staff member
 	// (GET /v1/staff/me)
 	GetStaffMe(w http.ResponseWriter, r *http.Request)
@@ -1658,6 +2446,9 @@ type ServerInterface interface {
 	// StaffScan Read a member card QR code
 	// (POST /v1/staff/scan)
 	StaffScan(w http.ResponseWriter, r *http.Request)
+	// StaffAddStamps Add stamps to the scanned member's card
+	// (POST /v1/staff/stamps)
+	StaffAddStamps(w http.ResponseWriter, r *http.Request, params StaffAddStampsParams)
 	// ReceiveLineWebhook Inbound webhook from the app's LINE Official Account
 	// (POST /webhooks/line/{appId})
 	ReceiveLineWebhook(w http.ResponseWriter, r *http.Request, appId AppId, params ReceiveLineWebhookParams)
@@ -1719,6 +2510,74 @@ func (siw *ServerInterfaceWrapper) LoginWithLine(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.LoginWithLine(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListCouponOffers operation middleware
+func (siw *ServerInterfaceWrapper) ListCouponOffers(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListCouponOffers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ClaimCoupon operation middleware
+func (siw *ServerInterfaceWrapper) ClaimCoupon(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "templateId" -------------
+	var templateId CouponTemplateId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "templateId", r.PathValue("templateId"), &templateId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "templateId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ClaimCouponParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClaimCoupon(w, r, templateId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2038,6 +2897,102 @@ func (siw *ServerInterfaceWrapper) PutAppChannel(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// ListCouponTemplates operation middleware
+func (siw *ServerInterfaceWrapper) ListCouponTemplates(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListCouponTemplatesParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListCouponTemplates(w, r, appId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateCouponTemplate operation middleware
+func (siw *ServerInterfaceWrapper) CreateCouponTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateCouponTemplateParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateCouponTemplate(w, r, appId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // EndMemberSessions operation middleware
 func (siw *ServerInterfaceWrapper) EndMemberSessions(w http.ResponseWriter, r *http.Request) {
 
@@ -2320,6 +3275,102 @@ func (siw *ServerInterfaceWrapper) CreateStaff(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ListStampCards operation middleware
+func (siw *ServerInterfaceWrapper) ListStampCards(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListStampCardsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListStampCards(w, r, appId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateStampCard operation middleware
+func (siw *ServerInterfaceWrapper) CreateStampCard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "appId" -------------
+	var appId AppId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "appId", r.PathValue("appId"), &appId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "appId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateStampCardParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateStampCard(w, r, appId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListStores operation middleware
 func (siw *ServerInterfaceWrapper) ListStores(w http.ResponseWriter, r *http.Request) {
 
@@ -2475,6 +3526,140 @@ func (siw *ServerInterfaceWrapper) DashboardRegister(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DashboardRegister(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCouponTemplate operation middleware
+func (siw *ServerInterfaceWrapper) GetCouponTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "templateId" -------------
+	var templateId CouponTemplateId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "templateId", r.PathValue("templateId"), &templateId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "templateId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCouponTemplate(w, r, templateId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateCouponTemplate operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCouponTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "templateId" -------------
+	var templateId CouponTemplateId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "templateId", r.PathValue("templateId"), &templateId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "templateId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateCouponTemplateParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateCouponTemplate(w, r, templateId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// VoidCoupon operation middleware
+func (siw *ServerInterfaceWrapper) VoidCoupon(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "instanceId" -------------
+	var instanceId CouponInstanceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "instanceId", r.PathValue("instanceId"), &instanceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "instanceId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params VoidCouponParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.VoidCoupon(w, r, instanceId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2746,6 +3931,128 @@ func (siw *ServerInterfaceWrapper) RotateMemberCard(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// ListMemberCoupons operation middleware
+func (siw *ServerInterfaceWrapper) ListMemberCoupons(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "memberId" -------------
+	var memberId MemberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "memberId", r.PathValue("memberId"), &memberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memberId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListMemberCouponsParams
+
+	// ------------- Optional query parameter "state" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "state", r.URL.Query(), &params.State, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "state"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMemberCoupons(w, r, memberId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// IssueMemberCoupon operation middleware
+func (siw *ServerInterfaceWrapper) IssueMemberCoupon(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "memberId" -------------
+	var memberId MemberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "memberId", r.PathValue("memberId"), &memberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memberId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params IssueMemberCouponParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.IssueMemberCoupon(w, r, memberId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ExportMember operation middleware
 func (siw *ServerInterfaceWrapper) ExportMember(w http.ResponseWriter, r *http.Request) {
 
@@ -2907,6 +4214,86 @@ func (siw *ServerInterfaceWrapper) ListMemberPointsHistory(w http.ResponseWriter
 	handler.ServeHTTP(w, r)
 }
 
+// ListMemberStamps operation middleware
+func (siw *ServerInterfaceWrapper) ListMemberStamps(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "memberId" -------------
+	var memberId MemberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "memberId", r.PathValue("memberId"), &memberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memberId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMemberStamps(w, r, memberId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AdjustMemberStamps operation middleware
+func (siw *ServerInterfaceWrapper) AdjustMemberStamps(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "memberId" -------------
+	var memberId MemberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "memberId", r.PathValue("memberId"), &memberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memberId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AdjustMemberStampsParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AdjustMemberStamps(w, r, memberId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteStaff operation middleware
 func (siw *ServerInterfaceWrapper) DeleteStaff(w http.ResponseWriter, r *http.Request) {
 
@@ -3032,6 +4419,86 @@ func (siw *ServerInterfaceWrapper) ResetStaffInvite(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ResetStaffInvite(w, r, staffId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetStampCard operation middleware
+func (siw *ServerInterfaceWrapper) GetStampCard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "stampCardId" -------------
+	var stampCardId StampCardId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "stampCardId", r.PathValue("stampCardId"), &stampCardId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "stampCardId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetStampCard(w, r, stampCardId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateStampCard operation middleware
+func (siw *ServerInterfaceWrapper) UpdateStampCard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "stampCardId" -------------
+	var stampCardId StampCardId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "stampCardId", r.PathValue("stampCardId"), &stampCardId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "stampCardId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateStampCardParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateStampCard(w, r, stampCardId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3699,6 +5166,65 @@ func (siw *ServerInterfaceWrapper) RecordConsent(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// ListMyCoupons operation middleware
+func (siw *ServerInterfaceWrapper) ListMyCoupons(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListMyCouponsParams
+
+	// ------------- Optional query parameter "state" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "state", r.URL.Query(), &params.State, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "state"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMyCoupons(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ExportMe operation middleware
 func (siw *ServerInterfaceWrapper) ExportMe(w http.ResponseWriter, r *http.Request) {
 
@@ -3764,6 +5290,20 @@ func (siw *ServerInterfaceWrapper) ListMyPointsHistory(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListMyPointsHistory(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMyStamps operation middleware
+func (siw *ServerInterfaceWrapper) ListMyStamps(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMyStamps(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3858,6 +5398,128 @@ func (siw *ServerInterfaceWrapper) ServerGetMember(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// ServerListMemberCoupons operation middleware
+func (siw *ServerInterfaceWrapper) ServerListMemberCoupons(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "memberId" -------------
+	var memberId MemberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "memberId", r.PathValue("memberId"), &memberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memberId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ServerListMemberCouponsParams
+
+	// ------------- Optional query parameter "state" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "state", r.URL.Query(), &params.State, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "state"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ServerListMemberCoupons(w, r, memberId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ServerIssueCoupon operation middleware
+func (siw *ServerInterfaceWrapper) ServerIssueCoupon(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "memberId" -------------
+	var memberId MemberId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "memberId", r.PathValue("memberId"), &memberId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "memberId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ServerIssueCouponParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ServerIssueCoupon(w, r, memberId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ServerGetMemberPoints operation middleware
 func (siw *ServerInterfaceWrapper) ServerGetMemberPoints(w http.ResponseWriter, r *http.Request) {
 
@@ -3943,6 +5605,60 @@ func (siw *ServerInterfaceWrapper) StaffLoginWithLine(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.StaffLoginWithLine(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StaffRedeemCoupon operation middleware
+func (siw *ServerInterfaceWrapper) StaffRedeemCoupon(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "instanceId" -------------
+	var instanceId CouponInstanceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "instanceId", r.PathValue("instanceId"), &instanceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "instanceId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StaffRedeemCouponParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StaffRedeemCoupon(w, r, instanceId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4061,6 +5777,51 @@ func (siw *ServerInterfaceWrapper) StaffScan(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.StaffScan(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StaffAddStamps operation middleware
+func (siw *ServerInterfaceWrapper) StaffAddStamps(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StaffAddStampsParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StaffAddStamps(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4319,6 +6080,27 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/members/{memberId}", wrapper.ServerGetMember)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/members/{memberId}/points", wrapper.ServerGetMemberPoints)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/members/{memberId}/points", wrapper.ServerPostPoints)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/coupons", wrapper.ListMyCoupons)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/coupons/offers", wrapper.ListCouponOffers)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/coupons/{templateId}/claim", wrapper.ClaimCoupon)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/stamps", wrapper.ListMyStamps)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/staff/coupons/{instanceId}/redeem", wrapper.StaffRedeemCoupon)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/staff/stamps", wrapper.StaffAddStamps)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/coupon-templates", wrapper.ListCouponTemplates)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/coupon-templates", wrapper.CreateCouponTemplate)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/coupon-templates/{templateId}", wrapper.GetCouponTemplate)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/dashboard/coupon-templates/{templateId}", wrapper.UpdateCouponTemplate)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/stamp-cards", wrapper.ListStampCards)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/apps/{appId}/stamp-cards", wrapper.CreateStampCard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/stamp-cards/{stampCardId}", wrapper.GetStampCard)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/dashboard/stamp-cards/{stampCardId}", wrapper.UpdateStampCard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/members/{memberId}/coupons", wrapper.ListMemberCoupons)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/members/{memberId}/coupons", wrapper.IssueMemberCoupon)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/coupons/{instanceId}/void", wrapper.VoidCoupon)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/dashboard/members/{memberId}/stamps", wrapper.ListMemberStamps)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dashboard/members/{memberId}/stamps/adjustments", wrapper.AdjustMemberStamps)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/members/{memberId}/coupons", wrapper.ServerListMemberCoupons)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/members/{memberId}/coupons", wrapper.ServerIssueCoupon)
 
 	return m
 }
@@ -4500,6 +6282,122 @@ func (response LoginWithLine429JSONResponse) VisitLoginWithLineResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCouponOffersRequestObject struct {
+}
+
+type ListCouponOffersResponseObject interface {
+	VisitListCouponOffersResponse(w http.ResponseWriter) error
+}
+
+type ListCouponOffers200JSONResponse []CouponOffer
+
+func (response ListCouponOffers200JSONResponse) VisitListCouponOffersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCouponOffers401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListCouponOffers401JSONResponse) VisitListCouponOffersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimCouponRequestObject struct {
+	TemplateId CouponTemplateId `json:"templateId"`
+	Params     ClaimCouponParams
+}
+
+type ClaimCouponResponseObject interface {
+	VisitClaimCouponResponse(w http.ResponseWriter) error
+}
+
+type ClaimCoupon201JSONResponse CouponInstance
+
+func (response ClaimCoupon201JSONResponse) VisitClaimCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimCoupon401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ClaimCoupon401JSONResponse) VisitClaimCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimCoupon404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ClaimCoupon404JSONResponse) VisitClaimCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimCoupon409JSONResponse Error
+
+func (response ClaimCoupon409JSONResponse) VisitClaimCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimCoupon422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response ClaimCoupon422JSONResponse) VisitClaimCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5060,6 +6958,167 @@ func (response PutAppChannel422JSONResponse) VisitPutAppChannelResponse(w http.R
 	return err
 }
 
+type ListCouponTemplatesRequestObject struct {
+	AppId  AppId `json:"appId"`
+	Params ListCouponTemplatesParams
+}
+
+type ListCouponTemplatesResponseObject interface {
+	VisitListCouponTemplatesResponse(w http.ResponseWriter) error
+}
+
+type ListCouponTemplates200JSONResponse []CouponTemplate
+
+func (response ListCouponTemplates200JSONResponse) VisitListCouponTemplatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCouponTemplates400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListCouponTemplates400JSONResponse) VisitListCouponTemplatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCouponTemplates401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListCouponTemplates401JSONResponse) VisitListCouponTemplatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCouponTemplates404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListCouponTemplates404JSONResponse) VisitListCouponTemplatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCouponTemplateRequestObject struct {
+	AppId  AppId `json:"appId"`
+	Params CreateCouponTemplateParams
+	Body   *CreateCouponTemplateJSONRequestBody
+}
+
+type CreateCouponTemplateResponseObject interface {
+	VisitCreateCouponTemplateResponse(w http.ResponseWriter) error
+}
+
+type CreateCouponTemplate201JSONResponse CouponTemplate
+
+func (response CreateCouponTemplate201JSONResponse) VisitCreateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCouponTemplate400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateCouponTemplate400JSONResponse) VisitCreateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCouponTemplate401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateCouponTemplate401JSONResponse) VisitCreateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCouponTemplate403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateCouponTemplate403JSONResponse) VisitCreateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCouponTemplate404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateCouponTemplate404JSONResponse) VisitCreateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCouponTemplate422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response CreateCouponTemplate422JSONResponse) VisitCreateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type EndMemberSessionsRequestObject struct {
 	AppId  AppId `json:"appId"`
 	Params EndMemberSessionsParams
@@ -5487,6 +7546,167 @@ type CreateStaff422JSONResponse struct {
 }
 
 func (response CreateStaff422JSONResponse) VisitCreateStaffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStampCardsRequestObject struct {
+	AppId  AppId `json:"appId"`
+	Params ListStampCardsParams
+}
+
+type ListStampCardsResponseObject interface {
+	VisitListStampCardsResponse(w http.ResponseWriter) error
+}
+
+type ListStampCards200JSONResponse []StampCard
+
+func (response ListStampCards200JSONResponse) VisitListStampCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStampCards400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListStampCards400JSONResponse) VisitListStampCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStampCards401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListStampCards401JSONResponse) VisitListStampCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStampCards404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListStampCards404JSONResponse) VisitListStampCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStampCardRequestObject struct {
+	AppId  AppId `json:"appId"`
+	Params CreateStampCardParams
+	Body   *CreateStampCardJSONRequestBody
+}
+
+type CreateStampCardResponseObject interface {
+	VisitCreateStampCardResponse(w http.ResponseWriter) error
+}
+
+type CreateStampCard201JSONResponse StampCard
+
+func (response CreateStampCard201JSONResponse) VisitCreateStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStampCard400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateStampCard400JSONResponse) VisitCreateStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStampCard401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateStampCard401JSONResponse) VisitCreateStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStampCard403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateStampCard403JSONResponse) VisitCreateStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStampCard404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateStampCard404JSONResponse) VisitCreateStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateStampCard422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response CreateStampCard422JSONResponse) VisitCreateStampCardResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5974,6 +8194,274 @@ func (response DashboardRegister429JSONResponse) VisitDashboardRegisterResponse(
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCouponTemplateRequestObject struct {
+	TemplateId CouponTemplateId `json:"templateId"`
+}
+
+type GetCouponTemplateResponseObject interface {
+	VisitGetCouponTemplateResponse(w http.ResponseWriter) error
+}
+
+type GetCouponTemplate200JSONResponse CouponTemplate
+
+func (response GetCouponTemplate200JSONResponse) VisitGetCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCouponTemplate401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetCouponTemplate401JSONResponse) VisitGetCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCouponTemplate404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetCouponTemplate404JSONResponse) VisitGetCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCouponTemplateRequestObject struct {
+	TemplateId CouponTemplateId `json:"templateId"`
+	Params     UpdateCouponTemplateParams
+	Body       *UpdateCouponTemplateJSONRequestBody
+}
+
+type UpdateCouponTemplateResponseObject interface {
+	VisitUpdateCouponTemplateResponse(w http.ResponseWriter) error
+}
+
+type UpdateCouponTemplate200JSONResponse CouponTemplate
+
+func (response UpdateCouponTemplate200JSONResponse) VisitUpdateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCouponTemplate400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateCouponTemplate400JSONResponse) VisitUpdateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCouponTemplate401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateCouponTemplate401JSONResponse) VisitUpdateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCouponTemplate403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateCouponTemplate403JSONResponse) VisitUpdateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCouponTemplate404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateCouponTemplate404JSONResponse) VisitUpdateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCouponTemplate409JSONResponse Error
+
+func (response UpdateCouponTemplate409JSONResponse) VisitUpdateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCouponTemplate422JSONResponse Error
+
+func (response UpdateCouponTemplate422JSONResponse) VisitUpdateCouponTemplateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VoidCouponRequestObject struct {
+	InstanceId CouponInstanceId `json:"instanceId"`
+	Params     VoidCouponParams
+	Body       *VoidCouponJSONRequestBody
+}
+
+type VoidCouponResponseObject interface {
+	VisitVoidCouponResponse(w http.ResponseWriter) error
+}
+
+type VoidCoupon200JSONResponse CouponInstance
+
+func (response VoidCoupon200JSONResponse) VisitVoidCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VoidCoupon400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response VoidCoupon400JSONResponse) VisitVoidCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VoidCoupon401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response VoidCoupon401JSONResponse) VisitVoidCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VoidCoupon403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response VoidCoupon403JSONResponse) VisitVoidCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VoidCoupon404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response VoidCoupon404JSONResponse) VisitVoidCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VoidCoupon409JSONResponse Error
+
+func (response VoidCoupon409JSONResponse) VisitVoidCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VoidCoupon422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response VoidCoupon422JSONResponse) VisitVoidCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6574,6 +9062,181 @@ func (response RotateMemberCard422JSONResponse) VisitRotateMemberCardResponse(w 
 	return err
 }
 
+type ListMemberCouponsRequestObject struct {
+	MemberId MemberId `json:"memberId"`
+	Params   ListMemberCouponsParams
+}
+
+type ListMemberCouponsResponseObject interface {
+	VisitListMemberCouponsResponse(w http.ResponseWriter) error
+}
+
+type ListMemberCoupons200JSONResponse CouponInstancePage
+
+func (response ListMemberCoupons200JSONResponse) VisitListMemberCouponsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMemberCoupons400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListMemberCoupons400JSONResponse) VisitListMemberCouponsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMemberCoupons401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMemberCoupons401JSONResponse) VisitListMemberCouponsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMemberCoupons404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListMemberCoupons404JSONResponse) VisitListMemberCouponsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type IssueMemberCouponRequestObject struct {
+	MemberId MemberId `json:"memberId"`
+	Params   IssueMemberCouponParams
+	Body     *IssueMemberCouponJSONRequestBody
+}
+
+type IssueMemberCouponResponseObject interface {
+	VisitIssueMemberCouponResponse(w http.ResponseWriter) error
+}
+
+type IssueMemberCoupon201JSONResponse CouponInstance
+
+func (response IssueMemberCoupon201JSONResponse) VisitIssueMemberCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type IssueMemberCoupon400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response IssueMemberCoupon400JSONResponse) VisitIssueMemberCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type IssueMemberCoupon401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response IssueMemberCoupon401JSONResponse) VisitIssueMemberCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type IssueMemberCoupon403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response IssueMemberCoupon403JSONResponse) VisitIssueMemberCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type IssueMemberCoupon404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response IssueMemberCoupon404JSONResponse) VisitIssueMemberCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type IssueMemberCoupon409JSONResponse Error
+
+func (response IssueMemberCoupon409JSONResponse) VisitIssueMemberCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type IssueMemberCoupon422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response IssueMemberCoupon422JSONResponse) VisitIssueMemberCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ExportMemberRequestObject struct {
 	MemberId MemberId `json:"memberId"`
 }
@@ -6863,6 +9526,166 @@ func (response ListMemberPointsHistory404JSONResponse) VisitListMemberPointsHist
 	return err
 }
 
+type ListMemberStampsRequestObject struct {
+	MemberId MemberId `json:"memberId"`
+}
+
+type ListMemberStampsResponseObject interface {
+	VisitListMemberStampsResponse(w http.ResponseWriter) error
+}
+
+type ListMemberStamps200JSONResponse []StampProgress
+
+func (response ListMemberStamps200JSONResponse) VisitListMemberStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMemberStamps401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMemberStamps401JSONResponse) VisitListMemberStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMemberStamps404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListMemberStamps404JSONResponse) VisitListMemberStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberStampsRequestObject struct {
+	MemberId MemberId `json:"memberId"`
+	Params   AdjustMemberStampsParams
+	Body     *AdjustMemberStampsJSONRequestBody
+}
+
+type AdjustMemberStampsResponseObject interface {
+	VisitAdjustMemberStampsResponse(w http.ResponseWriter) error
+}
+
+type AdjustMemberStamps200JSONResponse StampResult
+
+func (response AdjustMemberStamps200JSONResponse) VisitAdjustMemberStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberStamps400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AdjustMemberStamps400JSONResponse) VisitAdjustMemberStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberStamps401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AdjustMemberStamps401JSONResponse) VisitAdjustMemberStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberStamps403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response AdjustMemberStamps403JSONResponse) VisitAdjustMemberStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberStamps404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AdjustMemberStamps404JSONResponse) VisitAdjustMemberStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberStamps409JSONResponse Error
+
+func (response AdjustMemberStamps409JSONResponse) VisitAdjustMemberStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustMemberStamps422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response AdjustMemberStamps422JSONResponse) VisitAdjustMemberStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteStaffRequestObject struct {
 	StaffId openapi_types.UUID `json:"staffId"`
 }
@@ -7087,6 +9910,166 @@ type ResetStaffInvite422JSONResponse struct {
 }
 
 func (response ResetStaffInvite422JSONResponse) VisitResetStaffInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetStampCardRequestObject struct {
+	StampCardId StampCardId `json:"stampCardId"`
+}
+
+type GetStampCardResponseObject interface {
+	VisitGetStampCardResponse(w http.ResponseWriter) error
+}
+
+type GetStampCard200JSONResponse StampCard
+
+func (response GetStampCard200JSONResponse) VisitGetStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetStampCard401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetStampCard401JSONResponse) VisitGetStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetStampCard404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetStampCard404JSONResponse) VisitGetStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStampCardRequestObject struct {
+	StampCardId StampCardId `json:"stampCardId"`
+	Params      UpdateStampCardParams
+	Body        *UpdateStampCardJSONRequestBody
+}
+
+type UpdateStampCardResponseObject interface {
+	VisitUpdateStampCardResponse(w http.ResponseWriter) error
+}
+
+type UpdateStampCard200JSONResponse StampCard
+
+func (response UpdateStampCard200JSONResponse) VisitUpdateStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStampCard400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateStampCard400JSONResponse) VisitUpdateStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStampCard401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateStampCard401JSONResponse) VisitUpdateStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStampCard403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateStampCard403JSONResponse) VisitUpdateStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStampCard404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateStampCard404JSONResponse) VisitUpdateStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStampCard409JSONResponse Error
+
+func (response UpdateStampCard409JSONResponse) VisitUpdateStampCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateStampCard422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response UpdateStampCard422JSONResponse) VisitUpdateStampCardResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -8299,6 +11282,56 @@ func (response RecordConsent422JSONResponse) VisitRecordConsentResponse(w http.R
 	return err
 }
 
+type ListMyCouponsRequestObject struct {
+	Params ListMyCouponsParams
+}
+
+type ListMyCouponsResponseObject interface {
+	VisitListMyCouponsResponse(w http.ResponseWriter) error
+}
+
+type ListMyCoupons200JSONResponse CouponInstancePage
+
+func (response ListMyCoupons200JSONResponse) VisitListMyCouponsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMyCoupons400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListMyCoupons400JSONResponse) VisitListMyCouponsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMyCoupons401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMyCoupons401JSONResponse) VisitListMyCouponsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ExportMeRequestObject struct {
 }
 
@@ -8408,6 +11441,41 @@ func (response ListMyPointsHistory400JSONResponse) VisitListMyPointsHistoryRespo
 type ListMyPointsHistory401JSONResponse struct{ UnauthorizedJSONResponse }
 
 func (response ListMyPointsHistory401JSONResponse) VisitListMyPointsHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMyStampsRequestObject struct {
+}
+
+type ListMyStampsResponseObject interface {
+	VisitListMyStampsResponse(w http.ResponseWriter) error
+}
+
+type ListMyStamps200JSONResponse []StampProgress
+
+func (response ListMyStamps200JSONResponse) VisitListMyStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMyStamps401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMyStamps401JSONResponse) VisitListMyStampsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -8543,6 +11611,195 @@ func (response ServerGetMember404JSONResponse) VisitServerGetMemberResponse(w ht
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerListMemberCouponsRequestObject struct {
+	MemberId MemberId `json:"memberId"`
+	Params   ServerListMemberCouponsParams
+}
+
+type ServerListMemberCouponsResponseObject interface {
+	VisitServerListMemberCouponsResponse(w http.ResponseWriter) error
+}
+
+type ServerListMemberCoupons200JSONResponse CouponInstancePage
+
+func (response ServerListMemberCoupons200JSONResponse) VisitServerListMemberCouponsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerListMemberCoupons400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ServerListMemberCoupons400JSONResponse) VisitServerListMemberCouponsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerListMemberCoupons401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ServerListMemberCoupons401JSONResponse) VisitServerListMemberCouponsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerListMemberCoupons403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ServerListMemberCoupons403JSONResponse) VisitServerListMemberCouponsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerListMemberCoupons404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ServerListMemberCoupons404JSONResponse) VisitServerListMemberCouponsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerIssueCouponRequestObject struct {
+	MemberId MemberId `json:"memberId"`
+	Params   ServerIssueCouponParams
+	Body     *ServerIssueCouponJSONRequestBody
+}
+
+type ServerIssueCouponResponseObject interface {
+	VisitServerIssueCouponResponse(w http.ResponseWriter) error
+}
+
+type ServerIssueCoupon201JSONResponse CouponInstance
+
+func (response ServerIssueCoupon201JSONResponse) VisitServerIssueCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerIssueCoupon400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ServerIssueCoupon400JSONResponse) VisitServerIssueCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerIssueCoupon401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ServerIssueCoupon401JSONResponse) VisitServerIssueCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerIssueCoupon403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ServerIssueCoupon403JSONResponse) VisitServerIssueCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerIssueCoupon404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ServerIssueCoupon404JSONResponse) VisitServerIssueCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerIssueCoupon409JSONResponse Error
+
+func (response ServerIssueCoupon409JSONResponse) VisitServerIssueCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ServerIssueCoupon422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response ServerIssueCoupon422JSONResponse) VisitServerIssueCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -8788,6 +12045,116 @@ func (response StaffLoginWithLine404JSONResponse) VisitStaffLoginWithLineRespons
 type StaffLoginWithLine429JSONResponse struct{ TooManyRequestsJSONResponse }
 
 func (response StaffLoginWithLine429JSONResponse) VisitStaffLoginWithLineResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffRedeemCouponRequestObject struct {
+	InstanceId CouponInstanceId `json:"instanceId"`
+	Params     StaffRedeemCouponParams
+	Body       *StaffRedeemCouponJSONRequestBody
+}
+
+type StaffRedeemCouponResponseObject interface {
+	VisitStaffRedeemCouponResponse(w http.ResponseWriter) error
+}
+
+type StaffRedeemCoupon200JSONResponse CouponInstance
+
+func (response StaffRedeemCoupon200JSONResponse) VisitStaffRedeemCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffRedeemCoupon400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response StaffRedeemCoupon400JSONResponse) VisitStaffRedeemCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffRedeemCoupon401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StaffRedeemCoupon401JSONResponse) VisitStaffRedeemCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffRedeemCoupon403JSONResponse Error
+
+func (response StaffRedeemCoupon403JSONResponse) VisitStaffRedeemCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffRedeemCoupon409JSONResponse Error
+
+func (response StaffRedeemCoupon409JSONResponse) VisitStaffRedeemCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffRedeemCoupon422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response StaffRedeemCoupon422JSONResponse) VisitStaffRedeemCouponResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffRedeemCoupon429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response StaffRedeemCoupon429JSONResponse) VisitStaffRedeemCouponResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -9060,6 +12427,129 @@ func (response StaffScan422JSONResponse) VisitStaffScanResponse(w http.ResponseW
 	return err
 }
 
+type StaffAddStampsRequestObject struct {
+	Params StaffAddStampsParams
+	Body   *StaffAddStampsJSONRequestBody
+}
+
+type StaffAddStampsResponseObject interface {
+	VisitStaffAddStampsResponse(w http.ResponseWriter) error
+}
+
+type StaffAddStamps200JSONResponse StampResult
+
+func (response StaffAddStamps200JSONResponse) VisitStaffAddStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffAddStamps400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response StaffAddStamps400JSONResponse) VisitStaffAddStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffAddStamps401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StaffAddStamps401JSONResponse) VisitStaffAddStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffAddStamps403JSONResponse Error
+
+func (response StaffAddStamps403JSONResponse) VisitStaffAddStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffAddStamps404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response StaffAddStamps404JSONResponse) VisitStaffAddStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffAddStamps409JSONResponse Error
+
+func (response StaffAddStamps409JSONResponse) VisitStaffAddStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffAddStamps422JSONResponse struct {
+	IdempotencyMismatchJSONResponse
+}
+
+func (response StaffAddStamps422JSONResponse) VisitStaffAddStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StaffAddStamps429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response StaffAddStamps429JSONResponse) VisitStaffAddStampsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ReceiveLineWebhookRequestObject struct {
 	AppId  AppId `json:"appId"`
 	Params ReceiveLineWebhookParams
@@ -9119,6 +12609,12 @@ type StrictServerInterface interface {
 	// LoginWithLine Exchange a LIFF ID token for a member session
 	// (POST /v1/auth/line)
 	LoginWithLine(ctx context.Context, request LoginWithLineRequestObject) (LoginWithLineResponseObject, error)
+	// ListCouponOffers Coupons the member can claim now
+	// (GET /v1/coupons/offers)
+	ListCouponOffers(ctx context.Context, request ListCouponOffersRequestObject) (ListCouponOffersResponseObject, error)
+	// ClaimCoupon Claim a coupon from an offer
+	// (POST /v1/coupons/{templateId}/claim)
+	ClaimCoupon(ctx context.Context, request ClaimCouponRequestObject) (ClaimCouponResponseObject, error)
 	// RevokeApiKey Revoke an API key
 	// (DELETE /v1/dashboard/api-keys/{keyId})
 	RevokeApiKey(ctx context.Context, request RevokeApiKeyRequestObject) (RevokeApiKeyResponseObject, error)
@@ -9143,6 +12639,12 @@ type StrictServerInterface interface {
 	// PutAppChannel Create or replace the channel for an environment
 	// (PUT /v1/dashboard/apps/{appId}/channels/{environment})
 	PutAppChannel(ctx context.Context, request PutAppChannelRequestObject) (PutAppChannelResponseObject, error)
+	// ListCouponTemplates Coupon templates of the app, newest first
+	// (GET /v1/dashboard/apps/{appId}/coupon-templates)
+	ListCouponTemplates(ctx context.Context, request ListCouponTemplatesRequestObject) (ListCouponTemplatesResponseObject, error)
+	// CreateCouponTemplate Create a coupon template
+	// (POST /v1/dashboard/apps/{appId}/coupon-templates)
+	CreateCouponTemplate(ctx context.Context, request CreateCouponTemplateRequestObject) (CreateCouponTemplateResponseObject, error)
 	// EndMemberSessions Sign every member of the app out
 	// (POST /v1/dashboard/apps/{appId}/member-sessions/end)
 	EndMemberSessions(ctx context.Context, request EndMemberSessionsRequestObject) (EndMemberSessionsResponseObject, error)
@@ -9161,6 +12663,12 @@ type StrictServerInterface interface {
 	// CreateStaff Add a staff member
 	// (POST /v1/dashboard/apps/{appId}/staff)
 	CreateStaff(ctx context.Context, request CreateStaffRequestObject) (CreateStaffResponseObject, error)
+	// ListStampCards Stamp cards of the app, newest first
+	// (GET /v1/dashboard/apps/{appId}/stamp-cards)
+	ListStampCards(ctx context.Context, request ListStampCardsRequestObject) (ListStampCardsResponseObject, error)
+	// CreateStampCard Create a stamp card
+	// (POST /v1/dashboard/apps/{appId}/stamp-cards)
+	CreateStampCard(ctx context.Context, request CreateStampCardRequestObject) (CreateStampCardResponseObject, error)
 	// ListStores Stores of the app
 	// (GET /v1/dashboard/apps/{appId}/stores)
 	ListStores(ctx context.Context, request ListStoresRequestObject) (ListStoresResponseObject, error)
@@ -9185,6 +12693,15 @@ type StrictServerInterface interface {
 	// DashboardRegister Create a dashboard account and its first tenant
 	// (POST /v1/dashboard/auth/register)
 	DashboardRegister(ctx context.Context, request DashboardRegisterRequestObject) (DashboardRegisterResponseObject, error)
+	// GetCouponTemplate A coupon template
+	// (GET /v1/dashboard/coupon-templates/{templateId})
+	GetCouponTemplate(ctx context.Context, request GetCouponTemplateRequestObject) (GetCouponTemplateResponseObject, error)
+	// UpdateCouponTemplate Change or archive a coupon template
+	// (PATCH /v1/dashboard/coupon-templates/{templateId})
+	UpdateCouponTemplate(ctx context.Context, request UpdateCouponTemplateRequestObject) (UpdateCouponTemplateResponseObject, error)
+	// VoidCoupon Void a member's coupon
+	// (POST /v1/dashboard/coupons/{instanceId}/void)
+	VoidCoupon(ctx context.Context, request VoidCouponRequestObject) (VoidCouponResponseObject, error)
 	// RevokeInvitation Revoke a pending invitation
 	// (DELETE /v1/dashboard/invitations/{invitationId})
 	RevokeInvitation(ctx context.Context, request RevokeInvitationRequestObject) (RevokeInvitationResponseObject, error)
@@ -9218,6 +12735,12 @@ type StrictServerInterface interface {
 	// RotateMemberCard Invalidate every QR code the member's card ever showed
 	// (POST /v1/dashboard/members/{memberId}/card/rotate)
 	RotateMemberCard(ctx context.Context, request RotateMemberCardRequestObject) (RotateMemberCardResponseObject, error)
+	// ListMemberCoupons A member's coupons, newest first
+	// (GET /v1/dashboard/members/{memberId}/coupons)
+	ListMemberCoupons(ctx context.Context, request ListMemberCouponsRequestObject) (ListMemberCouponsResponseObject, error)
+	// IssueMemberCoupon Give a member a coupon from a template
+	// (POST /v1/dashboard/members/{memberId}/coupons)
+	IssueMemberCoupon(ctx context.Context, request IssueMemberCouponRequestObject) (IssueMemberCouponResponseObject, error)
 	// ExportMember Export a member's data
 	// (GET /v1/dashboard/members/{memberId}/export)
 	ExportMember(ctx context.Context, request ExportMemberRequestObject) (ExportMemberResponseObject, error)
@@ -9230,6 +12753,12 @@ type StrictServerInterface interface {
 	// ListMemberPointsHistory A member's points transactions, newest first
 	// (GET /v1/dashboard/members/{memberId}/points/history)
 	ListMemberPointsHistory(ctx context.Context, request ListMemberPointsHistoryRequestObject) (ListMemberPointsHistoryResponseObject, error)
+	// ListMemberStamps A member's stamp card progress
+	// (GET /v1/dashboard/members/{memberId}/stamps)
+	ListMemberStamps(ctx context.Context, request ListMemberStampsRequestObject) (ListMemberStampsResponseObject, error)
+	// AdjustMemberStamps Correct a member's stamps
+	// (POST /v1/dashboard/members/{memberId}/stamps/adjustments)
+	AdjustMemberStamps(ctx context.Context, request AdjustMemberStampsRequestObject) (AdjustMemberStampsResponseObject, error)
 	// DeleteStaff Remove a staff member
 	// (DELETE /v1/dashboard/staff/{staffId})
 	DeleteStaff(ctx context.Context, request DeleteStaffRequestObject) (DeleteStaffResponseObject, error)
@@ -9239,6 +12768,12 @@ type StrictServerInterface interface {
 	// ResetStaffInvite Issue a new invite code and unlink the staff member's LINE account
 	// (POST /v1/dashboard/staff/{staffId}/invite)
 	ResetStaffInvite(ctx context.Context, request ResetStaffInviteRequestObject) (ResetStaffInviteResponseObject, error)
+	// GetStampCard A stamp card
+	// (GET /v1/dashboard/stamp-cards/{stampCardId})
+	GetStampCard(ctx context.Context, request GetStampCardRequestObject) (GetStampCardResponseObject, error)
+	// UpdateStampCard Change or archive a stamp card
+	// (PATCH /v1/dashboard/stamp-cards/{stampCardId})
+	UpdateStampCard(ctx context.Context, request UpdateStampCardRequestObject) (UpdateStampCardResponseObject, error)
 	// DeleteStore Delete a store
 	// (DELETE /v1/dashboard/stores/{storeId})
 	DeleteStore(ctx context.Context, request DeleteStoreRequestObject) (DeleteStoreResponseObject, error)
@@ -9293,6 +12828,9 @@ type StrictServerInterface interface {
 	// RecordConsent Record consent to the current personal-data notice
 	// (POST /v1/me/consent)
 	RecordConsent(ctx context.Context, request RecordConsentRequestObject) (RecordConsentResponseObject, error)
+	// ListMyCoupons My coupons, newest first
+	// (GET /v1/me/coupons)
+	ListMyCoupons(ctx context.Context, request ListMyCouponsRequestObject) (ListMyCouponsResponseObject, error)
 	// ExportMe Everything stored about me
 	// (GET /v1/me/export)
 	ExportMe(ctx context.Context, request ExportMeRequestObject) (ExportMeResponseObject, error)
@@ -9302,12 +12840,21 @@ type StrictServerInterface interface {
 	// ListMyPointsHistory My points transactions, newest first
 	// (GET /v1/me/points/history)
 	ListMyPointsHistory(ctx context.Context, request ListMyPointsHistoryRequestObject) (ListMyPointsHistoryResponseObject, error)
+	// ListMyStamps My stamp card progress
+	// (GET /v1/me/stamps)
+	ListMyStamps(ctx context.Context, request ListMyStampsRequestObject) (ListMyStampsResponseObject, error)
 	// ServerListMembers Members of the app (API key, members:read)
 	// (GET /v1/members)
 	ServerListMembers(ctx context.Context, request ServerListMembersRequestObject) (ServerListMembersResponseObject, error)
 	// ServerGetMember Member details (API key, members:read)
 	// (GET /v1/members/{memberId})
 	ServerGetMember(ctx context.Context, request ServerGetMemberRequestObject) (ServerGetMemberResponseObject, error)
+	// ServerListMemberCoupons A member's coupons (API key, members:read)
+	// (GET /v1/members/{memberId}/coupons)
+	ServerListMemberCoupons(ctx context.Context, request ServerListMemberCouponsRequestObject) (ServerListMemberCouponsResponseObject, error)
+	// ServerIssueCoupon Give a member a coupon from a POS or brand backend (API key, coupons:write)
+	// (POST /v1/members/{memberId}/coupons)
+	ServerIssueCoupon(ctx context.Context, request ServerIssueCouponRequestObject) (ServerIssueCouponResponseObject, error)
 	// ServerGetMemberPoints A member's points summary (API key, members:read)
 	// (GET /v1/members/{memberId}/points)
 	ServerGetMemberPoints(ctx context.Context, request ServerGetMemberPointsRequestObject) (ServerGetMemberPointsResponseObject, error)
@@ -9317,6 +12864,9 @@ type StrictServerInterface interface {
 	// StaffLoginWithLine Sign in to the staff app with LINE
 	// (POST /v1/staff/auth/line)
 	StaffLoginWithLine(ctx context.Context, request StaffLoginWithLineRequestObject) (StaffLoginWithLineResponseObject, error)
+	// StaffRedeemCoupon Redeem a member's coupon at the counter
+	// (POST /v1/staff/coupons/{instanceId}/redeem)
+	StaffRedeemCoupon(ctx context.Context, request StaffRedeemCouponRequestObject) (StaffRedeemCouponResponseObject, error)
 	// GetStaffMe The signed-in staff member
 	// (GET /v1/staff/me)
 	GetStaffMe(ctx context.Context, request GetStaffMeRequestObject) (GetStaffMeResponseObject, error)
@@ -9329,6 +12879,9 @@ type StrictServerInterface interface {
 	// StaffScan Read a member card QR code
 	// (POST /v1/staff/scan)
 	StaffScan(ctx context.Context, request StaffScanRequestObject) (StaffScanResponseObject, error)
+	// StaffAddStamps Add stamps to the scanned member's card
+	// (POST /v1/staff/stamps)
+	StaffAddStamps(ctx context.Context, request StaffAddStampsRequestObject) (StaffAddStampsResponseObject, error)
 	// ReceiveLineWebhook Inbound webhook from the app's LINE Official Account
 	// (POST /webhooks/line/{appId})
 	ReceiveLineWebhook(ctx context.Context, request ReceiveLineWebhookRequestObject) (ReceiveLineWebhookResponseObject, error)
@@ -9469,6 +13022,57 @@ func (sh *strictHandler) LoginWithLine(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(LoginWithLineResponseObject); ok {
 		if err := validResponse.VisitLoginWithLineResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListCouponOffers operation middleware
+func (sh *strictHandler) ListCouponOffers(w http.ResponseWriter, r *http.Request) {
+	var request ListCouponOffersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListCouponOffers(ctx, request.(ListCouponOffersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListCouponOffers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListCouponOffersResponseObject); ok {
+		if err := validResponse.VisitListCouponOffersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ClaimCoupon operation middleware
+func (sh *strictHandler) ClaimCoupon(w http.ResponseWriter, r *http.Request, templateId CouponTemplateId, params ClaimCouponParams) {
+	var request ClaimCouponRequestObject
+
+	request.TemplateId = templateId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClaimCoupon(ctx, request.(ClaimCouponRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClaimCoupon")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClaimCouponResponseObject); ok {
+		if err := validResponse.VisitClaimCouponResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -9710,6 +13314,67 @@ func (sh *strictHandler) PutAppChannel(w http.ResponseWriter, r *http.Request, a
 	}
 }
 
+// ListCouponTemplates operation middleware
+func (sh *strictHandler) ListCouponTemplates(w http.ResponseWriter, r *http.Request, appId AppId, params ListCouponTemplatesParams) {
+	var request ListCouponTemplatesRequestObject
+
+	request.AppId = appId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListCouponTemplates(ctx, request.(ListCouponTemplatesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListCouponTemplates")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListCouponTemplatesResponseObject); ok {
+		if err := validResponse.VisitListCouponTemplatesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateCouponTemplate operation middleware
+func (sh *strictHandler) CreateCouponTemplate(w http.ResponseWriter, r *http.Request, appId AppId, params CreateCouponTemplateParams) {
+	var request CreateCouponTemplateRequestObject
+
+	request.AppId = appId
+	request.Params = params
+
+	var body CreateCouponTemplateJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateCouponTemplate(ctx, request.(CreateCouponTemplateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateCouponTemplate")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateCouponTemplateResponseObject); ok {
+		if err := validResponse.VisitCreateCouponTemplateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // EndMemberSessions operation middleware
 func (sh *strictHandler) EndMemberSessions(w http.ResponseWriter, r *http.Request, appId AppId, params EndMemberSessionsParams) {
 	var request EndMemberSessionsRequestObject
@@ -9877,6 +13542,67 @@ func (sh *strictHandler) CreateStaff(w http.ResponseWriter, r *http.Request, app
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateStaffResponseObject); ok {
 		if err := validResponse.VisitCreateStaffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListStampCards operation middleware
+func (sh *strictHandler) ListStampCards(w http.ResponseWriter, r *http.Request, appId AppId, params ListStampCardsParams) {
+	var request ListStampCardsRequestObject
+
+	request.AppId = appId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListStampCards(ctx, request.(ListStampCardsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListStampCards")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListStampCardsResponseObject); ok {
+		if err := validResponse.VisitListStampCardsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateStampCard operation middleware
+func (sh *strictHandler) CreateStampCard(w http.ResponseWriter, r *http.Request, appId AppId, params CreateStampCardParams) {
+	var request CreateStampCardRequestObject
+
+	request.AppId = appId
+	request.Params = params
+
+	var body CreateStampCardJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateStampCard(ctx, request.(CreateStampCardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateStampCard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateStampCardResponseObject); ok {
+		if err := validResponse.VisitCreateStampCardResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -10109,6 +13835,100 @@ func (sh *strictHandler) DashboardRegister(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DashboardRegisterResponseObject); ok {
 		if err := validResponse.VisitDashboardRegisterResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCouponTemplate operation middleware
+func (sh *strictHandler) GetCouponTemplate(w http.ResponseWriter, r *http.Request, templateId CouponTemplateId) {
+	var request GetCouponTemplateRequestObject
+
+	request.TemplateId = templateId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCouponTemplate(ctx, request.(GetCouponTemplateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCouponTemplate")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCouponTemplateResponseObject); ok {
+		if err := validResponse.VisitGetCouponTemplateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateCouponTemplate operation middleware
+func (sh *strictHandler) UpdateCouponTemplate(w http.ResponseWriter, r *http.Request, templateId CouponTemplateId, params UpdateCouponTemplateParams) {
+	var request UpdateCouponTemplateRequestObject
+
+	request.TemplateId = templateId
+	request.Params = params
+
+	var body UpdateCouponTemplateJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateCouponTemplate(ctx, request.(UpdateCouponTemplateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateCouponTemplate")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateCouponTemplateResponseObject); ok {
+		if err := validResponse.VisitUpdateCouponTemplateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// VoidCoupon operation middleware
+func (sh *strictHandler) VoidCoupon(w http.ResponseWriter, r *http.Request, instanceId CouponInstanceId, params VoidCouponParams) {
+	var request VoidCouponRequestObject
+
+	request.InstanceId = instanceId
+	request.Params = params
+
+	var body VoidCouponJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.VoidCoupon(ctx, request.(VoidCouponRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VoidCoupon")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(VoidCouponResponseObject); ok {
+		if err := validResponse.VisitVoidCouponResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -10412,6 +14232,67 @@ func (sh *strictHandler) RotateMemberCard(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// ListMemberCoupons operation middleware
+func (sh *strictHandler) ListMemberCoupons(w http.ResponseWriter, r *http.Request, memberId MemberId, params ListMemberCouponsParams) {
+	var request ListMemberCouponsRequestObject
+
+	request.MemberId = memberId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMemberCoupons(ctx, request.(ListMemberCouponsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMemberCoupons")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMemberCouponsResponseObject); ok {
+		if err := validResponse.VisitListMemberCouponsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// IssueMemberCoupon operation middleware
+func (sh *strictHandler) IssueMemberCoupon(w http.ResponseWriter, r *http.Request, memberId MemberId, params IssueMemberCouponParams) {
+	var request IssueMemberCouponRequestObject
+
+	request.MemberId = memberId
+	request.Params = params
+
+	var body IssueMemberCouponJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.IssueMemberCoupon(ctx, request.(IssueMemberCouponRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "IssueMemberCoupon")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(IssueMemberCouponResponseObject); ok {
+		if err := validResponse.VisitIssueMemberCouponResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ExportMember operation middleware
 func (sh *strictHandler) ExportMember(w http.ResponseWriter, r *http.Request, memberId MemberId) {
 	var request ExportMemberRequestObject
@@ -10525,6 +14406,66 @@ func (sh *strictHandler) ListMemberPointsHistory(w http.ResponseWriter, r *http.
 	}
 }
 
+// ListMemberStamps operation middleware
+func (sh *strictHandler) ListMemberStamps(w http.ResponseWriter, r *http.Request, memberId MemberId) {
+	var request ListMemberStampsRequestObject
+
+	request.MemberId = memberId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMemberStamps(ctx, request.(ListMemberStampsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMemberStamps")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMemberStampsResponseObject); ok {
+		if err := validResponse.VisitListMemberStampsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AdjustMemberStamps operation middleware
+func (sh *strictHandler) AdjustMemberStamps(w http.ResponseWriter, r *http.Request, memberId MemberId, params AdjustMemberStampsParams) {
+	var request AdjustMemberStampsRequestObject
+
+	request.MemberId = memberId
+	request.Params = params
+
+	var body AdjustMemberStampsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AdjustMemberStamps(ctx, request.(AdjustMemberStampsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AdjustMemberStamps")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AdjustMemberStampsResponseObject); ok {
+		if err := validResponse.VisitAdjustMemberStampsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // DeleteStaff operation middleware
 func (sh *strictHandler) DeleteStaff(w http.ResponseWriter, r *http.Request, staffId openapi_types.UUID) {
 	var request DeleteStaffRequestObject
@@ -10605,6 +14546,66 @@ func (sh *strictHandler) ResetStaffInvite(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ResetStaffInviteResponseObject); ok {
 		if err := validResponse.VisitResetStaffInviteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetStampCard operation middleware
+func (sh *strictHandler) GetStampCard(w http.ResponseWriter, r *http.Request, stampCardId StampCardId) {
+	var request GetStampCardRequestObject
+
+	request.StampCardId = stampCardId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetStampCard(ctx, request.(GetStampCardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetStampCard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetStampCardResponseObject); ok {
+		if err := validResponse.VisitGetStampCardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateStampCard operation middleware
+func (sh *strictHandler) UpdateStampCard(w http.ResponseWriter, r *http.Request, stampCardId StampCardId, params UpdateStampCardParams) {
+	var request UpdateStampCardRequestObject
+
+	request.StampCardId = stampCardId
+	request.Params = params
+
+	var body UpdateStampCardJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateStampCard(ctx, request.(UpdateStampCardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateStampCard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateStampCardResponseObject); ok {
+		if err := validResponse.VisitUpdateStampCardResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -11129,6 +15130,32 @@ func (sh *strictHandler) RecordConsent(w http.ResponseWriter, r *http.Request, p
 	}
 }
 
+// ListMyCoupons operation middleware
+func (sh *strictHandler) ListMyCoupons(w http.ResponseWriter, r *http.Request, params ListMyCouponsParams) {
+	var request ListMyCouponsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMyCoupons(ctx, request.(ListMyCouponsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMyCoupons")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMyCouponsResponseObject); ok {
+		if err := validResponse.VisitListMyCouponsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ExportMe operation middleware
 func (sh *strictHandler) ExportMe(w http.ResponseWriter, r *http.Request) {
 	var request ExportMeRequestObject
@@ -11203,6 +15230,30 @@ func (sh *strictHandler) ListMyPointsHistory(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// ListMyStamps operation middleware
+func (sh *strictHandler) ListMyStamps(w http.ResponseWriter, r *http.Request) {
+	var request ListMyStampsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMyStamps(ctx, request.(ListMyStampsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMyStamps")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMyStampsResponseObject); ok {
+		if err := validResponse.VisitListMyStampsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ServerListMembers operation middleware
 func (sh *strictHandler) ServerListMembers(w http.ResponseWriter, r *http.Request, params ServerListMembersParams) {
 	var request ServerListMembersRequestObject
@@ -11248,6 +15299,67 @@ func (sh *strictHandler) ServerGetMember(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ServerGetMemberResponseObject); ok {
 		if err := validResponse.VisitServerGetMemberResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ServerListMemberCoupons operation middleware
+func (sh *strictHandler) ServerListMemberCoupons(w http.ResponseWriter, r *http.Request, memberId MemberId, params ServerListMemberCouponsParams) {
+	var request ServerListMemberCouponsRequestObject
+
+	request.MemberId = memberId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ServerListMemberCoupons(ctx, request.(ServerListMemberCouponsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ServerListMemberCoupons")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ServerListMemberCouponsResponseObject); ok {
+		if err := validResponse.VisitServerListMemberCouponsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ServerIssueCoupon operation middleware
+func (sh *strictHandler) ServerIssueCoupon(w http.ResponseWriter, r *http.Request, memberId MemberId, params ServerIssueCouponParams) {
+	var request ServerIssueCouponRequestObject
+
+	request.MemberId = memberId
+	request.Params = params
+
+	var body ServerIssueCouponJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ServerIssueCoupon(ctx, request.(ServerIssueCouponRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ServerIssueCoupon")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ServerIssueCouponResponseObject); ok {
+		if err := validResponse.VisitServerIssueCouponResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -11339,6 +15451,40 @@ func (sh *strictHandler) StaffLoginWithLine(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(StaffLoginWithLineResponseObject); ok {
 		if err := validResponse.VisitStaffLoginWithLineResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StaffRedeemCoupon operation middleware
+func (sh *strictHandler) StaffRedeemCoupon(w http.ResponseWriter, r *http.Request, instanceId CouponInstanceId, params StaffRedeemCouponParams) {
+	var request StaffRedeemCouponRequestObject
+
+	request.InstanceId = instanceId
+	request.Params = params
+
+	var body StaffRedeemCouponJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StaffRedeemCoupon(ctx, request.(StaffRedeemCouponRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StaffRedeemCoupon")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StaffRedeemCouponResponseObject); ok {
+		if err := validResponse.VisitStaffRedeemCouponResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -11467,6 +15613,39 @@ func (sh *strictHandler) StaffScan(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// StaffAddStamps operation middleware
+func (sh *strictHandler) StaffAddStamps(w http.ResponseWriter, r *http.Request, params StaffAddStampsParams) {
+	var request StaffAddStampsRequestObject
+
+	request.Params = params
+
+	var body StaffAddStampsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StaffAddStamps(ctx, request.(StaffAddStampsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StaffAddStamps")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StaffAddStampsResponseObject); ok {
+		if err := validResponse.VisitStaffAddStampsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ReceiveLineWebhook operation middleware
 func (sh *strictHandler) ReceiveLineWebhook(w http.ResponseWriter, r *http.Request, appId AppId, params ReceiveLineWebhookParams) {
 	var request ReceiveLineWebhookRequestObject
@@ -11499,211 +15678,317 @@ func (sh *strictHandler) ReceiveLineWebhook(w http.ResponseWriter, r *http.Reque
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"MTXoaNqtyvX4y9O+CCQjffn45f8NAA==",
+	"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",
+	"vd86e23brPJZZkHP61w0/Q41nP9nAA==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

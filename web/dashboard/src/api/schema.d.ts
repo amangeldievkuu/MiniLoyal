@@ -957,10 +957,11 @@ export interface paths {
         put?: never;
         /**
          * Read a member card QR code
-         * @description Verifies the rotating code and returns the member with a scan token.
-         *     Points (and later coupon and stamp) actions require the scan token, so
-         *     staff can only act on a member whose card they scanned in the last
-         *     five minutes. Reading a code changes nothing, so no Idempotency-Key.
+         * @description Verifies the rotating code and returns the member with a scan token,
+         *     the coupons staff can redeem and the stamp card progress. Points,
+         *     coupon and stamp actions require the scan token, so staff can only
+         *     act on a member whose card they scanned in the last five minutes.
+         *     Reading a code changes nothing, so no Idempotency-Key.
          */
         post: operations["staffScan"];
         delete?: never;
@@ -1246,6 +1247,433 @@ export interface paths {
          *     ref_id identify the receipt or order and appear in the history.
          */
         post: operations["serverPostPoints"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My coupons, newest first
+         * @description Without state, every coupon the member holds except voided ones.
+         *     available is issued and not expired, used is redeemed, expired is
+         *     issued but past expires_at. Voided coupons are never listed to the
+         *     member. Store names appear on redeemed coupons; staff identities do not.
+         */
+        get: operations["listMyCoupons"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/coupons/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Coupons the member can claim now
+         * @description Active templates of the member's app with claimable set, inside their
+         *     validity window (valid_from to valid_to) and not sold out. Each offer
+         *     says how many the member already holds and whether the per-member
+         *     limit still allows a claim. Issue-only and stamp reward templates are
+         *     never listed.
+         */
+        get: operations["listCouponOffers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/coupons/{templateId}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                templateId: components["parameters"]["CouponTemplateId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim a coupon from an offer
+         * @description Issues one coupon from the template to the signed-in member, with
+         *     source claim. The claim runs under a lock on the template, so
+         *     total_limit and per_member_limit hold under concurrent claims.
+         *     expires_at is fixed now: the earlier of valid_to and now plus
+         *     validity_days, or null when the template sets neither.
+         *
+         *     Errors: 404 when the template does not exist in the member's app;
+         *     409 coupon_not_claimable when it is archived, issue-only (claimable
+         *     false) or outside its validity window; 409 coupon_sold_out when
+         *     total_limit is reached; 409 coupon_limit_reached when the member
+         *     already holds per_member_limit coupons from it (voided ones excluded).
+         */
+        post: operations["claimCoupon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/stamps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My stamp card progress
+         * @description One entry per active stamp card of the app, with zero progress for
+         *     cards the member has not started.
+         */
+        get: operations["listMyStamps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/coupons/{instanceId}/redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instanceId: components["parameters"]["CouponInstanceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redeem a member's coupon at the counter
+         * @description The cashier scans the member card, then picks one of the coupons in
+         *     the scan result. The coupon must belong to the scanned member. One
+         *     atomic update marks it redeemed only while it is issued and not
+         *     expired, so of many concurrent attempts exactly one succeeds; the
+         *     others get 409 coupon_unavailable. The staff member's store is
+         *     recorded. Audited.
+         *
+         *     Errors: 403 scan_invalid (no scan in the last five minutes),
+         *     scan_mismatch (the scan belongs to another staff member or app) or
+         *     self_service (the staff member's own card); 409 coupon_unavailable
+         *     when the coupon is already redeemed, voided, expired, belongs to
+         *     another member or app, or does not exist (one answer, so the code
+         *     reveals nothing). A retry with the same Idempotency-Key replays the
+         *     stored result even after the scan expired. Coupon redemption does not
+         *     use up the scan: one scan can redeem several coupons within its five
+         *     minutes. Shares the per-staff limit of 30 writes a minute.
+         */
+        post: operations["staffRedeemCoupon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/stamps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add stamps to the scanned member's card
+         * @description Adds count stamps to one stamp card under a lock on the member's
+         *     progress row. A visit is one scan: all stamps given on one scan token
+         *     to one card together may not exceed the card's max_stamps_per_visit
+         *     (409 stamp_visit_limit). Reaching stamps_required completes the card:
+         *     the count starts again from the overflow, completions goes up, and
+         *     the reward coupon (when the card has one) is issued in the same
+         *     transaction with source stamp_reward. Rewards ignore the template's
+         *     claimable flag and per_member_limit but respect total_limit: when the
+         *     reward template is sold out the whole request fails with 409
+         *     coupon_sold_out and nothing is written.
+         *
+         *     Errors: 403 scan_invalid, scan_mismatch or self_service as for
+         *     points; 404 when the card is not in the staff member's app; 409
+         *     stamp_card_inactive when the card is archived. Retries and the
+         *     per-staff limit work as for points.
+         */
+        post: operations["staffAddStamps"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/apps/{appId}/coupon-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        /** Coupon templates of the app, newest first */
+        get: operations["listCouponTemplates"];
+        put?: never;
+        /**
+         * Create a coupon template
+         * @description Owners and admins only; audited. value is checked against type:
+         *     amount_off takes 1 to 1,000,000 currency units, percent_off 1 to 100,
+         *     and free_item takes no value (omit it; name the item in name or
+         *     description). valid_to must be after valid_from when both are set,
+         *     and per_member_limit may not exceed total_limit. Any of these fails
+         *     with 400 validation_failed.
+         */
+        post: operations["createCouponTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/coupon-templates/{templateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                templateId: components["parameters"]["CouponTemplateId"];
+            };
+            cookie?: never;
+        };
+        /** A coupon template */
+        get: operations["getCouponTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change or archive a coupon template
+         * @description Owners and admins only; audited. Templates are never deleted, since
+         *     coupons refer to them: set status archived to stop new claims and
+         *     issues. Coupons already issued stay redeemable until they expire.
+         *     An archived template can be made active again.
+         *
+         *     Once a coupon has been issued from the template (claimed_count above
+         *     zero), type and value are fixed (409 coupon_template_in_use), so a
+         *     coupon never changes what it is worth after the member got it.
+         *     Before that, the template after the change must still satisfy the
+         *     create rules: value agrees with type (clear value when switching to
+         *     free_item), valid_to after valid_from, per_member_limit not above
+         *     total_limit, comparing sent values with stored ones (400
+         *     validation_failed). total_limit cannot go below claimed_count (422
+         *     validation_failed, details.total_limit). Changes to the validity
+         *     window, validity_days and per_member_limit apply to coupons issued
+         *     from then on; expires_at of issued coupons does not move.
+         */
+        patch: operations["updateCouponTemplate"];
+        trace?: never;
+    };
+    "/v1/dashboard/apps/{appId}/stamp-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        /** Stamp cards of the app, newest first */
+        get: operations["listStampCards"];
+        put?: never;
+        /**
+         * Create a stamp card
+         * @description Owners and admins only; audited. The reward template, when set, must
+         *     belong to the same app (404 otherwise). It is usually an issue-only
+         *     template (claimable false), so members cannot claim the reward
+         *     without stamps.
+         */
+        post: operations["createStampCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/stamp-cards/{stampCardId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stampCardId: components["parameters"]["StampCardId"];
+            };
+            cookie?: never;
+        };
+        /** A stamp card */
+        get: operations["getStampCard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change or archive a stamp card
+         * @description Owners and admins only; audited. Stamp cards are never deleted: set
+         *     status archived to stop new stamps (staff get 409
+         *     stamp_card_inactive); progress is kept and the card can be made
+         *     active again. Once any member has a stamp on the card,
+         *     stamps_required is fixed (409 stamp_card_in_use). A new reward
+         *     template applies to completions from then on and must belong to the
+         *     same app (404 otherwise).
+         */
+        patch: operations["updateStampCard"];
+        trace?: never;
+    };
+    "/v1/dashboard/members/{memberId}/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * A member's coupons, newest first
+         * @description Every coupon including voided ones; filter with state.
+         */
+        get: operations["listMemberCoupons"];
+        put?: never;
+        /**
+         * Give a member a coupon from a template
+         * @description Owners and admins only; audited. Issues with source issue, whatever
+         *     the template's claimable flag and per_member_limit; total_limit still
+         *     applies (409 coupon_sold_out). The template must be in the member's
+         *     app (404 otherwise), active and inside its validity window (409
+         *     coupon_not_claimable otherwise).
+         */
+        post: operations["issueMemberCoupon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/coupons/{instanceId}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instanceId: components["parameters"]["CouponInstanceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void a member's coupon
+         * @description Owners and admins only; audited with the reason. Only an issued
+         *     coupon can be voided, expired or not; a redeemed or already voided
+         *     coupon answers 409 coupon_unavailable. Voiding does not give the
+         *     template's total_limit back.
+         */
+        post: operations["voidCoupon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/members/{memberId}/stamps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * A member's stamp card progress
+         * @description One entry per stamp card of the app that is active or that the member
+         *     has progress on, archived cards included.
+         */
+        get: operations["listMemberStamps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/members/{memberId}/stamps/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct a member's stamps
+         * @description Owners and admins only; audited. Writes a new stamp event; earlier
+         *     events are never changed. A positive delta that reaches
+         *     stamps_required completes the card and issues the reward, as a staff
+         *     stamp would. A negative delta cannot take the count below zero (409
+         *     insufficient_stamps) and does not undo past completions or their
+         *     rewards (void the reward coupon instead). The per-visit cap does not
+         *     apply; archived cards can be corrected.
+         */
+        post: operations["adjustMemberStamps"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/members/{memberId}/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * A member's coupons (API key, members:read)
+         * @description Every coupon including voided ones, newest first; filter with state.
+         */
+        get: operations["serverListMemberCoupons"];
+        put?: never;
+        /**
+         * Give a member a coupon from a POS or brand backend (API key, coupons:write)
+         * @description Same rules as the dashboard issue: source issue, claimable and
+         *     per_member_limit ignored, total_limit applies (409 coupon_sold_out),
+         *     template active and inside its validity window (409
+         *     coupon_not_claimable).
+         */
+        post: operations["serverIssueCoupon"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1854,14 +2282,19 @@ export interface components {
             picture_url?: string | null;
             is_friend: boolean;
         };
+        /** @description Carries no personal data beyond ScannedMember, whatever the staff role. */
         ScanResult: {
-            /** @description Authorizes points actions on this member for five minutes; it pays for at most one redemption. */
+            /** @description Authorizes points, coupon and stamp actions on this member for five minutes; it pays for at most one points redemption. */
             scan_token: string;
             /** Format: date-time */
             expires_at: string;
             member: components["schemas"]["ScannedMember"];
             /** Format: int64 */
             balance: number;
+            /** @description The member's coupons staff can redeem now (state available), soonest expiry first, at most 50. */
+            coupons: components["schemas"]["CouponInstance"][];
+            /** @description The member's progress on every active stamp card of the app, zero for cards not started. */
+            stamps: components["schemas"]["StampProgress"][];
         };
         StaffEarnRequest: {
             scan_token: string;
@@ -1874,6 +2307,356 @@ export interface components {
             scan_token: string;
             points: number;
             note?: string;
+        };
+        /**
+         * @description Archived coupon templates and stamp cards stop new claims, issues and stamps; nothing is deleted.
+         * @enum {string}
+         */
+        ArchiveStatus: "active" | "archived";
+        /**
+         * @description amount_off takes value currency units off, percent_off takes value percent off, free_item gives the item named in the template.
+         * @enum {string}
+         */
+        CouponType: "amount_off" | "percent_off" | "free_item";
+        /**
+         * @description Stored status. Expiry is not a stored status; see CouponState.
+         * @enum {string}
+         */
+        CouponInstanceStatus: "issued" | "redeemed" | "voided";
+        /**
+         * @description Effective state. available is issued and not past expires_at; expired is issued and past it.
+         * @enum {string}
+         */
+        CouponState: "available" | "redeemed" | "expired" | "voided";
+        /**
+         * @description claim by the member, issue from the dashboard or server API, stamp_reward on completing a stamp card.
+         * @enum {string}
+         */
+        CouponSource: "claim" | "issue" | "stamp_reward";
+        /** @enum {string} */
+        CouponTemplateClearable: "description" | "value" | "total_limit" | "valid_from" | "valid_to" | "validity_days";
+        CouponTemplate: {
+            /**
+             * Format: uuid
+             * @description Template ID; members claim with it.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The app the template belongs to.
+             */
+            app_id: string;
+            /** @description Shown to members and staff, for example "NT$50 off". */
+            name: string;
+            /** @description Terms shown to members. */
+            description?: string | null;
+            type: components["schemas"]["CouponType"];
+            /** @description Currency units for amount_off (1 to 1,000,000), percent for percent_off (1 to 100), null for free_item. */
+            value: number | null;
+            /** @description Most coupons ever issued from the template, from every source; null for no limit. Never below claimed_count or per_member_limit. */
+            total_limit?: number | null;
+            /** @description Most coupons one member may hold from member claims (voided ones excluded). Dashboard, API and stamp reward issues ignore it. */
+            per_member_limit: number;
+            /**
+             * Format: date-time
+             * @description Claims and issues are refused before this time; null for no start.
+             */
+            valid_from?: string | null;
+            /**
+             * Format: date-time
+             * @description Claims and issues are refused from this time, and coupons expire at it at the latest; null for no end.
+             */
+            valid_to?: string | null;
+            /** @description A coupon expires this many days after it was issued, or at valid_to if that is earlier; null for no relative expiry. */
+            validity_days?: number | null;
+            /** @description Whether members may claim it themselves. False for issue-only and stamp reward templates. */
+            claimable: boolean;
+            /** @description Coupons issued so far from every source (claim, issue, stamp_reward); counts toward total_limit. Voids do not lower it. */
+            claimed_count: number;
+            status: components["schemas"]["ArchiveStatus"];
+            /**
+             * Format: date-time
+             * @description When the template was created.
+             */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description When the template last changed.
+             */
+            updated_at: string;
+        };
+        CouponTemplateCreate: {
+            /** @description Shown to members and staff. */
+            name: string;
+            /** @description Terms shown to members. */
+            description?: string;
+            type: components["schemas"]["CouponType"];
+            /** @description Required for amount_off (1 to 1,000,000 currency units) and percent_off (1 to 100); omit for free_item. */
+            value?: number;
+            /** @description Most coupons ever issued; omit for no limit. At least per_member_limit. */
+            total_limit?: number;
+            /**
+             * @description Most coupons one member may hold from claims; at most total_limit.
+             * @default 1
+             */
+            per_member_limit: number;
+            /**
+             * Format: date-time
+             * @description No claims or issues before this time.
+             */
+            valid_from?: string;
+            /**
+             * Format: date-time
+             * @description No claims or issues from this time; coupons expire at it at the latest. Must be after valid_from.
+             */
+            valid_to?: string;
+            /** @description Coupons expire this many days after issue (or at valid_to if earlier). */
+            validity_days?: number;
+            /**
+             * @description Let members claim it from the offers list. Leave false for reward and issue-only templates.
+             * @default false
+             */
+            claimable: boolean;
+        };
+        /** @description Only the fields sent change. Fields listed in clear are set to null; a field may not be both sent and cleared. */
+        CouponTemplateUpdate: {
+            /** @description Shown to members and staff. */
+            name?: string;
+            /** @description Terms shown to members. */
+            description?: string;
+            type?: components["schemas"]["CouponType"];
+            /** @description Must agree with type, as on create. Fixed once claimed_count is above zero. */
+            value?: number;
+            /** @description Cannot go below claimed_count (422) or per_member_limit (400). */
+            total_limit?: number;
+            /** @description Applies to claims from now on; at most total_limit. */
+            per_member_limit?: number;
+            /**
+             * Format: date-time
+             * @description Applies to claims and issues from now on.
+             */
+            valid_from?: string;
+            /**
+             * Format: date-time
+             * @description Applies to claims and issues from now on; issued coupons keep their expires_at.
+             */
+            valid_to?: string;
+            /** @description Applies to coupons issued from now on. */
+            validity_days?: number;
+            /** @description Let members claim it from the offers list. */
+            claimable?: boolean;
+            status?: components["schemas"]["ArchiveStatus"];
+            /** @description Fields to reset to null (no limit, no window, no description; value when switching to free_item). */
+            clear?: components["schemas"]["CouponTemplateClearable"][];
+        };
+        CouponTemplateSummary: {
+            /**
+             * Format: uuid
+             * @description Template ID.
+             */
+            id: string;
+            /** @description Template name. */
+            name: string;
+            /** @description Terms shown to members. */
+            description?: string | null;
+            type: components["schemas"]["CouponType"];
+            /** @description Currency units for amount_off, percent for percent_off, null for free_item. */
+            value: number | null;
+        };
+        CouponOffer: {
+            template: components["schemas"]["CouponTemplateSummary"];
+            /**
+             * Format: date-time
+             * @description Last moment to claim; also the latest expiry of a claimed coupon.
+             */
+            valid_to?: string | null;
+            /** @description A claimed coupon expires this many days after the claim, or at valid_to if earlier. */
+            validity_days?: number | null;
+            /** @description Most coupons the member may hold from this offer. */
+            per_member_limit: number;
+            /** @description Coupons the member already holds from this template, voided ones excluded. */
+            held: number;
+            /** @description False when held has reached per_member_limit. */
+            can_claim: boolean;
+        };
+        CouponInstance: {
+            /**
+             * Format: uuid
+             * @description Coupon ID; staff redeem with it.
+             */
+            id: string;
+            /** @description Short code unique within the app, for receipts and support. Not a credential; redeeming needs a scan of the member card. */
+            code: string;
+            template: components["schemas"]["CouponTemplateSummary"];
+            /**
+             * Format: uuid
+             * @description The member holding the coupon.
+             */
+            member_id: string;
+            status: components["schemas"]["CouponInstanceStatus"];
+            state: components["schemas"]["CouponState"];
+            source: components["schemas"]["CouponSource"];
+            /**
+             * Format: date-time
+             * @description When the member got the coupon.
+             */
+            issued_at: string;
+            /**
+             * Format: date-time
+             * @description Fixed at issue; null when the coupon never expires. Redeeming at or after this time fails.
+             */
+            expires_at?: string | null;
+            /**
+             * Format: date-time
+             * @description When staff redeemed it.
+             */
+            redeemed_at?: string | null;
+            store?: components["schemas"]["StoreRef"];
+        };
+        CouponInstancePage: {
+            /** @description Coupons, newest first. */
+            items: components["schemas"]["CouponInstance"][];
+            /** @description Pass as cursor for the next page; null on the last page. */
+            next_cursor?: string | null;
+        };
+        CouponIssueRequest: {
+            /**
+             * Format: uuid
+             * @description Template of the member's app to issue from.
+             */
+            template_id: string;
+        };
+        CouponVoidRequest: {
+            /** @description Why the coupon is voided; kept in the audit log. */
+            reason: string;
+        };
+        StaffCouponRedeemRequest: {
+            /** @description From a scan of the coupon holder's card in the last five minutes. */
+            scan_token: string;
+        };
+        /** @enum {string} */
+        StampCardClearable: "reward_coupon_template_id";
+        StampCard: {
+            /**
+             * Format: uuid
+             * @description Stamp card ID.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The app the card belongs to.
+             */
+            app_id: string;
+            /** @description Shown to members and staff. */
+            name: string;
+            /** @description Stamps that complete the card. */
+            stamps_required: number;
+            /**
+             * Format: uuid
+             * @description Template issued on each completion; null for no reward coupon.
+             */
+            reward_coupon_template_id?: string | null;
+            /** @description Most stamps staff may give on one scan. */
+            max_stamps_per_visit: number;
+            status: components["schemas"]["ArchiveStatus"];
+            /**
+             * Format: date-time
+             * @description When the card was created.
+             */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description When the card last changed.
+             */
+            updated_at: string;
+        };
+        StampCardCreate: {
+            /** @description Shown to members and staff. */
+            name: string;
+            /** @description Stamps that complete the card. */
+            stamps_required: number;
+            /**
+             * Format: uuid
+             * @description Template of the same app issued on each completion.
+             */
+            reward_coupon_template_id?: string;
+            /**
+             * @description Most stamps staff may give on one scan.
+             * @default 1
+             */
+            max_stamps_per_visit: number;
+        };
+        /** @description Only the fields sent change. Fields listed in clear are set to null; a field may not be both sent and cleared. */
+        StampCardUpdate: {
+            /** @description Shown to members and staff. */
+            name?: string;
+            /** @description Fixed once any member has a stamp on the card. */
+            stamps_required?: number;
+            /**
+             * Format: uuid
+             * @description Applies to completions from now on.
+             */
+            reward_coupon_template_id?: string;
+            /** @description Most stamps staff may give on one scan. */
+            max_stamps_per_visit?: number;
+            status?: components["schemas"]["ArchiveStatus"];
+            /** @description Fields to reset to null (no reward coupon). */
+            clear?: components["schemas"]["StampCardClearable"][];
+        };
+        StampProgress: {
+            /**
+             * Format: uuid
+             * @description The stamp card.
+             */
+            stamp_card_id: string;
+            /** @description Card name. */
+            name: string;
+            /** @description Stamps that complete the card. */
+            stamps_required: number;
+            /** @description Most stamps staff may give on one scan. */
+            max_stamps_per_visit: number;
+            status: components["schemas"]["ArchiveStatus"];
+            /** @description Stamps toward the next completion, from 0 to stamps_required minus 1. */
+            count: number;
+            /** @description Times the member completed the card. */
+            completions: number;
+            reward?: components["schemas"]["CouponTemplateSummary"];
+            /**
+             * Format: date-time
+             * @description Last stamp or adjustment; null when the member has no stamps on the card yet.
+             */
+            updated_at?: string | null;
+        };
+        StampResult: {
+            progress: components["schemas"]["StampProgress"];
+            /** @description Signed change applied by this request. */
+            added: number;
+            /** @description Completions this request caused. */
+            completed: number;
+            /** @description Reward coupons issued by those completions; empty when there were none or the card has no reward. */
+            rewards: components["schemas"]["CouponInstance"][];
+        };
+        StaffStampRequest: {
+            /** @description From a scan of the member card in the last five minutes. */
+            scan_token: string;
+            /**
+             * Format: uuid
+             * @description Card of the staff member's app.
+             */
+            stamp_card_id: string;
+            /** @description Stamps to add; at most the card's max_stamps_per_visit, counting stamps already given on this scan. */
+            count: number;
+        };
+        StampAdjustment: {
+            /**
+             * Format: uuid
+             * @description Card of the member's app.
+             */
+            stamp_card_id: string;
+            /** @description Non-zero. */
+            delta: number;
+            /** @description Why; kept in the audit log. */
+            note: string;
         };
     };
     responses: {
@@ -1944,6 +2727,15 @@ export interface components {
         Limit: number;
         /** @description Opaque cursor from a previous page's next_cursor. */
         Cursor: string;
+        CouponTemplateId: string;
+        CouponInstanceId: string;
+        StampCardId: string;
+        /** @description available (issued, not expired), used (redeemed) or expired. Omitted, every coupon except voided ones. */
+        MemberCouponFilter: "available" | "used" | "expired";
+        /** @description Only coupons in this effective state. Omitted, every coupon. */
+        CouponStateFilter: components["schemas"]["CouponState"];
+        /** @description Only active or only archived entries. Omitted, both. */
+        TemplateStatusFilter: components["schemas"]["ArchiveStatus"];
     };
     requestBodies: never;
     headers: never;
@@ -4111,6 +4903,739 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             /** @description Not enough points */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    listMyCoupons: {
+        parameters: {
+            query?: {
+                /** @description available (issued, not expired), used (redeemed) or expired. Omitted, every coupon except voided ones. */
+                state?: components["parameters"]["MemberCouponFilter"];
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of coupons */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponInstancePage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listCouponOffers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Offers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponOffer"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    claimCoupon: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                templateId: components["parameters"]["CouponTemplateId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Claimed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponInstance"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description coupon_not_claimable, coupon_sold_out or coupon_limit_reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    listMyStamps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Progress per card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StampProgress"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    staffRedeemCoupon: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                instanceId: components["parameters"]["CouponInstanceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffCouponRedeemRequest"];
+            };
+        };
+        responses: {
+            /** @description Redeemed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponInstance"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description scan_invalid, scan_mismatch or self_service */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description coupon_unavailable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    staffAddStamps: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffStampRequest"];
+            };
+        };
+        responses: {
+            /** @description Stamps added */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StampResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            /** @description scan_invalid, scan_mismatch or self_service */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /** @description stamp_card_inactive, stamp_visit_limit or coupon_sold_out */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    listCouponTemplates: {
+        parameters: {
+            query?: {
+                /** @description Only active or only archived entries. Omitted, both. */
+                status?: components["parameters"]["TemplateStatusFilter"];
+            };
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Templates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponTemplate"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createCouponTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponTemplateCreate"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponTemplate"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    getCouponTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                templateId: components["parameters"]["CouponTemplateId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponTemplate"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateCouponTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                templateId: components["parameters"]["CouponTemplateId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponTemplateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponTemplate"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description coupon_template_in_use (type or value change after the first issue) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description idempotency_mismatch, or validation_failed when total_limit would fall below claimed_count */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listStampCards: {
+        parameters: {
+            query?: {
+                /** @description Only active or only archived entries. Omitted, both. */
+                status?: components["parameters"]["TemplateStatusFilter"];
+            };
+            header?: never;
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stamp cards */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StampCard"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createStampCard: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                appId: components["parameters"]["AppId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StampCardCreate"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StampCard"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    getStampCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stampCardId: components["parameters"]["StampCardId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stamp card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StampCard"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateStampCard: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                stampCardId: components["parameters"]["StampCardId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StampCardUpdate"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StampCard"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description stamp_card_in_use */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    listMemberCoupons: {
+        parameters: {
+            query?: {
+                /** @description Only coupons in this effective state. Omitted, every coupon. */
+                state?: components["parameters"]["CouponStateFilter"];
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of coupons */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponInstancePage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    issueMemberCoupon: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponIssueRequest"];
+            };
+        };
+        responses: {
+            /** @description Issued */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponInstance"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description coupon_not_claimable or coupon_sold_out */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    voidCoupon: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                instanceId: components["parameters"]["CouponInstanceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponVoidRequest"];
+            };
+        };
+        responses: {
+            /** @description Voided */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponInstance"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description coupon_unavailable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    listMemberStamps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Progress per card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StampProgress"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adjustMemberStamps: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StampAdjustment"];
+            };
+        };
+        responses: {
+            /** @description Adjusted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StampResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description insufficient_stamps or coupon_sold_out */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            422: components["responses"]["IdempotencyMismatch"];
+        };
+    };
+    serverListMemberCoupons: {
+        parameters: {
+            query?: {
+                /** @description Only coupons in this effective state. Omitted, every coupon. */
+                state?: components["parameters"]["CouponStateFilter"];
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque cursor from a previous page's next_cursor. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of coupons */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponInstancePage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    serverIssueCoupon: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-chosen unique key per logical write (UUID recommended). Repeating a key with the same payload returns the original response; a different payload returns 422. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                memberId: components["parameters"]["MemberId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponIssueRequest"];
+            };
+        };
+        responses: {
+            /** @description Issued */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponInstance"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description coupon_not_claimable or coupon_sold_out */
             409: {
                 headers: {
                     [name: string]: unknown;
