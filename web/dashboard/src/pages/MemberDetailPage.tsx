@@ -12,11 +12,16 @@ import { Alert, Badge, Button, Card, Dialog, Field, Status } from '../components
 import { downloadJson } from '../lib/download';
 import { formatDateTime } from '../lib/format';
 import { canManage } from '../lib/roles';
+import { MemberCouponsPanel } from './MemberCoupons';
 import { MemberCardCard, MemberPointsPanel } from './MemberPoints';
+import { MemberStampsPanel } from './MemberStamps';
 import { Avatar, FriendBadge } from './MembersPage';
 
 /** The word the operator types to confirm an erasure; the same in every language. */
 export const ERASE_PHRASE = 'ERASE';
+
+const MEMBER_TABS = ['overview', 'coupons', 'stamps'] as const;
+type MemberTab = (typeof MEMBER_TABS)[number];
 
 export function MemberDetailPage() {
   const { appId = '', memberId = '' } = useParams({ strict: false });
@@ -62,6 +67,7 @@ export function MemberDetailView({
   const navigate = useNavigate();
   const qc = useQueryClient();
   const member = useQuery(memberQuery(memberId));
+  const [tab, setTab] = useState<MemberTab>('overview');
   const [erasing, setErasing] = useState(false);
   const [phrase, setPhrase] = useState('');
   const editable = canManage(role);
@@ -166,11 +172,42 @@ export function MemberDetailView({
         )}
       </Card>
 
-      <MemberPointsPanel appId={appId} memberId={memberId} editable={editable} />
+      <div role="tablist" aria-label={t('members.tabs.label')} className="flex gap-1 border-b pb-2">
+        {MEMBER_TABS.map((key) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            id={`member-tab-${key}`}
+            aria-selected={tab === key}
+            aria-controls="member-tabpanel"
+            onClick={() => setTab(key)}
+            className="rounded-md px-3 py-2 text-sm font-medium aria-selected:bg-brand-50 aria-selected:text-brand-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 dark:aria-selected:bg-zinc-800"
+          >
+            {t(`members.tabs.${key}`)}
+          </button>
+        ))}
+      </div>
 
-      {editable && <MemberCardCard memberId={memberId} />}
+      <div
+        role="tabpanel"
+        id="member-tabpanel"
+        aria-labelledby={`member-tab-${tab}`}
+        className="space-y-6"
+      >
+        {tab === 'coupons' && (
+          <MemberCouponsPanel appId={appId} memberId={memberId} editable={editable} />
+        )}
+        {tab === 'stamps' && <MemberStampsPanel memberId={memberId} editable={editable} />}
+      </div>
 
-      {editable && (
+      {tab === 'overview' && (
+        <MemberPointsPanel appId={appId} memberId={memberId} editable={editable} />
+      )}
+
+      {tab === 'overview' && editable && <MemberCardCard memberId={memberId} />}
+
+      {tab === 'overview' && editable && (
         <Card
           title={t('members.detail.privacyTitle')}
           description={t('members.detail.privacyHelp')}

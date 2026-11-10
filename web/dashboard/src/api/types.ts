@@ -61,6 +61,26 @@ export type PointsAdjustment = Schemas['PointsAdjustment'];
 export type PointsKind = Schemas['PointsKind'];
 export type MemberCardRotated = Schemas['MemberCardRotated'];
 
+export type CouponTemplate = Schemas['CouponTemplate'];
+export type CouponTemplateCreate = Schemas['CouponTemplateCreate'];
+export type CouponTemplateUpdate = Schemas['CouponTemplateUpdate'];
+export type CouponTemplateClearable = Schemas['CouponTemplateClearable'];
+export type CouponType = Schemas['CouponType'];
+export type CouponState = Schemas['CouponState'];
+export type CouponInstance = Schemas['CouponInstance'];
+export type CouponInstancePage = Schemas['CouponInstancePage'];
+export type ArchiveStatus = Schemas['ArchiveStatus'];
+export type StampCard = Schemas['StampCard'];
+export type StampCardCreate = Schemas['StampCardCreate'];
+export type StampCardUpdate = Schemas['StampCardUpdate'];
+export type StampProgress = Schemas['StampProgress'];
+export type StampResult = Schemas['StampResult'];
+export type StampAdjustment = Schemas['StampAdjustment'];
+
+export const COUPON_TYPES: CouponType[] = ['amount_off', 'percent_off', 'free_item'];
+export const COUPON_STATES: CouponState[] = ['available', 'redeemed', 'expired', 'voided'];
+export const ARCHIVE_STATUSES: ArchiveStatus[] = ['active', 'archived'];
+
 export const CHANNEL_ENVIRONMENTS: ChannelEnvironment[] = [
   'developing',
   'review',
