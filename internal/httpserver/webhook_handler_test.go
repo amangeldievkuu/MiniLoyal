@@ -40,7 +40,7 @@ func TestReceiveLineWebhookOverHTTP(t *testing.T) {
 
 	s := New(Deps{
 		Config: &config.Config{Env: config.Development, PublicBaseURL: "https://api.example"}, Log: log, DB: d.App, Version: "test",
-		Tenants: tenants, Webhooks: webhook.New(d.App, tenants, log),
+		Tenants: tenants, Webhooks: webhook.New(d.App, tenants, nil, log),
 	})
 	srv := httptest.NewServer(s.Handler())
 	defer srv.Close()

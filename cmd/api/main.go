@@ -118,7 +118,7 @@ func run() int {
 		// locally; an unknown kid after a fresh JWKS is simply a bad token.
 		HTTPClient: lineHTTP, Clock: clock.Real{}, Log: logger, VerifyEndpointFallback: false,
 	})
-	webhooks := webhook.New(pool, tenants, logger)
+	webhooks := webhook.New(pool, tenants, clock.Real{}, logger)
 
 	lineAuth, err := lineauth.New(lineauth.Deps{
 		Pool:     pool,

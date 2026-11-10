@@ -101,7 +101,7 @@ func newMemberEnvWith(t *testing.T, staffCfg staffauth.Config) *memberEnv {
 		Tenants:   tenants,
 		LineAuth:  lineAuth,
 		MemberSvc: members,
-		Webhooks:  webhook.New(d.App, tenants, logger),
+		Webhooks:  webhook.New(d.App, tenants, nil, logger),
 		Card:      e.cards,
 		StaffAuth: staffSvc,
 		Points:    points.New(points.Deps{Pool: d.App, Tenants: tenants, Keyring: keyring, Card: e.cards, Clock: e.clk, Log: logger, StaffLimiter: staffLimit}),

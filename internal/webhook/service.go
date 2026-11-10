@@ -18,11 +18,11 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
 	"github.com/amangeldievkuu/miniloyal/internal/events"
 	"github.com/amangeldievkuu/miniloyal/internal/line"
+	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 )
 
-// Service handles webhook deliveries.
 // maxEventAge matches the webhook_inbound_events retention (DeleteOldInboundEvents).
 const maxEventAge = 7 * 24 * time.Hour
 
@@ -30,15 +30,21 @@ const maxEventAge = 7 * 24 * time.Hour
 type Service struct {
 	pool    *pgxpool.Pool
 	tenants *tenant.Service
+	clock   clock.Clock
 	log     *slog.Logger
 }
 
-// New returns a Service. The tenant service decrypts channel secrets.
-func New(pool *pgxpool.Pool, tenants *tenant.Service, log *slog.Logger) *Service {
+// New returns a Service. The tenant service decrypts channel secrets; the
+// clock dates member.created events and ages deliveries. A nil clock is the
+// real one.
+func New(pool *pgxpool.Pool, tenants *tenant.Service, clk clock.Clock, log *slog.Logger) *Service {
+	if clk == nil {
+		clk = clock.Real{}
+	}
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Service{pool: pool, tenants: tenants, log: log}
+	return &Service{pool: pool, tenants: tenants, clock: clk, log: log}
 }
 
 // Result summarises one delivery.
@@ -84,6 +90,7 @@ func (s *Service) Receive(ctx context.Context, appID uuid.UUID, signature string
 	}
 
 	res := Result{Events: len(req.Events)}
+	now := s.clock.Now()
 	var created []events.Event
 	err = db.WithTenant(ctx, s.pool, app.TenantID, func(ctx context.Context, tx pgx.Tx) error {
 		q := sqlc.New(tx)
@@ -94,7 +101,7 @@ func (s *Service) Receive(ctx context.Context, appID uuid.UUID, signature string
 			}
 			// Dedupe rows are kept for a week; an older signed delivery
 			// could otherwise be replayed once its row is gone.
-			if ev.Timestamp > 0 && time.Since(time.UnixMilli(ev.Timestamp)) > maxEventAge {
+			if ev.Timestamp > 0 && now.Sub(time.UnixMilli(ev.Timestamp)) > maxEventAge {
 				res.Ignored++
 				continue
 			}
@@ -109,7 +116,7 @@ func (s *Service) Receive(ctx context.Context, appID uuid.UUID, signature string
 				res.Duplicates++
 				continue
 			}
-			if err := s.apply(ctx, q, app, ev, &res, &created); err != nil {
+			if err := s.apply(ctx, q, app, ev, now, &res, &created); err != nil {
 				return err
 			}
 		}
@@ -126,7 +133,7 @@ func (s *Service) Receive(ctx context.Context, appID uuid.UUID, signature string
 // apply updates state for one new event. Unknown types are recorded and
 // otherwise ignored until a later phase handles them.
 // New members are appended to created as member.created events.
-func (s *Service) apply(ctx context.Context, q *sqlc.Queries, app sqlc.App, ev line.Event, res *Result, created *[]events.Event) error {
+func (s *Service) apply(ctx context.Context, q *sqlc.Queries, app sqlc.App, ev line.Event, now time.Time, res *Result, created *[]events.Event) error {
 	userID := ""
 	if ev.Source != nil && ev.Source.Type == "user" {
 		userID = ev.Source.UserID
@@ -146,7 +153,7 @@ func (s *Service) apply(ctx context.Context, q *sqlc.Queries, app sqlc.App, ev l
 		// A follow can be the first time the brand hears of the member.
 		// The events are written together once the delivery is applied.
 		if row.Created {
-			at := time.Now()
+			at := now
 			if ev.Timestamp > 0 {
 				at = time.UnixMilli(ev.Timestamp)
 			}
