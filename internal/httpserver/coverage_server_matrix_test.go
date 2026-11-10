@@ -31,10 +31,14 @@ func mintKey(t *testing.T, w *world, token string, app api.App, scopes ...string
 func newServerKeys(t *testing.T, w *world, f *matrixFixtures, other otherApp) serverKeys {
 	t.Helper()
 	k := serverKeys{
-		a: map[string]api.ApiKeyCreated{"members:read": f.key, "points:write": mintKey(t, w, "owner-a", f.app, "points:write")},
+		a: map[string]api.ApiKeyCreated{
+			"members:read":  f.key,
+			"points:write":  mintKey(t, w, "owner-a", f.app, "points:write"),
+			"coupons:write": mintKey(t, w, "owner-a", f.app, "coupons:write"),
+		},
 		b: map[string]api.ApiKeyCreated{},
 	}
-	for _, scope := range []string{"members:read", "points:write"} {
+	for _, scope := range []string{"members:read", "points:write", "coupons:write"} {
 		k.b[scope] = mintKey(t, w, "owner-b", other.app, scope)
 	}
 	return k
@@ -120,7 +124,7 @@ func TestServerMatrix(t *testing.T) {
 	for _, op := range serverOps {
 		t.Run(op.id+"/own key", func(t *testing.T) {
 			r := f.serverCall(op, "", keys.a[op.scope].Key, uuid.NewString())
-			want(t, r, http.StatusOK)
+			want(t, r, op.okStatus())
 			leaks(t, r.body, other.markers(w))
 			if !bytes.Contains(r.body, []byte(f.member.Member.Id.String())) {
 				t.Errorf("own member missing: %s", r.body)
@@ -203,6 +207,9 @@ func TestServerIdempotencyMatrix(t *testing.T) {
 			want(t, w.as("owner-a").del("/v1/dashboard/api-keys/"+second.Id.String()), http.StatusNoContent)
 			if r := f.serverCall(op, "", second.Key, idemKey); r.code != http.StatusUnauthorized {
 				t.Errorf("revoked key replay: status = %d, want 401; body %s", r.code, r.body)
+			}
+			if op.id != "serverPostPoints" {
+				return
 			}
 			var ledger int
 			if err := w.db.Admin.QueryRow(context.Background(), "SELECT count(*) FROM points_ledger WHERE ref_id = 'R-1'").Scan(&ledger); err != nil {

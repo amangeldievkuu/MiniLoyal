@@ -58,27 +58,9 @@ var personal = []string{"name", "display_name", "picture", "phone", "email", "li
 // Emit writes e with q, which must belong to the transaction making the
 // change, scoped to e.TenantID.
 func Emit(ctx context.Context, q *sqlc.Queries, e Event) error {
-	if !known[e.Type] {
-		return fmt.Errorf("events: unknown type %q", e.Type)
-	}
-	if e.TenantID == uuid.Nil || e.AppID == uuid.Nil || e.OccurredAt.IsZero() {
-		return fmt.Errorf("events: %s needs tenant, app and occurred_at", e.Type)
-	}
-	payload := e.Payload
-	if payload == nil {
-		payload = map[string]any{}
-	}
-	for k := range payload {
-		lk := strings.ToLower(k)
-		for _, p := range personal {
-			if strings.Contains(lk, p) {
-				return fmt.Errorf("events: %s payload key %q may carry personal data", e.Type, k)
-			}
-		}
-	}
-	raw, err := json.Marshal(payload)
+	raw, err := encode(e)
 	if err != nil {
-		return fmt.Errorf("events: encode %s: %w", e.Type, err)
+		return err
 	}
 	if _, err := q.InsertOutboundEvent(ctx, sqlc.InsertOutboundEventParams{
 		TenantID:   e.TenantID,
@@ -91,4 +73,58 @@ func Emit(ctx context.Context, q *sqlc.Queries, e Event) error {
 		return fmt.Errorf("events: insert %s: %w", e.Type, err)
 	}
 	return nil
+}
+
+// EmitAll writes many member events of one app in one statement, for
+// changes that touch many members at once (a webhook delivery). Every event
+// needs the same tenant and app and a member.
+func EmitAll(ctx context.Context, q *sqlc.Queries, list []Event) error {
+	if len(list) == 0 {
+		return nil
+	}
+	params := sqlc.InsertOutboundEventsParams{TenantID: list[0].TenantID, AppID: list[0].AppID}
+	for _, e := range list {
+		if e.TenantID != params.TenantID || e.AppID != params.AppID || e.MemberID == uuid.Nil {
+			return fmt.Errorf("events: a batch needs one tenant and app and a member on every event")
+		}
+		raw, err := encode(e)
+		if err != nil {
+			return err
+		}
+		params.Types = append(params.Types, e.Type)
+		params.MemberIds = append(params.MemberIds, e.MemberID)
+		params.Payloads = append(params.Payloads, raw)
+		params.OccurredAts = append(params.OccurredAts, pgtype.Timestamptz{Time: e.OccurredAt, Valid: true})
+	}
+	if err := q.InsertOutboundEvents(ctx, params); err != nil {
+		return fmt.Errorf("events: insert %d events: %w", len(list), err)
+	}
+	return nil
+}
+
+// encode checks e and returns its payload as JSON.
+func encode(e Event) ([]byte, error) {
+	if !known[e.Type] {
+		return nil, fmt.Errorf("events: unknown type %q", e.Type)
+	}
+	if e.TenantID == uuid.Nil || e.AppID == uuid.Nil || e.OccurredAt.IsZero() {
+		return nil, fmt.Errorf("events: %s needs tenant, app and occurred_at", e.Type)
+	}
+	payload := e.Payload
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	for k := range payload {
+		lk := strings.ToLower(k)
+		for _, p := range personal {
+			if strings.Contains(lk, p) {
+				return nil, fmt.Errorf("events: %s payload key %q may carry personal data", e.Type, k)
+			}
+		}
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("events: encode %s: %w", e.Type, err)
+	}
+	return raw, nil
 }

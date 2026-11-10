@@ -61,8 +61,6 @@ const MaxSpendAmount = 100_000_000
 var (
 	errInsufficient = apierr.New(409, "insufficient_points", "the member does not have enough points")
 	errDisabled     = apierr.New(409, "points_disabled", "points are disabled for this app")
-	errScanInvalid  = access.ErrScanInvalid
-	errScanMismatch = access.ErrScanMismatch
 	errScanUsed     = apierr.New(409, "scan_used", "this scan already paid for a redemption; scan the member card again")
 	errSelfService  = apierr.New(403, "self_service", "staff cannot give or spend points on their own member card")
 	errNotFound     = access.ErrMemberNotFound
@@ -276,12 +274,6 @@ func (s *Service) apply(ctx context.Context, q *sqlc.Queries, m sqlc.Member, rul
 // for retries; authorize runs before claim and replay (access.Writer).
 func (s *Service) write(ctx context.Context, tenantID uuid.UUID, scope string, idem Idem, authorize func(ctx context.Context, tx pgx.Tx) error, fn func(ctx context.Context, tx pgx.Tx) (any, error), out any) error {
 	return s.writer.Write(ctx, tenantID, scope, idem, authorize, fn, out)
-}
-
-// loadMember reads the member inside a tenant transaction and checks it
-// belongs to appID, is not erased, and that the app is active.
-func loadMember(ctx context.Context, q *sqlc.Queries, memberID, appID uuid.UUID) (sqlc.Member, error) {
-	return access.LoadMember(ctx, q, memberID, appID)
 }
 
 // reach builds the access for p on memberID. Dashboard users need at least

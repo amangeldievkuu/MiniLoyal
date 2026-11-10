@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -30,23 +31,31 @@ const (
 	otherLineName  = "Bao-Yu"
 )
 
-// otherApp is tenant B's app with one signed-in member.
+// otherApp is tenant B's app with one signed-in member, a claimable
+// coupon template, a stamp card and a coupon the member holds.
 type otherApp struct {
-	app    api.App
-	member api.MemberSession
+	app      api.App
+	member   api.MemberSession
+	template uuid.UUID
+	card     uuid.UUID
 }
 
 func newOtherApp(t *testing.T, w *world) otherApp {
 	t.Helper()
 	app := w.createApp("owner-b", w.tenantB, "Beta Bistro")
 	w.putChannel("owner-b", app, otherChannelID)
-	return otherApp{app: app, member: w.lineLogin(app, otherChannelID, otherLineUser, otherLineName)}
+	o := otherApp{app: app, member: w.lineLogin(app, otherChannelID, otherLineUser, otherLineName)}
+	o.template = createTemplate(t, w, "owner-b", app, "Bistro tart")
+	o.card = createStampCard(t, w, "owner-b", app, "Bistro card", o.template)
+	issueCoupon(t, w, "owner-b", uuid.UUID(o.member.Member.Id), o.template)
+	return o
 }
 
 // markers are strings of tenant B's data that must never appear in a
 // response to tenant A's principals, and vice versa.
 func (o otherApp) markers(w *world) []string {
-	return []string{otherLineName, otherLineUser, o.member.Member.Id.String(), o.member.SessionToken, o.app.Id.String(), w.tenantB.String(), "Beta Bistro"}
+	return []string{otherLineName, otherLineUser, o.member.Member.Id.String(), o.member.SessionToken, o.app.Id.String(), w.tenantB.String(), "Beta Bistro",
+		"Bistro tart", "Bistro card", o.template.String(), o.card.String()}
 }
 
 // forgedMemberToken signs a member session with the server's own key. Every
@@ -73,6 +82,33 @@ func forgedMemberToken(t *testing.T, sub, tenantID, appID uuid.UUID, typ string,
 	return string(signed)
 }
 
+// appListIDs reads the template or card IDs of a member list that names no
+// member (offers and stamp progress); ok is false for other operations.
+func appListIDs(t *testing.T, opID string, body []byte) (ids []uuid.UUID, ok bool) {
+	t.Helper()
+	switch opID {
+	case "listCouponOffers":
+		var offers []api.CouponOffer
+		if err := json.Unmarshal(body, &offers); err != nil {
+			t.Fatal(err)
+		}
+		for _, o := range offers {
+			ids = append(ids, uuid.UUID(o.Template.Id))
+		}
+		return ids, true
+	case "listMyStamps":
+		var progress []api.StampProgress
+		if err := json.Unmarshal(body, &progress); err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range progress {
+			ids = append(ids, uuid.UUID(p.StampCardId))
+		}
+		return ids, true
+	}
+	return nil, false
+}
+
 // responseOwner reads which member (and app, when the response names one) a
 // member operation answered about. The card names both inside its QR
 // payload; points responses name the member only.
@@ -95,6 +131,26 @@ func responseOwner(t *testing.T, opID string, body []byte) (memberID, appID uuid
 			t.Fatal(err)
 		}
 		return uuid.UUID(s.MemberId), uuid.Nil
+	case "listMyCoupons":
+		var page api.CouponInstancePage
+		if err := json.Unmarshal(body, &page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Items) == 0 {
+			t.Fatal("coupon list is empty; the fixture member holds coupons")
+		}
+		for _, it := range page.Items {
+			if it.MemberId != page.Items[0].MemberId {
+				t.Errorf("coupon list mixes members %s and %s", it.MemberId, page.Items[0].MemberId)
+			}
+		}
+		return uuid.UUID(page.Items[0].MemberId), uuid.Nil
+	case "claimCoupon":
+		var c api.CouponInstance
+		if err := json.Unmarshal(body, &c); err != nil {
+			t.Fatal(err)
+		}
+		return uuid.UUID(c.MemberId), uuid.Nil
 	case "listMyPointsHistory":
 		var page api.PointsHistoryPage
 		if err := json.Unmarshal(body, &page); err != nil {
@@ -164,16 +220,33 @@ func TestMemberScopeMatrix(t *testing.T) {
 			sess    api.MemberSession
 			app     api.App
 			foreign []string
+			// offer is the side's claimable template; own lists the
+			// template and card IDs of the side's app.
+			offer uuid.UUID
+			own   []uuid.UUID
 		}{
-			{"member-a", a, f.app, other.markers(w)},
-			{"member-b", b, other.app, f.markers()},
+			{"member-a", a, f.app, other.markers(w), f.template, []uuid.UUID{f.template, f.altTemplate, f.card}},
+			{"member-b", b, other.app, f.markers(), other.template, []uuid.UUID{other.template, other.card}},
 		} {
 			t.Run(op.id+"/"+side.name, func(t *testing.T) {
+				f.offer = side.offer
+				defer func() { f.offer = f.template }()
 				r := f.send(op, side.sess.SessionToken, op.body, uuid.NewString())
-				if r.code != http.StatusOK {
-					t.Fatalf("status = %d, want 200; body %s", r.code, r.body)
+				if r.code != op.okStatus() {
+					t.Fatalf("status = %d, want %d; body %s", r.code, op.okStatus(), r.body)
 				}
 				leaks(t, r.body, side.foreign)
+				if ids, ok := appListIDs(t, op.id, r.body); ok {
+					if len(ids) == 0 {
+						t.Fatalf("%s is empty; the fixture app has one", op.id)
+					}
+					for _, id := range ids {
+						if !slices.Contains(side.own, id) {
+							t.Errorf("%s lists %s, which is not of app %s", op.id, id, side.app.Id)
+						}
+					}
+					return
+				}
 				memberID, appID := responseOwner(t, op.id, r.body)
 				if memberID != uuid.UUID(side.sess.Member.Id) || (appID != uuid.Nil && appID != uuid.UUID(side.app.Id)) {
 					t.Errorf("response is for member %s of app %s, want %s of %s", memberID, appID, side.sess.Member.Id, side.app.Id)
@@ -312,20 +385,22 @@ func TestMemberIdempotencyMatrix(t *testing.T) {
 			if !bytes.Equal(first.body, replay.body) {
 				t.Errorf("replay body differs:\n%s\n%s", first.body, replay.body)
 			}
-			mismatch := f.send(op, a.SessionToken, op.alt, key)
+			mismatch := f.mismatch(t, op, a.SessionToken, key)
 			if mismatch.code != http.StatusUnprocessableEntity {
 				t.Fatalf("mismatch: status = %d, want 422; body %s", mismatch.code, mismatch.body)
 			}
 			if code := mismatch.errCode(t); code != "idempotency_mismatch" {
 				t.Errorf("mismatch code = %s", code)
 			}
-			noKey := w.call(op.method, op.path(f), a.SessionToken, "", "", op.body(f))
+			noKey := w.call(op.method, op.path(f), a.SessionToken, "", "", bodyOf(f, op.body))
 			if noKey.code != http.StatusBadRequest {
 				t.Fatalf("no key: status = %d, want 400; body %s", noKey.code, noKey.body)
 			}
 			// Member B reusing A's key runs B's own write and never sees A's
 			// stored outcome.
+			f.offer = other.template
 			otherRun := f.send(op, b.SessionToken, op.body, key)
+			f.offer = f.template
 			if otherRun.code != op.created {
 				t.Fatalf("member B with the same key: status = %d; body %s", otherRun.code, otherRun.body)
 			}

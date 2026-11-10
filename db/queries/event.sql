@@ -20,3 +20,14 @@ LIMIT sqlc.arg('page_limit');
 SELECT * FROM outbound_events
 WHERE app_id = $1 AND member_id = $2
 ORDER BY id;
+
+-- name: InsertOutboundEvents :exec
+-- Many events of one app in one statement (a webhook delivery creating
+-- many members), in the caller's transaction. The arrays line up by index:
+-- set-returning functions in one select list advance together.
+INSERT INTO outbound_events (tenant_id, app_id, type, member_id, payload, occurred_at)
+SELECT sqlc.arg('tenant_id')::uuid, sqlc.arg('app_id')::uuid,
+  unnest(sqlc.arg('types')::text[]),
+  unnest(sqlc.arg('member_ids')::uuid[]),
+  unnest(sqlc.arg('payloads')::jsonb[]),
+  unnest(sqlc.arg('occurred_ats')::timestamptz[]);

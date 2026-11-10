@@ -49,6 +49,18 @@ type matrixFixtures struct {
 	staffSess, cashierSess api.StaffSession
 	// scan is the scan token staff request bodies carry; tests set it.
 	scan string
+
+	// Coupons and stamps of app A: two claimable templates, a stamp card on
+	// which member A already has a stamp, and two coupons member A holds.
+	// coupon is the target of void and redeem; a coupon can be redeemed
+	// once, so freshCoupons issues new ones before a matrix needs a
+	// redeemable target, and spareCoupon is the second target of a run.
+	template, altTemplate uuid.UUID
+	card                  uuid.UUID
+	coupon, spareCoupon   uuid.UUID
+	// offer is the template claimCoupon claims; member tests point it at
+	// the calling member's app (default: template, app A).
+	offer uuid.UUID
 }
 
 // Fixture channel and LINE user of tenant A's app.
@@ -85,6 +97,17 @@ type opCase struct {
 	altPath func(f *matrixFixtures) string
 	// scope is the API key scope a server operation needs.
 	scope string
+	// refresh prepares single-use targets (coupons redeem once) before a
+	// run that must succeed. Matrices call it outside measured windows.
+	refresh func(f *matrixFixtures)
+}
+
+// okStatus is the status a successful call of the operation returns.
+func (c opCase) okStatus() int {
+	if c.write() && c.created != 0 {
+		return c.created
+	}
+	return http.StatusOK
 }
 
 // opKey normalises an operationId: oapi-codegen UpperCamelCases the IDs in
@@ -188,7 +211,52 @@ var tenantOps = []opCase{
 	{id: "listMemberPointsHistory", method: http.MethodGet, path: func(f *matrixFixtures) string { return memberPath(f) + "/points/history" }, min: principal.RoleStaff},
 	{id: "adjustMemberPoints", method: http.MethodPost, path: func(f *matrixFixtures) string { return memberPath(f) + "/points/adjustments" },
 		body: obj("delta", 5, "note", "goodwill"), alt: obj("delta", 6, "note", "goodwill"), idem: true, min: principal.RoleAdmin, created: 200,
-		creates: "points_lots", more: []string{"points_ledger"}},
+		creates: "points_lots", more: []string{"points_ledger", "outbound_events"}},
+	// coupon templates
+	{id: "listCouponTemplates", method: http.MethodGet, path: func(f *matrixFixtures) string { return appPath(f) + "/coupon-templates" }, min: principal.RoleStaff},
+	{id: "createCouponTemplate", method: http.MethodPost, path: func(f *matrixFixtures) string { return appPath(f) + "/coupon-templates" },
+		body: obj("name", "Free cookie", "type", "free_item"), alt: obj("name", "Free cookie", "type", "amount_off", "value", 30),
+		idem: true, min: principal.RoleAdmin, created: 201, creates: "coupon_templates"},
+	{id: "getCouponTemplate", method: http.MethodGet, path: templatePath, min: principal.RoleStaff},
+	{id: "updateCouponTemplate", method: http.MethodPatch, path: templatePath,
+		body: obj("name", "Latte coupon renamed"), alt: obj("name", "Latte coupon other"), idem: true, min: principal.RoleAdmin, created: 200},
+	// member coupons
+	{id: "listMemberCoupons", method: http.MethodGet, path: func(f *matrixFixtures) string { return memberPath(f) + "/coupons" }, min: principal.RoleStaff},
+	{id: "issueMemberCoupon", method: http.MethodPost, path: func(f *matrixFixtures) string { return memberPath(f) + "/coupons" },
+		body: func(f *matrixFixtures) any { return map[string]any{"template_id": f.template} },
+		alt:  func(f *matrixFixtures) any { return map[string]any{"template_id": f.altTemplate} },
+		idem: true, min: principal.RoleAdmin, created: 201, creates: "coupon_instances", more: []string{"outbound_events"}},
+	// A second void of the same coupon is a 409, so admin-a's run with the
+	// reused key is refused rather than repeated.
+	{id: "voidCoupon", method: http.MethodPost, path: func(f *matrixFixtures) string { return "/v1/dashboard/coupons/" + f.coupon.String() + "/void" },
+		body: obj("reason", "issued twice"), alt: obj("reason", "issued by mistake"), idem: true, min: principal.RoleAdmin, created: 200},
+	// stamp cards
+	{id: "listStampCards", method: http.MethodGet, path: func(f *matrixFixtures) string { return appPath(f) + "/stamp-cards" }, min: principal.RoleStaff},
+	{id: "createStampCard", method: http.MethodPost, path: func(f *matrixFixtures) string { return appPath(f) + "/stamp-cards" },
+		body: obj("name", "Tea card", "stamps_required", 8), alt: obj("name", "Tea card", "stamps_required", 9),
+		idem: true, min: principal.RoleAdmin, created: 201, creates: "stamp_cards"},
+	{id: "getStampCard", method: http.MethodGet, path: stampCardPath, min: principal.RoleStaff},
+	{id: "updateStampCard", method: http.MethodPatch, path: stampCardPath,
+		body: obj("name", "Coffee card renamed"), alt: obj("name", "Coffee card other"), idem: true, min: principal.RoleAdmin, created: 200},
+	// member stamps; member A already has progress on the card, so an
+	// adjustment adds an event row and no progress row.
+	{id: "listMemberStamps", method: http.MethodGet, path: func(f *matrixFixtures) string { return memberPath(f) + "/stamps" }, min: principal.RoleStaff},
+	{id: "adjustMemberStamps", method: http.MethodPost, path: func(f *matrixFixtures) string { return memberPath(f) + "/stamps/adjustments" },
+		body: func(f *matrixFixtures) any {
+			return map[string]any{"stamp_card_id": f.card, "delta": 1, "note": "goodwill stamp"}
+		},
+		alt: func(f *matrixFixtures) any {
+			return map[string]any{"stamp_card_id": f.card, "delta": 2, "note": "goodwill stamp"}
+		},
+		idem: true, min: principal.RoleAdmin, created: 200, creates: "stamp_events"},
+}
+
+func templatePath(f *matrixFixtures) string {
+	return "/v1/dashboard/coupon-templates/" + f.template.String()
+}
+
+func stampCardPath(f *matrixFixtures) string {
+	return "/v1/dashboard/stamp-cards/" + f.card.String()
 }
 
 func rulesBody(spendPerPoint int) func(*matrixFixtures) any {
@@ -212,6 +280,13 @@ var memberOps = []opCase{
 	{id: "getMyCard", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/me/card" }},
 	{id: "getMyPoints", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/me/points" }},
 	{id: "listMyPointsHistory", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/me/points/history" }},
+	{id: "listMyCoupons", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/me/coupons" }},
+	{id: "listCouponOffers", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/coupons/offers" }},
+	// A claim has no body: the mismatch case reuses the key on another offer.
+	{id: "claimCoupon", method: http.MethodPost, path: func(f *matrixFixtures) string { return "/v1/coupons/" + f.offer.String() + "/claim" },
+		altPath: func(f *matrixFixtures) string { return "/v1/coupons/" + f.altTemplate.String() + "/claim" },
+		idem:    true, created: 201, creates: "coupon_instances"},
+	{id: "listMyStamps", method: http.MethodGet, path: func(*matrixFixtures) string { return "/v1/me/stamps" }},
 	// deleteMe ends the session, so it is always exercised last.
 	{id: "deleteMe", method: http.MethodDelete, path: func(*matrixFixtures) string { return "/v1/me" }},
 }
@@ -224,7 +299,16 @@ var serverOps = []opCase{
 	{id: "serverGetMemberPoints", method: http.MethodGet, path: serverPointsPath, scope: "members:read"},
 	{id: "serverPostPoints", method: http.MethodPost, path: serverPointsPath,
 		body: obj("type", "earn", "points", 7, "ref_type", "receipt", "ref_id", "R-1"), alt: obj("type", "earn", "points", 8, "ref_type", "receipt", "ref_id", "R-1"),
-		idem: true, created: 200, creates: "points_lots", more: []string{"points_ledger"}, scope: "points:write"},
+		idem: true, created: 200, creates: "points_lots", more: []string{"points_ledger", "outbound_events"}, scope: "points:write"},
+	{id: "serverListMemberCoupons", method: http.MethodGet, path: serverCouponsPath, scope: "members:read"},
+	{id: "serverIssueCoupon", method: http.MethodPost, path: serverCouponsPath,
+		body: func(f *matrixFixtures) any { return map[string]any{"template_id": f.template} },
+		alt:  func(f *matrixFixtures) any { return map[string]any{"template_id": f.altTemplate} },
+		idem: true, created: 201, creates: "coupon_instances", more: []string{"outbound_events"}, scope: "coupons:write"},
+}
+
+func serverCouponsPath(f *matrixFixtures) string {
+	return "/v1/members/" + f.member.Member.Id.String() + "/coupons"
 }
 
 func serverPointsPath(f *matrixFixtures) string {
@@ -393,7 +477,55 @@ func newMatrixFixtures(t *testing.T, w *world) *matrixFixtures {
 	r.into(t, &f.cashier)
 	f.staffSess = w.staffSession(f.app, fixtureChannelID, fixtureStaffLine, f.staff.InviteCode)
 	f.cashierSess = w.staffSession(f.app, fixtureChannelID, fixtureCashierLine, f.cashier.InviteCode)
+
+	f.template = createTemplate(t, w, "owner-a", f.app, "Latte coupon")
+	f.altTemplate = createTemplate(t, w, "owner-a", f.app, "Scone coupon")
+	f.offer = f.template
+	f.card = createStampCard(t, w, "owner-a", f.app, "Coffee card", f.template)
+	r = owner.post(memberPath(f)+"/stamps/adjustments", uuid.NewString(), map[string]any{"stamp_card_id": f.card, "delta": 1, "note": "opening stamp"})
+	want(t, r, http.StatusOK)
+	f.freshCoupons()
 	return f
+}
+
+// createTemplate adds a claimable NT$50-off template to app as token.
+func createTemplate(t *testing.T, w *world, token string, app api.App, name string) uuid.UUID {
+	t.Helper()
+	r := w.as(token).post("/v1/dashboard/apps/"+app.Id.String()+"/coupon-templates", uuid.NewString(),
+		map[string]any{"name": name, "type": "amount_off", "value": 50, "claimable": true})
+	want(t, r, http.StatusCreated)
+	var tmpl api.CouponTemplate
+	r.into(t, &tmpl)
+	return uuid.UUID(tmpl.Id)
+}
+
+// createStampCard adds a 50-stamp card, one stamp per visit, to app.
+func createStampCard(t *testing.T, w *world, token string, app api.App, name string, reward uuid.UUID) uuid.UUID {
+	t.Helper()
+	r := w.as(token).post("/v1/dashboard/apps/"+app.Id.String()+"/stamp-cards", uuid.NewString(),
+		map[string]any{"name": name, "stamps_required": 50, "reward_coupon_template_id": reward})
+	want(t, r, http.StatusCreated)
+	var c api.StampCard
+	r.into(t, &c)
+	return uuid.UUID(c.Id)
+}
+
+// issueCoupon gives the member a coupon from the template as token.
+func issueCoupon(t *testing.T, w *world, token string, memberID, templateID uuid.UUID) uuid.UUID {
+	t.Helper()
+	r := w.as(token).post("/v1/dashboard/members/"+memberID.String()+"/coupons", uuid.NewString(), map[string]any{"template_id": templateID})
+	want(t, r, http.StatusCreated)
+	var c api.CouponInstance
+	r.into(t, &c)
+	return uuid.UUID(c.Id)
+}
+
+// freshCoupons issues member A two new coupons: coupon and spareCoupon.
+func (f *matrixFixtures) freshCoupons() {
+	f.w.t.Helper()
+	member := uuid.UUID(f.member.Member.Id)
+	f.coupon = issueCoupon(f.w.t, f.w, "owner-a", member, f.template)
+	f.spareCoupon = issueCoupon(f.w.t, f.w, "owner-a", member, f.template)
 }
 
 // LINE accounts of app A's staff.
@@ -438,7 +570,8 @@ func (w *world) staffSession(app api.App, channelID, sub, code string) api.Staff
 // fixtureMarkers are strings from tenant A's data that must never appear in
 // a response to an outsider.
 func (f *matrixFixtures) markers() []string {
-	return []string{"Cafe", "Main", "TPE01", "Mei", "Kenji", "Annex", "goodwill", "opening balance", f.key.Key, f.key.Prefix, fixtureChannelID, "dev-secret", f.app.Slug, "pending@example.com", f.invitation.InviteUrl,
+	return []string{"Cafe", "Main", "TPE01", "Mei", "Kenji", "Annex", "goodwill", "opening balance",
+		"Latte coupon", "Scone coupon", "Coffee card", "opening stamp", f.template.String(), f.card.String(), f.coupon.String(), f.key.Key, f.key.Prefix, fixtureChannelID, "dev-secret", f.app.Slug, "pending@example.com", f.invitation.InviteUrl,
 		fixtureLineName, fixtureLineUser, f.member.Member.Id.String(), f.member.SessionToken, f.staffSess.SessionToken, f.staff.Id.String()}
 }
 
@@ -462,6 +595,12 @@ var tenantTables = []struct{ name, col string }{
 	{"points_accounts", "tenant_id"},
 	{"points_lots", "tenant_id"},
 	{"points_ledger", "tenant_id"},
+	{"coupon_templates", "tenant_id"},
+	{"coupon_instances", "tenant_id"},
+	{"stamp_cards", "tenant_id"},
+	{"stamp_progress", "tenant_id"},
+	{"stamp_events", "tenant_id"},
+	{"outbound_events", "tenant_id"},
 }
 
 // snapshot fingerprints every row of tenantID in every tenant table.
@@ -528,14 +667,15 @@ func (f *matrixFixtures) sendTo(op opCase, path, token string, body func(*matrix
 }
 
 // mismatch sends the idempotency mismatch request: the alternative body, or
-// for a body-less write the same key on another target.
+// the same key and body on another target (body-less writes, and writes
+// whose body names only the caller, such as a coupon redeem).
 func (f *matrixFixtures) mismatch(t *testing.T, op opCase, token, key string) tresp {
 	t.Helper()
 	switch {
 	case op.alt != nil:
 		return f.send(op, token, op.alt, key)
 	case op.altPath != nil:
-		return f.sendTo(op, op.altPath(f), token, nil, key)
+		return f.sendTo(op, op.altPath(f), token, op.body, key)
 	}
 	t.Fatalf("%s: an idempotent write needs alt or altPath", op.id)
 	return tresp{}

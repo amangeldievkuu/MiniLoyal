@@ -84,6 +84,7 @@ func (s *Service) Receive(ctx context.Context, appID uuid.UUID, signature string
 	}
 
 	res := Result{Events: len(req.Events)}
+	var created []events.Event
 	err = db.WithTenant(ctx, s.pool, app.TenantID, func(ctx context.Context, tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		for _, ev := range req.Events {
@@ -108,11 +109,11 @@ func (s *Service) Receive(ctx context.Context, appID uuid.UUID, signature string
 				res.Duplicates++
 				continue
 			}
-			if err := s.apply(ctx, q, app, ev, &res); err != nil {
+			if err := s.apply(ctx, q, app, ev, &res, &created); err != nil {
 				return err
 			}
 		}
-		return nil
+		return events.EmitAll(ctx, q, created)
 	})
 	if err != nil {
 		return Result{}, err
@@ -124,7 +125,8 @@ func (s *Service) Receive(ctx context.Context, appID uuid.UUID, signature string
 
 // apply updates state for one new event. Unknown types are recorded and
 // otherwise ignored until a later phase handles them.
-func (s *Service) apply(ctx context.Context, q *sqlc.Queries, app sqlc.App, ev line.Event, res *Result) error {
+// New members are appended to created as member.created events.
+func (s *Service) apply(ctx context.Context, q *sqlc.Queries, app sqlc.App, ev line.Event, res *Result, created *[]events.Event) error {
 	userID := ""
 	if ev.Source != nil && ev.Source.Type == "user" {
 		userID = ev.Source.UserID
@@ -142,17 +144,16 @@ func (s *Service) apply(ctx context.Context, q *sqlc.Queries, app sqlc.App, ev l
 			return fmt.Errorf("webhook: follow: %w", err)
 		}
 		// A follow can be the first time the brand hears of the member.
+		// The events are written together once the delivery is applied.
 		if row.Created {
 			at := time.Now()
 			if ev.Timestamp > 0 {
 				at = time.UnixMilli(ev.Timestamp)
 			}
-			if err := events.Emit(ctx, q, events.Event{
+			*created = append(*created, events.Event{
 				TenantID: app.TenantID, AppID: app.ID, Type: events.MemberCreated, MemberID: row.ID, OccurredAt: at,
 				Payload: map[string]any{"member_id": row.ID, "source": "follow"},
-			}); err != nil {
-				return err
-			}
+			})
 		}
 		res.Processed++
 	case line.EventUnfollow:
