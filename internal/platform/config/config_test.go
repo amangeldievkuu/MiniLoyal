@@ -159,12 +159,21 @@ func TestFromEnvCouponRateLimits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.CouponClaimsPerMinute != 10 || cfg.CouponAPIIssuesPerMinute != 300 {
-		t.Errorf("defaults: claims %d, api issues %d", cfg.CouponClaimsPerMinute, cfg.CouponAPIIssuesPerMinute)
+	if cfg.CouponClaimsPerMinute != 10 || cfg.APIKeyWritesPerMinute != 300 {
+		t.Errorf("defaults: claims %d, api key writes %d", cfg.CouponClaimsPerMinute, cfg.APIKeyWritesPerMinute)
 	}
-	cfg, err = FromEnv(lookup(map[string]string{"DATABASE_URL": "x", "COUPON_CLAIMS_PER_MINUTE": "3", "COUPON_API_ISSUES_PER_MINUTE": "50"}))
-	if err != nil || cfg.CouponClaimsPerMinute != 3 || cfg.CouponAPIIssuesPerMinute != 50 {
+	cfg, err = FromEnv(lookup(map[string]string{"DATABASE_URL": "x", "COUPON_CLAIMS_PER_MINUTE": "3", "API_KEY_WRITES_PER_MINUTE": "50"}))
+	if err != nil || cfg.CouponClaimsPerMinute != 3 || cfg.APIKeyWritesPerMinute != 50 {
 		t.Errorf("overrides: %+v, %v", cfg, err)
+	}
+	// The Phase 4 name still works, and the new one wins over it.
+	cfg, err = FromEnv(lookup(map[string]string{"DATABASE_URL": "x", "COUPON_API_ISSUES_PER_MINUTE": "40"}))
+	if err != nil || cfg.APIKeyWritesPerMinute != 40 {
+		t.Errorf("old name: %+v, %v", cfg, err)
+	}
+	cfg, err = FromEnv(lookup(map[string]string{"DATABASE_URL": "x", "COUPON_API_ISSUES_PER_MINUTE": "40", "API_KEY_WRITES_PER_MINUTE": "60"}))
+	if err != nil || cfg.APIKeyWritesPerMinute != 60 {
+		t.Errorf("both names: %+v, %v", cfg, err)
 	}
 }
 
@@ -175,6 +184,7 @@ func TestFromEnvRejectsBadValues(t *testing.T) {
 		"concurrency": {"DATABASE_URL": "x", "WORKER_CONCURRENCY": "0"},
 		"claims":      {"DATABASE_URL": "x", "COUPON_CLAIMS_PER_MINUTE": "0"},
 		"api issues":  {"DATABASE_URL": "x", "COUPON_API_ISSUES_PER_MINUTE": "many"},
+		"api writes":  {"DATABASE_URL": "x", "API_KEY_WRITES_PER_MINUTE": "-1"},
 		"key-b64":     {"DATABASE_URL": "x", "SESSION_SIGNING_KEY": "not base64!"},
 		"key-short":   {"DATABASE_URL": "x", "SESSION_SIGNING_KEY": "c2hvcnQ="},
 	}

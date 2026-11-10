@@ -1245,6 +1245,12 @@ export interface paths {
          * @description earn takes either spend_amount (the app's rule applies) or points;
          *     redeem and adjust take points (adjust may be negative). ref_type and
          *     ref_id identify the receipt or order and appear in the history.
+         *     Each write is audited as points.earn, points.redeem or points.adjust
+         *     with the API key as the actor; the audit row holds the transaction
+         *     ID, kind, points and ref_type, never the note or ref_id. Each key may
+         *     make the configured number of writes per minute (default 300),
+         *     points posts and coupon issues counted together; above that the
+         *     answer is 429 rate_limited with Retry-After.
          */
         post: operations["serverPostPoints"];
         delete?: never;
@@ -1685,8 +1691,9 @@ export interface paths {
          *     per_member_limit ignored, total_limit applies (409 coupon_sold_out),
          *     template active and inside its validity window (409
          *     coupon_not_claimable). Audited with the API key as the actor. Each
-         *     key may issue the configured number of coupons per minute (default
-         *     300); above that the answer is 429 rate_limited with Retry-After.
+         *     key may make the configured number of writes per minute (default
+         *     300), coupon issues and points posts counted together; above that
+         *     the answer is 429 rate_limited with Retry-After.
          */
         post: operations["serverIssueCoupon"];
         delete?: never;
@@ -4980,6 +4987,7 @@ export interface operations {
                 };
             };
             422: components["responses"]["IdempotencyMismatch"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listMyCoupons: {

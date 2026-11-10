@@ -139,10 +139,15 @@ func run() int {
 	}
 	// One limiter counts every staff write (points, coupons, stamps) together.
 	staffLimit := access.NewStaffLimiter(clock.Real{}, 0)
-	pointsSvc := points.New(points.Deps{Pool: pool, Tenants: tenants, Keyring: keyring, Card: cards, Clock: clock.Real{}, Log: logger, StaffLimiter: staffLimit})
+	// And one counts every API key write (points posts, coupon issues).
+	apiKeyLimit := access.NewAPIKeyLimiter(clock.Real{}, cfg.APIKeyWritesPerMinute)
+	pointsSvc := points.New(points.Deps{
+		Pool: pool, Tenants: tenants, Keyring: keyring, Card: cards, Clock: clock.Real{}, Log: logger,
+		StaffLimiter: staffLimit, APIKeyLimiter: apiKeyLimit,
+	})
 	couponSvc := coupon.New(coupon.Deps{
-		Pool: pool, Tenants: tenants, Keyring: keyring, Card: cards, Clock: clock.Real{}, Log: logger, StaffLimiter: staffLimit,
-		ClaimsPerMinute: cfg.CouponClaimsPerMinute, APIIssuesPerMinute: cfg.CouponAPIIssuesPerMinute,
+		Pool: pool, Tenants: tenants, Keyring: keyring, Card: cards, Clock: clock.Real{}, Log: logger,
+		StaffLimiter: staffLimit, APIKeyLimiter: apiKeyLimit, ClaimsPerMinute: cfg.CouponClaimsPerMinute,
 	})
 	stampSvc := stamp.New(stamp.Deps{Pool: pool, Tenants: tenants, Keyring: keyring, Card: cards, Clock: clock.Real{}, Log: logger, StaffLimiter: staffLimit})
 	staffAuth, err := staffauth.New(staffauth.Deps{

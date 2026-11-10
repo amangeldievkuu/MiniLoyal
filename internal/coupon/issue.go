@@ -240,7 +240,7 @@ func (s *Service) Issue(ctx context.Context, p principal.Principal, memberID, te
 		return Instance{}, access.ErrMemberNotFound
 	}
 	if p.IsAPIKey() {
-		if err := allow(s.issueLimit, "api_key:"+p.APIKeyID.String()); err != nil {
+		if err := access.AllowAPIKey(s.issueLimit, p); err != nil {
 			return Instance{}, err
 		}
 	}

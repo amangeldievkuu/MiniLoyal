@@ -171,10 +171,15 @@ type ServerInput struct {
 }
 
 // ServerPost earns, redeems or adjusts points for an API key with the
-// points:write scope, inside the key's own app.
+// points:write scope, inside the key's own app. Writes are rate limited per
+// key, together with coupon issues, and each one is audited as
+// points.<kind> with the key as actor.
 func (s *Service) ServerPost(ctx context.Context, p principal.Principal, memberID uuid.UUID, idem Idem, in ServerInput) (Txn, error) {
 	if !p.IsAPIKey() {
 		return Txn{}, errNotFound
+	}
+	if err := access.AllowAPIKey(s.apiKeyLimit, p); err != nil {
+		return Txn{}, err
 	}
 	fields := validateRef(in.RefType, in.RefID)
 	for k, v := range validateNote(in.Note, false) {
@@ -241,7 +246,23 @@ func (s *Service) ServerPost(ctx context.Context, p principal.Principal, memberI
 				op.delta = int64(*in.Points)
 			}
 			op.actorType, op.actorID = actorOf(p)
-			return s.apply(ctx, q, m, rules, op)
+			t, err := s.apply(ctx, q, m, rules, op)
+			if err != nil {
+				return nil, err
+			}
+			// IDs and amounts only: the note and ref_id are free text.
+			meta := map[string]any{"txn_id": t.ID.String(), "kind": in.Type, "points": t.Points}
+			if in.RefType != nil {
+				meta["ref_type"] = *in.RefType
+			}
+			appID := m.AppID
+			if err := audit.Record(ctx, tx, audit.Entry{
+				TenantID: m.TenantID, AppID: &appID, Actor: p, Action: "points." + in.Type,
+				TargetType: "member", TargetID: m.ID.String(), Metadata: meta,
+			}); err != nil {
+				return nil, err
+			}
+			return t, nil
 		}, &out)
 	return out, err
 }

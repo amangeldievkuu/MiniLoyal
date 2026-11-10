@@ -76,10 +76,11 @@ type Config struct {
 	ShutdownTimeout   time.Duration
 
 	// CouponClaimsPerMinute limits each member's coupon claims and
-	// CouponAPIIssuesPerMinute each API key's coupon issues; over the limit
-	// the API answers 429 with Retry-After.
-	CouponClaimsPerMinute    int
-	CouponAPIIssuesPerMinute int
+	// APIKeyWritesPerMinute each API key's writes (points posts and coupon
+	// issues together); over the limit the API answers 429 with
+	// Retry-After.
+	CouponClaimsPerMinute int
+	APIKeyWritesPerMinute int
 
 	// TrustProxy makes the API read X-Forwarded-For and X-Forwarded-Proto
 	// from the reverse proxy in front of it (nginx in docker compose).
@@ -163,7 +164,9 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 	}
 	cfg.WorkerConcurrency = positive("WORKER_CONCURRENCY", "4")
 	cfg.CouponClaimsPerMinute = positive("COUPON_CLAIMS_PER_MINUTE", "10")
-	cfg.CouponAPIIssuesPerMinute = positive("COUPON_API_ISSUES_PER_MINUTE", "300")
+	// COUPON_API_ISSUES_PER_MINUTE is the Phase 4 name, still read when the
+	// new one is not set.
+	cfg.APIKeyWritesPerMinute = positive("API_KEY_WRITES_PER_MINUTE", get("COUPON_API_ISSUES_PER_MINUTE", "300"))
 
 	if raw := get("SESSION_SIGNING_KEY", ""); raw != "" {
 		key, err := base64.StdEncoding.DecodeString(raw)

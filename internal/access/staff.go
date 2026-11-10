@@ -50,6 +50,37 @@ func AllowStaff(l *auth.Limiter, p principal.Principal) error {
 	return nil
 }
 
+// DefaultAPIKeyWritesPerMinute limits API key writes (points posts and
+// coupon issues together) per key. A brand backend needs more than a till,
+// but a leaked key must not drain a template or mint points in seconds.
+const DefaultAPIKeyWritesPerMinute = 300
+
+// NewAPIKeyLimiter returns the per-API-key write limiter. Zero means the
+// default; a negative value turns the limit off and returns nil (tests).
+// One limiter is shared by every service that takes API key writes.
+func NewAPIKeyLimiter(clk clock.Clock, perMinute int) *auth.Limiter {
+	switch {
+	case perMinute == 0:
+		return auth.NewLimiter(clk, DefaultAPIKeyWritesPerMinute, DefaultAPIKeyWritesPerMinute)
+	case perMinute > 0:
+		return auth.NewLimiter(clk, perMinute, perMinute)
+	default:
+		return nil
+	}
+}
+
+// AllowAPIKey spends one write of the API key's allowance; nil l allows
+// everything.
+func AllowAPIKey(l *auth.Limiter, p principal.Principal) error {
+	if l == nil {
+		return nil
+	}
+	if wait, ok := l.Allow("api_key:" + p.APIKeyID.String()); !ok {
+		return apierr.RateLimited(wait)
+	}
+	return nil
+}
+
 // VerifyScan checks the scan token's MAC and that it was issued to this
 // staff member of this app. Its lifetime is checked only when a write is
 // made for the first time (see ScanFresh), so an idempotent retry of a
