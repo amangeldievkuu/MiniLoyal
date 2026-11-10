@@ -20,13 +20,22 @@ import (
 	"github.com/amangeldievkuu/miniloyal/db/migrations"
 )
 
-// Role names. GroupRole owns no tables and carries the grants; LoginRole is
-// what the API and worker connect as, as a member of GroupRole, so row-level
-// security applies to them.
+// Role names. GroupRole owns no tables and carries the grants on tenant
+// tables. LoginRole is what the API connects as and WorkerRole is what the
+// worker connects as; both are members of GroupRole and neither bypasses
+// row-level security. WorkerRole also owns River's job tables, of which
+// LoginRole may only insert (migration 00009).
 const (
-	GroupRole = "miniloyal_app"
-	LoginRole = "miniloyal_api"
+	GroupRole  = "miniloyal_app"
+	LoginRole  = "miniloyal_api"
+	WorkerRole = "miniloyal_worker"
 )
+
+// Passwords are the login roles' passwords that Roles sets.
+type Passwords struct {
+	API    string // LoginRole, from APP_DB_PASSWORD
+	Worker string // WorkerRole, from WORKER_DB_PASSWORD
+}
 
 // rolesLockKey serializes concurrent Roles calls within one database.
 // Roles are cluster-wide, so callers connected to different databases can
@@ -37,15 +46,18 @@ const (
 	rolesAttempts = 8
 )
 
-// Roles creates GroupRole and LoginRole when missing and sets LoginRole's
-// password. It is idempotent and safe to run before every "up".
-func Roles(ctx context.Context, db *sql.DB, loginPassword string) error {
-	if loginPassword == "" {
-		return errors.New("migrate: APP_DB_PASSWORD is required to create the login role")
+// Roles creates GroupRole, LoginRole and WorkerRole when missing and sets the
+// login roles' passwords. It is idempotent and safe to run before every "up".
+func Roles(ctx context.Context, db *sql.DB, pw Passwords) error {
+	if pw.API == "" {
+		return errors.New("migrate: APP_DB_PASSWORD is required to create the API login role")
+	}
+	if pw.Worker == "" {
+		return errors.New("migrate: WORKER_DB_PASSWORD is required to create the worker login role")
 	}
 	var err error
 	for attempt := 1; attempt <= rolesAttempts; attempt++ {
-		if err = rolesOnce(ctx, db, loginPassword); err == nil || !concurrentRoleChange(err) {
+		if err = rolesOnce(ctx, db, pw); err == nil || !concurrentRoleChange(err) {
 			return err
 		}
 		delay := time.Duration(20+rand.IntN(60)) * time.Millisecond * time.Duration(attempt)
@@ -60,7 +72,7 @@ func Roles(ctx context.Context, db *sql.DB, loginPassword string) error {
 
 // rolesOnce runs the role changes in one transaction under an advisory lock.
 // Role DDL is transactional in Postgres.
-func rolesOnce(ctx context.Context, db *sql.DB, loginPassword string) (err error) {
+func rolesOnce(ctx context.Context, db *sql.DB, pw Passwords) (err error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("migrate: begin: %w", err)
@@ -83,25 +95,46 @@ $$`); err != nil {
 		return fmt.Errorf("migrate: create %s: %w", GroupRole, err)
 	}
 
-	var exists bool
-	if err = tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)`, LoginRole).Scan(&exists); err != nil {
-		return fmt.Errorf("migrate: check %s: %w", LoginRole, err)
+	if err = loginRole(ctx, tx, LoginRole, pw.API); err != nil {
+		return err
 	}
-	pw := quoteLiteral(loginPassword)
-	var stmt string
-	if exists {
-		stmt = "ALTER ROLE " + LoginRole + " WITH LOGIN NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD " + pw
-	} else {
-		stmt = "CREATE ROLE " + LoginRole + " WITH LOGIN NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD " + pw
+	if err = loginRole(ctx, tx, WorkerRole, pw.Worker); err != nil {
+		return err
 	}
-	if _, err = tx.ExecContext(ctx, stmt); err != nil {
-		return fmt.Errorf("migrate: %s role: %w", LoginRole, err)
+	// A schema owner that is not a superuser must be a member of WorkerRole to
+	// hand River's objects to it and to keep migrating them afterwards.
+	var super bool
+	if err = tx.QueryRowContext(ctx, "SELECT rolsuper FROM pg_roles WHERE rolname = current_user").Scan(&super); err != nil {
+		return fmt.Errorf("migrate: check owner: %w", err)
 	}
-	if _, err = tx.ExecContext(ctx, "GRANT "+GroupRole+" TO "+LoginRole); err != nil {
-		return fmt.Errorf("migrate: grant %s: %w", GroupRole, err)
+	if !super {
+		if _, err = tx.ExecContext(ctx, "GRANT "+WorkerRole+" TO CURRENT_USER"); err != nil {
+			return fmt.Errorf("migrate: grant %s to the owner: %w", WorkerRole, err)
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return fmt.Errorf("migrate: commit roles: %w", err)
+	}
+	return nil
+}
+
+// loginRole creates or updates a locked-down login role with password and
+// makes it a member of GroupRole.
+func loginRole(ctx context.Context, tx *sql.Tx, role, password string) error {
+	var exists bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)`, role).Scan(&exists); err != nil {
+		return fmt.Errorf("migrate: check %s: %w", role, err)
+	}
+	verb := "CREATE"
+	if exists {
+		verb = "ALTER"
+	}
+	stmt := verb + " ROLE " + role + " WITH LOGIN NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD " + quoteLiteral(password)
+	if _, err := tx.ExecContext(ctx, stmt); err != nil {
+		return fmt.Errorf("migrate: %s role: %w", role, err)
+	}
+	if _, err := tx.ExecContext(ctx, "GRANT "+GroupRole+" TO "+role); err != nil {
+		return fmt.Errorf("migrate: grant %s to %s: %w", GroupRole, role, err)
 	}
 	return nil
 }
@@ -122,9 +155,9 @@ func concurrentRoleChange(err error) bool {
 	return false
 }
 
-// Up applies every pending goose migration, then River's job queue schema
-// (owned by the schema owner, like everything else) and the grants the
-// application role needs to insert and work jobs.
+// Up applies every pending goose migration, then River's job queue schema,
+// and hands River's objects to WorkerRole with insert-only grants for
+// LoginRole.
 func Up(ctx context.Context, db *sql.DB) error {
 	p, err := provider(db)
 	if err != nil {
@@ -156,9 +189,12 @@ func Down(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-// riverUp applies River's migrations and grants the application role access
-// to River's tables, sequences and functions. Both steps are idempotent.
-// River's tables carry no tenant data, so they have no row-level security.
+// riverUp applies River's migrations, then calls miniloyal_secure_river()
+// from migration 00009: WorkerRole owns every River object and LoginRole may
+// only insert jobs. Both steps are idempotent, and the second also covers
+// objects a River upgrade adds and undoes the blanket sequence grants some
+// goose migrations give GroupRole. River's tables carry no tenant data, so
+// they have no row-level security.
 func riverUp(ctx context.Context, db *sql.DB) error {
 	m, err := rivermigrate.New(riverdatabasesql.New(db), nil)
 	if err != nil {
@@ -167,7 +203,7 @@ func riverUp(ctx context.Context, db *sql.DB) error {
 	if _, err := m.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
 		return fmt.Errorf("migrate: river up: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, riverGrants); err != nil {
+	if _, err := db.ExecContext(ctx, "SELECT miniloyal_secure_river()"); err != nil {
 		return fmt.Errorf("migrate: river grants: %w", err)
 	}
 	return nil
@@ -183,28 +219,6 @@ func riverDown(ctx context.Context, db *sql.DB) error {
 	}
 	return nil
 }
-
-// riverGrants gives GroupRole what a River client needs on every River
-// object in the public schema.
-const riverGrants = `DO $$
-DECLARE r record;
-BEGIN
-  FOR r IN SELECT c.relname, c.relkind FROM pg_class c
-           WHERE c.relnamespace = 'public'::regnamespace AND c.relname LIKE 'river\_%' AND c.relkind IN ('r', 'S')
-  LOOP
-    IF r.relkind = 'r' THEN
-      EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I TO ` + GroupRole + `', r.relname);
-    ELSE
-      EXECUTE format('GRANT USAGE, SELECT ON SEQUENCE %I TO ` + GroupRole + `', r.relname);
-    END IF;
-  END LOOP;
-  FOR r IN SELECT p.oid::regprocedure AS sig FROM pg_proc p
-           WHERE p.pronamespace = 'public'::regnamespace AND p.proname LIKE 'river\_%'
-  LOOP
-    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO ` + GroupRole + `', r.sig);
-  END LOOP;
-END
-$$`
 
 // Status returns one line per migration with its applied state.
 func Status(ctx context.Context, db *sql.DB) ([]string, error) {

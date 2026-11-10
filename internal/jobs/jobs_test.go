@@ -10,10 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
+	"github.com/amangeldievkuu/miniloyal/internal/platform/migrate"
 	"github.com/amangeldievkuu/miniloyal/internal/testutil"
 )
 
@@ -180,8 +182,9 @@ func TestPeriodicArgsAreUniquePerPeriod(t *testing.T) {
 	}
 }
 
-// End to end on a real database as the application role: the inserter
-// enqueues, a worker client works the job, and the cleanups really run.
+// End to end on a real database with the production roles: the API role's
+// inserter enqueues, a worker client connected as the worker role works the
+// job, and the cleanups really run.
 func TestMaintenanceRunsThroughRiver(t *testing.T) {
 	d := testutil.NewDB(t)
 	ctx := context.Background()
@@ -194,7 +197,7 @@ func TestMaintenanceRunsThroughRiver(t *testing.T) {
 	d.Exec(t, "INSERT INTO webhook_inbound_events (tenant_id, app_id, line_webhook_event_id, event_type, received_at) VALUES ($1, $2, 'old', 'follow', now() - interval '8 days')", tenant, app)
 
 	log, buf := captureLog()
-	client, err := NewClient(d.App, Deps{Log: log}, 2)
+	client, err := NewClient(d.Worker, Deps{Log: log}, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +220,7 @@ func TestMaintenanceRunsThroughRiver(t *testing.T) {
 	// the per-period uniqueness so the inserter path is exercised.
 	res, err := inserter.Insert(ctx, MaintenanceArgs{}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{}})
 	if err != nil {
-		t.Fatalf("insert as the application role: %v", err)
+		t.Fatalf("insert as the API role: %v", err)
 	}
 
 	deadline := time.After(30 * time.Second)
@@ -240,6 +243,24 @@ func TestMaintenanceRunsThroughRiver(t *testing.T) {
 			return
 		case <-deadline:
 			t.Fatalf("job did not complete\nlog: %s", buf)
+		}
+	}
+}
+
+// The worker refuses the API's role, which cannot run jobs, and the owner
+// role, which would run them without row-level security.
+func TestCheckWorkerRole(t *testing.T) {
+	if WorkerRole != migrate.WorkerRole {
+		t.Fatalf("WorkerRole %q differs from migrate.WorkerRole %q", WorkerRole, migrate.WorkerRole)
+	}
+	d := testutil.NewDB(t)
+	ctx := context.Background()
+	if err := CheckWorkerRole(ctx, d.Worker); err != nil {
+		t.Errorf("worker role rejected: %v", err)
+	}
+	for name, pool := range map[string]*pgxpool.Pool{"api": d.App, "owner": d.Admin} {
+		if err := CheckWorkerRole(ctx, pool); !errors.Is(err, ErrNotWorkerRole) {
+			t.Errorf("%s role: %v, want ErrNotWorkerRole", name, err)
 		}
 	}
 }

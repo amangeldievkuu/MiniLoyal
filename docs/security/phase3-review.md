@@ -38,11 +38,18 @@ Date: 2026-11-10. Scope: `main` at 8296c7d after the Phase 3 merges (card QR cod
 
 ## Accepted for now, with a plan
 
-| Finding                                                                                                    | Plan                                                                                                                                        |
-| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| River's tables are reached through the application role, so a SQL injection in the API could enqueue jobs. | Phase 4: a separate `miniloyal_worker` role owns the River schema; the API role gets only `INSERT` on the job table through River's client. |
-| Channel token cache is keyed by channel ID only (carried from Phase 2).                                    | Phase 5 (push messaging): key by channel ID plus a hash of the secret, and call `Forget` when a secret changes.                             |
-| The staff write limiter is per process.                                                                    | Move it to Postgres or the shared limiter when the API runs more than one instance.                                                         |
+| Finding                                                                 | Plan                                                                                                            |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Channel token cache is keyed by channel ID only (carried from Phase 2). | Phase 5 (push messaging): key by channel ID plus a hash of the secret, and call `Forget` when a secret changes. |
+| The staff write limiter is per process.                                 | Move it to Postgres or the shared limiter when the API runs more than one instance.                             |
+
+## Fixed in Phase 4
+
+- River's tables were reached through the application role, so a SQL injection in the API could enqueue, rewrite or delete jobs. Migration `00009_worker_role.sql` adds the `miniloyal_worker` login role. It owns River's tables, types and functions, and `cmd/worker` connects as it through `WORKER_DATABASE_URL`. `miniloyal_app` has nothing on River any more.
+- `miniloyal_api` keeps what River's insert-only client needs and no more: `SELECT` and `INSERT` on `river_job`, `UPDATE` of the `kind` column only, and the `river_job_id_seq` sequence. `SELECT` is there because River's insert returns the row. The `kind` grant is there because River's unique insert ends in `ON CONFLICT DO UPDATE SET kind = river_job.kind`. A trigger refuses any update by a non-worker role that changes a row, so that grant cannot rewrite a job. The API role has nothing on `river_leader`, `river_queue`, `river_migration` or `river_notification`.
+- Enqueueing stays possible from the API by design, since the API will enqueue jobs. Job arguments carry IDs only (F14), and each job loads its data inside a tenant or system transaction.
+- The worker role is `NOBYPASSRLS` and a member of `miniloyal_app`. Points expiry, reconciliation and maintenance already run their cross-tenant work in system mode (`db.WithSystem`), so they need no bypass. The worker refuses to start as any role that is not `miniloyal_worker`, or as a superuser or `BYPASSRLS` role.
+- `migrate up` reapplies the ownership and grants after every River migration, so tables added by a River upgrade are covered too. Tests: `TestAPIRoleCanOnlyInsertRiverJobs`, `TestWorkerRoleOwnsRiverOnly`, `TestRiverSchemaBelongsToTheWorker`, and the points expiry and maintenance jobs run end to end as the worker role (`TestPointsExpiryJobRunsOnceAsTheWorkerRole`, `TestMaintenanceRunsThroughRiver`).
 
 ## Confirmed clean
 

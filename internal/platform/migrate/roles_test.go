@@ -25,8 +25,9 @@ func TestRolesIsIdempotent(t *testing.T) {
 	}
 	defer owner.Close()
 
+	passwords := migrate.Passwords{API: testutil.AppPassword, Worker: testutil.WorkerPassword}
 	for i := 1; i <= 2; i++ {
-		if err := migrate.Roles(ctx, owner, testutil.AppPassword); err != nil {
+		if err := migrate.Roles(ctx, owner, passwords); err != nil {
 			t.Fatalf("Roles call %d: %v", i, err)
 		}
 	}
@@ -46,18 +47,32 @@ func TestRolesIsIdempotent(t *testing.T) {
 	if got := read(migrate.GroupRole); got != (attrs{inherit: true}) {
 		t.Errorf("%s attrs = %+v, want NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE", migrate.GroupRole, got)
 	}
-	if got := read(migrate.LoginRole); got != (attrs{login: true, inherit: true}) {
-		t.Errorf("%s attrs = %+v, want LOGIN only", migrate.LoginRole, got)
+	for _, role := range []string{migrate.LoginRole, migrate.WorkerRole} {
+		if got := read(role); got != (attrs{login: true, inherit: true}) {
+			t.Errorf("%s attrs = %+v, want LOGIN only", role, got)
+		}
+		var memberships int
+		if err := owner.QueryRowContext(ctx, `SELECT count(*) FROM pg_auth_members m
+			JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
+			WHERE g.rolname = $1 AND u.rolname = $2`, migrate.GroupRole, role).Scan(&memberships); err != nil {
+			t.Fatal(err)
+		}
+		if memberships != 1 {
+			t.Errorf("%s is a member of %s %d times, want exactly once", role, migrate.GroupRole, memberships)
+		}
 	}
-
-	var memberships int
-	if err := owner.QueryRowContext(ctx, `SELECT count(*) FROM pg_auth_members m
-		JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
-		WHERE g.rolname = $1 AND u.rolname = $2`, migrate.GroupRole, migrate.LoginRole).Scan(&memberships); err != nil {
+	// The API role must not inherit the worker's ownership of River's tables.
+	var apiIsWorker bool
+	if err := owner.QueryRowContext(ctx, "SELECT pg_has_role($1, $2, 'MEMBER')", migrate.LoginRole, migrate.WorkerRole).Scan(&apiIsWorker); err != nil {
 		t.Fatal(err)
 	}
-	if memberships != 1 {
-		t.Errorf("%s is a member of %s %d times, want exactly once", migrate.LoginRole, migrate.GroupRole, memberships)
+	if apiIsWorker {
+		t.Errorf("%s is a member of %s", migrate.LoginRole, migrate.WorkerRole)
+	}
+	if workerPool, err := db.Connect(ctx, d.WorkerURL); err != nil {
+		t.Errorf("worker role cannot connect after Roles ran twice: %v", err)
+	} else {
+		workerPool.Close()
 	}
 
 	// The password still works and the grants still apply after the rerun.
@@ -85,7 +100,10 @@ func TestRolesIsIdempotent(t *testing.T) {
 	if err := migrate.Up(ctx, owner); err != nil {
 		t.Fatalf("second Up: %v", err)
 	}
-	if err := migrate.Roles(ctx, owner, ""); err == nil {
-		t.Error("Roles without a password must fail")
+	if err := migrate.Roles(ctx, owner, migrate.Passwords{Worker: testutil.WorkerPassword}); err == nil {
+		t.Error("Roles without the API password must fail")
+	}
+	if err := migrate.Roles(ctx, owner, migrate.Passwords{API: testutil.AppPassword}); err == nil {
+		t.Error("Roles without the worker password must fail")
 	}
 }
