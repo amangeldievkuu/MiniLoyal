@@ -213,6 +213,9 @@ func (s *Service) Claim(ctx context.Context, p principal.Principal, templateID u
 	if !p.IsMember() {
 		return Instance{}, access.ErrMemberNotFound
 	}
+	if err := allow(s.claimLimit, "member:"+p.MemberID.String()); err != nil {
+		return Instance{}, err
+	}
 	acc, err := access.Reach(ctx, s.pool, s.tenants, p, p.MemberID, principal.RoleStaff)
 	if err != nil {
 		return Instance{}, err
@@ -228,12 +231,18 @@ func (s *Service) Claim(ctx context.Context, p principal.Principal, templateID u
 	return out, err
 }
 
-// Issue gives a member a coupon on behalf of a dashboard owner or admin
-// (audited) or an API key of the member's app. claimable and
-// per_member_limit do not apply; total_limit and the window do.
+// Issue gives a member a coupon on behalf of a dashboard owner or admin or
+// an API key of the member's app; both are audited, and API keys are rate
+// limited per key. claimable and per_member_limit do not apply;
+// total_limit and the window do.
 func (s *Service) Issue(ctx context.Context, p principal.Principal, memberID, templateID uuid.UUID, idem Idem) (Instance, error) {
 	if !p.IsUser() && !p.IsAPIKey() {
 		return Instance{}, access.ErrMemberNotFound
+	}
+	if p.IsAPIKey() {
+		if err := allow(s.issueLimit, "api_key:"+p.APIKeyID.String()); err != nil {
+			return Instance{}, err
+		}
 	}
 	acc, err := access.Reach(ctx, s.pool, s.tenants, p, memberID, principal.RoleAdmin)
 	if err != nil {
@@ -249,15 +258,13 @@ func (s *Service) Issue(ctx context.Context, p principal.Principal, memberID, te
 			if err != nil {
 				return nil, err
 			}
-			if p.IsUser() {
-				appID := m.AppID
-				if err := audit.Record(ctx, tx, audit.Entry{
-					TenantID: m.TenantID, AppID: &appID, Actor: p, Action: ActionIssue,
-					TargetType: "member", TargetID: m.ID.String(),
-					Metadata: map[string]any{"coupon_id": inst.ID.String(), "template_id": templateID.String()},
-				}); err != nil {
-					return nil, err
-				}
+			appID := m.AppID
+			if err := audit.Record(ctx, tx, audit.Entry{
+				TenantID: m.TenantID, AppID: &appID, Actor: p, Action: ActionIssue,
+				TargetType: "member", TargetID: m.ID.String(),
+				Metadata: map[string]any{"coupon_id": inst.ID.String(), "template_id": templateID.String()},
+			}); err != nil {
+				return nil, err
 			}
 			return inst, nil
 		}, &out)

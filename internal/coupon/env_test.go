@@ -55,7 +55,7 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	e := &env{d: d, clk: clk, codec: codec}
-	e.svc = New(Deps{Pool: d.App, Tenants: tenant.New(d.App, keyring, clk, log), Keyring: keyring, Card: codec, Clock: clk, Log: log, StaffWritesPerMinute: -1})
+	e.svc = New(Deps{Pool: d.App, Tenants: tenant.New(d.App, keyring, clk, log), Keyring: keyring, Card: codec, Clock: clk, Log: log, StaffWritesPerMinute: -1, ClaimsPerMinute: -1, APIIssuesPerMinute: -1})
 	e.tenant = d.NewTenant(t, "Alpha")
 	e.app = e.newApp(t, e.tenant)
 	e.owner = e.user(t, e.tenant, "owner")

@@ -304,7 +304,7 @@ var serverOps = []opCase{
 	{id: "serverIssueCoupon", method: http.MethodPost, path: serverCouponsPath,
 		body: func(f *matrixFixtures) any { return map[string]any{"template_id": f.template} },
 		alt:  func(f *matrixFixtures) any { return map[string]any{"template_id": f.altTemplate} },
-		idem: true, created: 201, creates: "coupon_instances", more: []string{"outbound_events"}, scope: "coupons:write"},
+		idem: true, created: 201, creates: "coupon_instances", more: []string{"outbound_events", "audit_log"}, scope: "coupons:write"},
 }
 
 func serverCouponsPath(f *matrixFixtures) string {

@@ -300,7 +300,7 @@ func (s *Server) ServerIssueCoupon(ctx context.Context, req api.ServerIssueCoupo
 	if err != nil {
 		return nil, err
 	}
-	inst, err := svc.Issue(ctx, p, uuid.UUID(req.MemberId), uuid.UUID(body.TemplateId), writeIdem(ctx, req.Params.IdempotencyKey, body))
+	inst, err := svc.Issue(s.auditContext(ctx), p, uuid.UUID(req.MemberId), uuid.UUID(body.TemplateId), writeIdem(ctx, req.Params.IdempotencyKey, body))
 	if err != nil {
 		return nil, err
 	}

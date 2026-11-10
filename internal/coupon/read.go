@@ -10,10 +10,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/amangeldievkuu/miniloyal/internal/access"
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
+	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/principal"
 )
 
@@ -204,4 +206,18 @@ func decodeCursor(c string) (pgtype.Timestamptz, uuid.NullUUID, error) {
 		return pgtype.Timestamptz{}, uuid.NullUUID{}, bad
 	}
 	return ts(t), uuid.NullUUID{UUID: u, Valid: true}, nil
+}
+
+// DeleteOldScanRedeems removes coupon redeem counts of scans older than a
+// day; scan tokens live five minutes. The maintenance job runs it.
+func DeleteOldScanRedeems(ctx context.Context, pool *pgxpool.Pool, now time.Time) (int64, error) {
+	var n int64
+	err := db.WithSystem(ctx, pool, func(ctx context.Context, tx pgx.Tx) (err error) {
+		n, err = sqlc.New(tx).DeleteOldScanCouponRedeems(ctx, ts(now.Add(-24*time.Hour)))
+		return err
+	})
+	if err != nil {
+		return 0, fmt.Errorf("coupon: delete old scan redeems: %w", err)
+	}
+	return n, nil
 }

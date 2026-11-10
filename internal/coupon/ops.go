@@ -26,10 +26,12 @@ import (
 // member, and the coupon must be that member's. One conditional UPDATE
 // does the redeem, so of any number of concurrent attempts exactly one
 // gets the row; every other case (unknown, another member's or app's,
-// redeemed, voided, expired) is the same 409 coupon_unavailable. The scan
-// is not used up: one scan can redeem several coupons within its lifetime.
-// A retry with the same Idempotency-Key replays the stored outcome even
-// after the scan expired; authorization still runs first.
+// redeemed, voided, expired) is the same 409 coupon_unavailable. One scan
+// can redeem up to MaxRedeemsPerScan coupons within its lifetime; the
+// count lives in scan_coupon_redeems and goes up in the redeem
+// transaction, so a refused redeem does not use one up, and the next is
+// 409 scan_used. A retry with the same Idempotency-Key replays the stored
+// outcome even after the scan expired; authorization still runs first.
 func (s *Service) Redeem(ctx context.Context, p principal.Principal, instanceID uuid.UUID, idem Idem, scanToken string) (Instance, error) {
 	cl, err := access.VerifyScan(s.card, p, scanToken)
 	if err != nil {
@@ -56,6 +58,14 @@ func (s *Service) Redeem(ctx context.Context, p principal.Principal, instanceID 
 				return nil, err
 			}
 			q := sqlc.New(tx)
+			if _, err := q.CountScanCouponRedeem(ctx, sqlc.CountScanCouponRedeemParams{
+				Jti: cl.JTI, TenantID: p.TenantID, AppID: p.AppID, UsedAt: ts(now), MaxRedeems: MaxRedeemsPerScan,
+			}); err != nil {
+				if db.IsNotFound(err) {
+					return nil, errScanUsed
+				}
+				return nil, fmt.Errorf("coupon: count scan redeem: %w", err)
+			}
 			row, err := q.RedeemCouponInstance(ctx, sqlc.RedeemCouponInstanceParams{
 				Now: ts(now), StaffID: access.NullUUID(p.StaffID), StoreID: access.NullUUID(p.StoreID),
 				AppID: p.AppID, ID: instanceID, MemberID: m.ID,
@@ -96,7 +106,9 @@ func (s *Service) Redeem(ctx context.Context, p principal.Principal, instanceID 
 }
 
 // Void cancels an issued coupon (expired or not) for a dashboard owner or
-// admin; audited with the reason. A void does not give total_limit back.
+// admin; audited. The reason is stored on the coupon, which a PDPA erasure
+// blanks, and not in the audit row, which outlives the erasure. A void does
+// not give total_limit back.
 func (s *Service) Void(ctx context.Context, p principal.Principal, instanceID uuid.UUID, idem Idem, reason string) (Instance, error) {
 	if !p.IsUser() {
 		return Instance{}, errCouponNotFound
@@ -143,7 +155,7 @@ func (s *Service) Void(ctx context.Context, p principal.Principal, instanceID uu
 			if err := audit.Record(ctx, tx, audit.Entry{
 				TenantID: sc.TenantID, AppID: &sc.AppID, Actor: p, Action: ActionVoid,
 				TargetType: "member", TargetID: row.MemberID.String(),
-				Metadata: map[string]any{"coupon_id": row.ID.String(), "template_id": row.TemplateID.String(), "reason": reason},
+				Metadata: map[string]any{"coupon_id": row.ID.String(), "template_id": row.TemplateID.String()},
 			}); err != nil {
 				return nil, err
 			}

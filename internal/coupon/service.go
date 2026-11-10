@@ -65,6 +65,9 @@ const (
 	MaxLimit     = 100
 	// MaxRedeemable bounds the coupons a scan shows.
 	MaxRedeemable = 50
+	// MaxRedeemsPerScan is how many coupons one scan may redeem; the next
+	// redeem asks for a fresh scan (409 scan_used).
+	MaxRedeemsPerScan = 3
 	// maxTemplates bounds the dashboard template list.
 	maxTemplates = 500
 	exportPage   = 500
@@ -79,6 +82,7 @@ var (
 	errLimitReached     = apierr.New(409, "coupon_limit_reached", "you already hold as many of this coupon as allowed")
 	errInUse            = apierr.New(409, "coupon_template_in_use", "type and value are fixed once a coupon was issued from the template")
 	errSelfService      = apierr.New(403, "self_service", "staff cannot redeem coupons on their own member card")
+	errScanUsed         = apierr.New(409, "scan_used", "this scan already redeemed the most coupons one scan allows; scan the member card again")
 	errTemplateNotFound = apierr.NotFound("coupon template")
 	errCouponNotFound   = apierr.NotFound("coupon")
 )
@@ -100,6 +104,43 @@ type Deps struct {
 	// StaffWritesPerMinute: zero means the default (30), negative turns
 	// the limit off (tests). Ignored when StaffLimiter is set.
 	StaffWritesPerMinute int
+	// ClaimsPerMinute limits each member's claims; APIIssuesPerMinute
+	// limits each API key's issues. Zero means the default, negative turns
+	// the limit off (tests).
+	ClaimsPerMinute    int
+	APIIssuesPerMinute int
+}
+
+// Default rate limits. A member claims a handful of offers at a time; a
+// brand backend issuing campaign coupons needs more, but a leaked key must
+// not empty a template in seconds.
+const (
+	DefaultClaimsPerMinute    = 10
+	DefaultAPIIssuesPerMinute = 300
+)
+
+// newLimiter returns a per-key limiter of perMinute (def when zero, none
+// when negative), with a burst of the same size.
+func newLimiter(clk clock.Clock, perMinute, def int) *auth.Limiter {
+	switch {
+	case perMinute == 0:
+		return auth.NewLimiter(clk, def, def)
+	case perMinute > 0:
+		return auth.NewLimiter(clk, perMinute, perMinute)
+	default:
+		return nil
+	}
+}
+
+// allow spends one event of key's allowance; nil l allows everything.
+func allow(l *auth.Limiter, key string) error {
+	if l == nil {
+		return nil
+	}
+	if wait, ok := l.Allow(key); !ok {
+		return apierr.RateLimited(wait)
+	}
+	return nil
 }
 
 // Service is the coupon domain.
@@ -111,6 +152,8 @@ type Service struct {
 	clock      clock.Clock
 	log        *slog.Logger
 	staffLimit *auth.Limiter
+	claimLimit *auth.Limiter
+	issueLimit *auth.Limiter
 }
 
 // New returns a Service.
@@ -133,6 +176,8 @@ func New(d Deps) *Service {
 		clock:      d.Clock,
 		log:        d.Log,
 		staffLimit: limit,
+		claimLimit: newLimiter(d.Clock, d.ClaimsPerMinute, DefaultClaimsPerMinute),
+		issueLimit: newLimiter(d.Clock, d.APIIssuesPerMinute, DefaultAPIIssuesPerMinute),
 	}
 }
 

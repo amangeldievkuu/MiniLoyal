@@ -201,3 +201,53 @@ UPDATE coupon_instances SET
   updated_at     = sqlc.arg('now')
 WHERE app_id = sqlc.arg('app_id') AND id = sqlc.arg('id') AND status = 'issued'
 RETURNING *;
+
+-- name: CountScanCouponRedeem :one
+-- Counts one coupon redeem against the scan token in the redeem
+-- transaction. The upsert locks the scan's row, so concurrent redeems on
+-- one scan serialize; no row back means the scan already paid for
+-- max_redeems coupons.
+INSERT INTO scan_coupon_redeems (jti, tenant_id, app_id, redeems, used_at)
+VALUES (sqlc.arg('jti'), sqlc.arg('tenant_id'), sqlc.arg('app_id'), 1, sqlc.arg('used_at'))
+ON CONFLICT (jti) DO UPDATE SET
+  redeems = scan_coupon_redeems.redeems + 1,
+  used_at = EXCLUDED.used_at
+WHERE scan_coupon_redeems.app_id = EXCLUDED.app_id
+  AND scan_coupon_redeems.redeems < sqlc.arg('max_redeems')::integer
+RETURNING redeems;
+
+-- name: DeleteOldScanCouponRedeems :execrows
+-- Scan tokens live five minutes; a day of history is plenty. System mode.
+DELETE FROM scan_coupon_redeems WHERE used_at < sqlc.arg('before');
+
+-- name: EraseVoidReasons :execrows
+-- PDPA erasure: clears the reasons staff typed when voiding the member's
+-- coupons. The void itself (who, when) stays.
+UPDATE coupon_instances SET void_reason = NULL
+WHERE app_id = $1 AND member_id = $2 AND void_reason IS NOT NULL;
+
+-- name: CountCouponTemplates :one
+-- Reconciliation: how many templates were checked. System mode.
+SELECT count(*) FROM coupon_templates;
+
+-- name: ReconcileCouponTemplates :many
+-- Reconciliation, system mode: templates whose claimed_count differs from
+-- the coupons issued from them (voids never lower claimed_count).
+SELECT t.app_id, t.id, t.claimed_count::bigint AS claimed_count, count(i.id)::bigint AS instances
+FROM coupon_templates t
+LEFT JOIN coupon_instances i ON i.app_id = t.app_id AND i.template_id = t.id
+GROUP BY t.app_id, t.id, t.claimed_count
+HAVING t.claimed_count <> count(i.id)
+ORDER BY t.app_id, t.id;
+
+-- name: StartLoyaltyReconciliationRun :one
+INSERT INTO loyalty_reconciliation_runs (started_at) VALUES ($1) RETURNING id;
+
+-- name: FinishLoyaltyReconciliationRun :exec
+UPDATE loyalty_reconciliation_runs SET
+  finished_at       = sqlc.arg('finished_at'),
+  progress_checked  = sqlc.arg('progress_checked'),
+  templates_checked = sqlc.arg('templates_checked'),
+  mismatches        = sqlc.arg('mismatches'),
+  details           = sqlc.arg('details')
+WHERE id = sqlc.arg('id');
