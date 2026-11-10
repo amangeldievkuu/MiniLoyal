@@ -1439,9 +1439,11 @@ export interface paths {
         /**
          * Create a coupon template
          * @description Owners and admins only; audited. value is checked against type:
-         *     amount_off takes 1 or more currency units, percent_off 1 to 100,
-         *     free_item 0 (name the item in name or description). valid_to must be
-         *     after valid_from when both are set.
+         *     amount_off takes 1 to 1,000,000 currency units, percent_off 1 to 100,
+         *     and free_item takes no value (omit it; name the item in name or
+         *     description). valid_to must be after valid_from when both are set,
+         *     and per_member_limit may not exceed total_limit. Any of these fails
+         *     with 400 validation_failed.
          */
         post: operations["createCouponTemplate"];
         delete?: never;
@@ -1476,10 +1478,14 @@ export interface paths {
          *     Once a coupon has been issued from the template (claimed_count above
          *     zero), type and value are fixed (409 coupon_template_in_use), so a
          *     coupon never changes what it is worth after the member got it.
-         *     total_limit cannot go below claimed_count (409
-         *     coupon_template_in_use). Changes to the validity window, validity_days
-         *     and per_member_limit apply to coupons issued from then on; expires_at
-         *     of issued coupons does not move.
+         *     Before that, the template after the change must still satisfy the
+         *     create rules: value agrees with type (clear value when switching to
+         *     free_item), valid_to after valid_from, per_member_limit not above
+         *     total_limit, comparing sent values with stored ones (400
+         *     validation_failed). total_limit cannot go below claimed_count (422
+         *     validation_failed, details.total_limit). Changes to the validity
+         *     window, validity_days and per_member_limit apply to coupons issued
+         *     from then on; expires_at of issued coupons does not move.
          */
         patch: operations["updateCouponTemplate"];
         trace?: never;
@@ -2328,7 +2334,7 @@ export interface components {
          */
         CouponSource: "claim" | "issue" | "stamp_reward";
         /** @enum {string} */
-        CouponTemplateClearable: "description" | "total_limit" | "valid_from" | "valid_to" | "validity_days";
+        CouponTemplateClearable: "description" | "value" | "total_limit" | "valid_from" | "valid_to" | "validity_days";
         CouponTemplate: {
             /**
              * Format: uuid
@@ -2345,9 +2351,9 @@ export interface components {
             /** @description Terms shown to members. */
             description?: string | null;
             type: components["schemas"]["CouponType"];
-            /** @description Currency units for amount_off, percent for percent_off, 0 for free_item. */
-            value: number;
-            /** @description Most coupons ever issued from the template, from every source; null for no limit. */
+            /** @description Currency units for amount_off (1 to 1,000,000), percent for percent_off (1 to 100), null for free_item. */
+            value: number | null;
+            /** @description Most coupons ever issued from the template, from every source; null for no limit. Never below claimed_count or per_member_limit. */
             total_limit?: number | null;
             /** @description Most coupons one member may hold from member claims (voided ones excluded). Dashboard, API and stamp reward issues ignore it. */
             per_member_limit: number;
@@ -2385,12 +2391,12 @@ export interface components {
             /** @description Terms shown to members. */
             description?: string;
             type: components["schemas"]["CouponType"];
-            /** @description amount_off 1 or more currency units, percent_off 1 to 100, free_item 0. */
-            value: number;
-            /** @description Most coupons ever issued; omit for no limit. */
+            /** @description Required for amount_off (1 to 1,000,000 currency units) and percent_off (1 to 100); omit for free_item. */
+            value?: number;
+            /** @description Most coupons ever issued; omit for no limit. At least per_member_limit. */
             total_limit?: number;
             /**
-             * @description Most coupons one member may hold from claims.
+             * @description Most coupons one member may hold from claims; at most total_limit.
              * @default 1
              */
             per_member_limit: number;
@@ -2419,11 +2425,11 @@ export interface components {
             /** @description Terms shown to members. */
             description?: string;
             type?: components["schemas"]["CouponType"];
-            /** @description Fixed once claimed_count is above zero. */
+            /** @description Must agree with type, as on create. Fixed once claimed_count is above zero. */
             value?: number;
-            /** @description Cannot go below claimed_count. */
+            /** @description Cannot go below claimed_count (422) or per_member_limit (400). */
             total_limit?: number;
-            /** @description Applies to claims from now on. */
+            /** @description Applies to claims from now on; at most total_limit. */
             per_member_limit?: number;
             /**
              * Format: date-time
@@ -2440,7 +2446,7 @@ export interface components {
             /** @description Let members claim it from the offers list. */
             claimable?: boolean;
             status?: components["schemas"]["ArchiveStatus"];
-            /** @description Fields to reset to null (no limit, no window, no description). */
+            /** @description Fields to reset to null (no limit, no window, no description; value when switching to free_item). */
             clear?: components["schemas"]["CouponTemplateClearable"][];
         };
         CouponTemplateSummary: {
@@ -2454,8 +2460,8 @@ export interface components {
             /** @description Terms shown to members. */
             description?: string | null;
             type: components["schemas"]["CouponType"];
-            /** @description Currency units for amount_off, percent for percent_off, 0 for free_item. */
-            value: number;
+            /** @description Currency units for amount_off, percent for percent_off, null for free_item. */
+            value: number | null;
         };
         CouponOffer: {
             template: components["schemas"]["CouponTemplateSummary"];
@@ -5233,7 +5239,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            /** @description coupon_template_in_use */
+            /** @description coupon_template_in_use (type or value change after the first issue) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5242,7 +5248,15 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            422: components["responses"]["IdempotencyMismatch"];
+            /** @description idempotency_mismatch, or validation_failed when total_limit would fall below claimed_count */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     listStampCards: {

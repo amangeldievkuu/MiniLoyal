@@ -2323,9 +2323,11 @@ paths:
       summary: Create a coupon template
       description: |
         Owners and admins only; audited. value is checked against type:
-        amount_off takes 1 or more currency units, percent_off 1 to 100,
-        free_item 0 (name the item in name or description). valid_to must be
-        after valid_from when both are set.
+        amount_off takes 1 to 1,000,000 currency units, percent_off 1 to 100,
+        and free_item takes no value (omit it; name the item in name or
+        description). valid_to must be after valid_from when both are set,
+        and per_member_limit may not exceed total_limit. Any of these fails
+        with 400 validation_failed.
       security:
         - dashboardSession: []
       parameters:
@@ -2386,10 +2388,14 @@ paths:
         Once a coupon has been issued from the template (claimed_count above
         zero), type and value are fixed (409 coupon_template_in_use), so a
         coupon never changes what it is worth after the member got it.
-        total_limit cannot go below claimed_count (409
-        coupon_template_in_use). Changes to the validity window, validity_days
-        and per_member_limit apply to coupons issued from then on; expires_at
-        of issued coupons does not move.
+        Before that, the template after the change must still satisfy the
+        create rules: value agrees with type (clear value when switching to
+        free_item), valid_to after valid_from, per_member_limit not above
+        total_limit, comparing sent values with stored ones (400
+        validation_failed). total_limit cannot go below claimed_count (422
+        validation_failed, details.total_limit). Changes to the validity
+        window, validity_days and per_member_limit apply to coupons issued
+        from then on; expires_at of issued coupons does not move.
       security:
         - dashboardSession: []
       parameters:
@@ -2416,13 +2422,17 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: coupon_template_in_use
+          description: coupon_template_in_use (type or value change after the first issue)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '422':
-          $ref: '#/components/responses/IdempotencyMismatch'
+          description: idempotency_mismatch, or validation_failed when total_limit would fall below claimed_count
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   # ------------------------------------------------------------------ dashboard stamp cards
   /v1/dashboard/apps/{appId}/stamp-cards:
@@ -4270,7 +4280,7 @@ components:
       description: claim by the member, issue from the dashboard or server API, stamp_reward on completing a stamp card.
     CouponTemplateClearable:
       type: string
-      enum: [description, total_limit, valid_from, valid_to, validity_days]
+      enum: [description, value, total_limit, valid_from, valid_to, validity_days]
     CouponTemplate:
       type: object
       required:
@@ -4307,11 +4317,12 @@ components:
           $ref: '#/components/schemas/CouponType'
         value:
           type: integer
-          description: Currency units for amount_off, percent for percent_off, 0 for free_item.
+          nullable: true
+          description: Currency units for amount_off (1 to 1,000,000), percent for percent_off (1 to 100), null for free_item.
         total_limit:
           type: integer
           nullable: true
-          description: Most coupons ever issued from the template, from every source; null for no limit.
+          description: Most coupons ever issued from the template, from every source; null for no limit. Never below claimed_count or per_member_limit.
         per_member_limit:
           type: integer
           description: Most coupons one member may hold from member claims (voided ones excluded). Dashboard, API and stamp reward issues ignore it.
@@ -4347,7 +4358,7 @@ components:
           description: When the template last changed.
     CouponTemplateCreate:
       type: object
-      required: [name, type, value]
+      required: [name, type]
       properties:
         name:
           type: string
@@ -4362,20 +4373,20 @@ components:
           $ref: '#/components/schemas/CouponType'
         value:
           type: integer
-          minimum: 0
+          minimum: 1
           maximum: 1000000
-          description: amount_off 1 or more currency units, percent_off 1 to 100, free_item 0.
+          description: Required for amount_off (1 to 1,000,000 currency units) and percent_off (1 to 100); omit for free_item.
         total_limit:
           type: integer
           minimum: 1
           maximum: 10000000
-          description: Most coupons ever issued; omit for no limit.
+          description: Most coupons ever issued; omit for no limit. At least per_member_limit.
         per_member_limit:
           type: integer
           minimum: 1
           maximum: 100
           default: 1
-          description: Most coupons one member may hold from claims.
+          description: Most coupons one member may hold from claims; at most total_limit.
         valid_from:
           type: string
           format: date-time
@@ -4410,19 +4421,19 @@ components:
           $ref: '#/components/schemas/CouponType'
         value:
           type: integer
-          minimum: 0
+          minimum: 1
           maximum: 1000000
-          description: Fixed once claimed_count is above zero.
+          description: Must agree with type, as on create. Fixed once claimed_count is above zero.
         total_limit:
           type: integer
           minimum: 1
           maximum: 10000000
-          description: Cannot go below claimed_count.
+          description: Cannot go below claimed_count (422) or per_member_limit (400).
         per_member_limit:
           type: integer
           minimum: 1
           maximum: 100
-          description: Applies to claims from now on.
+          description: Applies to claims from now on; at most total_limit.
         valid_from:
           type: string
           format: date-time
@@ -4443,9 +4454,9 @@ components:
           $ref: '#/components/schemas/ArchiveStatus'
         clear:
           type: array
-          maxItems: 5
+          maxItems: 6
           uniqueItems: true
-          description: Fields to reset to null (no limit, no window, no description).
+          description: Fields to reset to null (no limit, no window, no description; value when switching to free_item).
           items:
             $ref: '#/components/schemas/CouponTemplateClearable'
     CouponTemplateSummary:
@@ -4467,7 +4478,8 @@ components:
           $ref: '#/components/schemas/CouponType'
         value:
           type: integer
-          description: Currency units for amount_off, percent for percent_off, 0 for free_item.
+          nullable: true
+          description: Currency units for amount_off, percent for percent_off, null for free_item.
     CouponOffer:
       type: object
       required: [template, per_member_limit, held, can_claim]
@@ -4502,6 +4514,7 @@ components:
           description: Coupon ID; staff redeem with it.
         code:
           type: string
+          pattern: '^[0-9A-Z]{6,12}$'
           description: Short code unique within the app, for receipts and support. Not a credential; redeeming needs a scan of the member card.
         template:
           $ref: '#/components/schemas/CouponTemplateSummary'
