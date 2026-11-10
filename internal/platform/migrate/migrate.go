@@ -14,6 +14,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pressly/goose/v3"
+	"github.com/riverqueue/river/riverdriver/riverdatabasesql"
+	"github.com/riverqueue/river/rivermigrate"
 
 	"github.com/amangeldievkuu/miniloyal/db/migrations"
 )
@@ -120,7 +122,9 @@ func concurrentRoleChange(err error) bool {
 	return false
 }
 
-// Up applies every pending migration.
+// Up applies every pending goose migration, then River's job queue schema
+// (owned by the schema owner, like everything else) and the grants the
+// application role needs to insert and work jobs.
 func Up(ctx context.Context, db *sql.DB) error {
 	p, err := provider(db)
 	if err != nil {
@@ -129,10 +133,11 @@ func Up(ctx context.Context, db *sql.DB) error {
 	if _, err := p.Up(ctx); err != nil {
 		return fmt.Errorf("migrate: up: %w", err)
 	}
-	return nil
+	return riverUp(ctx, db)
 }
 
-// Down rolls back the most recent migration.
+// Down rolls back the most recent goose migration. River's tables are left
+// alone until the goose schema is gone entirely.
 func Down(ctx context.Context, db *sql.DB) error {
 	p, err := provider(db)
 	if err != nil {
@@ -141,8 +146,65 @@ func Down(ctx context.Context, db *sql.DB) error {
 	if _, err := p.Down(ctx); err != nil {
 		return fmt.Errorf("migrate: down: %w", err)
 	}
+	v, err := p.GetDBVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("migrate: version: %w", err)
+	}
+	if v == 0 {
+		return riverDown(ctx, db)
+	}
 	return nil
 }
+
+// riverUp applies River's migrations and grants the application role access
+// to River's tables, sequences and functions. Both steps are idempotent.
+// River's tables carry no tenant data, so they have no row-level security.
+func riverUp(ctx context.Context, db *sql.DB) error {
+	m, err := rivermigrate.New(riverdatabasesql.New(db), nil)
+	if err != nil {
+		return fmt.Errorf("migrate: river: %w", err)
+	}
+	if _, err := m.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
+		return fmt.Errorf("migrate: river up: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, riverGrants); err != nil {
+		return fmt.Errorf("migrate: river grants: %w", err)
+	}
+	return nil
+}
+
+func riverDown(ctx context.Context, db *sql.DB) error {
+	m, err := rivermigrate.New(riverdatabasesql.New(db), nil)
+	if err != nil {
+		return fmt.Errorf("migrate: river: %w", err)
+	}
+	if _, err := m.Migrate(ctx, rivermigrate.DirectionDown, &rivermigrate.MigrateOpts{TargetVersion: -1}); err != nil {
+		return fmt.Errorf("migrate: river down: %w", err)
+	}
+	return nil
+}
+
+// riverGrants gives GroupRole what a River client needs on every River
+// object in the public schema.
+const riverGrants = `DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN SELECT c.relname, c.relkind FROM pg_class c
+           WHERE c.relnamespace = 'public'::regnamespace AND c.relname LIKE 'river\_%' AND c.relkind IN ('r', 'S')
+  LOOP
+    IF r.relkind = 'r' THEN
+      EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I TO ` + GroupRole + `', r.relname);
+    ELSE
+      EXECUTE format('GRANT USAGE, SELECT ON SEQUENCE %I TO ` + GroupRole + `', r.relname);
+    END IF;
+  END LOOP;
+  FOR r IN SELECT p.oid::regprocedure AS sig FROM pg_proc p
+           WHERE p.pronamespace = 'public'::regnamespace AND p.proname LIKE 'river\_%'
+  LOOP
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO ` + GroupRole + `', r.sig);
+  END LOOP;
+END
+$$`
 
 // Status returns one line per migration with its applied state.
 func Status(ctx context.Context, db *sql.DB) ([]string, error) {
