@@ -2,6 +2,13 @@
 
 ## SDK
 
+### Unreleased
+
+- Coupons: `coupons.list({ state, limit, cursor })`, `coupons.listAll()`, `coupons.offers()`, `coupons.claim(templateId, { idempotencyKey })`.
+- Stamps: `stamps()` returns progress per card.
+- New types: `CouponInstance`, `CouponInstancePage`, `CouponOffer`, `CouponTemplateSummary`, `CouponState`, `CouponFilter`, `CouponListOptions`, `StampProgress`, `CouponErrorCode`.
+- No breaking changes.
+
 ### 0.3.0
 
 - Member card: `card()` returns the rotating QR payload; `watchCard(onCard, onError)` keeps it current (refresh at `refresh_in_seconds`, paused while the page is hidden, backoff 1 to 30 s on errors) and returns `stop()`.

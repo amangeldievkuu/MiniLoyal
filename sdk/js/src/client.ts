@@ -16,6 +16,20 @@ export type PointsSummary = components['schemas']['PointsSummary'];
 export type PointsTransaction = components['schemas']['PointsTransaction'];
 export type PointsHistoryPage = components['schemas']['PointsHistoryPage'];
 export type PointsKind = components['schemas']['PointsKind'];
+export type CouponInstance = components['schemas']['CouponInstance'];
+export type CouponInstancePage = components['schemas']['CouponInstancePage'];
+export type CouponOffer = components['schemas']['CouponOffer'];
+export type CouponTemplateSummary = components['schemas']['CouponTemplateSummary'];
+export type CouponState = components['schemas']['CouponState'];
+export type StampProgress = components['schemas']['StampProgress'];
+/** Filter for {@link MiniLoyal.coupons}.list: available, used or expired. */
+export type CouponFilter = components['parameters']['MemberCouponFilter'];
+
+/** Paging and filter for the member's coupons. */
+export interface CouponListOptions extends PageOptions {
+  /** Omitted: every coupon except voided ones. */
+  state?: CouponFilter;
+}
 
 /** Paging for points history. */
 export interface PageOptions {
@@ -345,12 +359,60 @@ export class MiniLoyal {
     } while (cursor);
   }
 
+  /**
+   * Member coupons. `claim` throws a `MiniLoyalError` with status 409 and code
+   * `coupon_sold_out`, `coupon_limit_reached` or `coupon_not_claimable`.
+   */
+  readonly coupons = {
+    /** One page of the member's coupons, newest first. */
+    list: (options: CouponListOptions = {}): Promise<CouponInstancePage> => {
+      const q = new URLSearchParams();
+      if (options.state) q.set('state', options.state);
+      if (options.limit !== undefined) q.set('limit', String(options.limit));
+      if (options.cursor) q.set('cursor', options.cursor);
+      const qs = q.toString();
+      return this.request<CouponInstancePage>({
+        method: 'GET',
+        path: '/v1/me/coupons' + (qs ? '?' + qs : ''),
+      });
+    },
+    /** Every page of the member's coupons, newest first. */
+    listAll: (options: { state?: CouponFilter; limit?: number } = {}) => this.couponPages(options),
+    /** Coupons the member may claim now. */
+    offers: (): Promise<CouponOffer[]> =>
+      this.request<CouponOffer[]>({ method: 'GET', path: '/v1/coupons/offers' }),
+    /** Claims a coupon from an offer. The same idempotency key claims once. */
+    claim: (templateId: string, options: MutationOptions = {}): Promise<CouponInstance> =>
+      this.request<CouponInstance>({
+        method: 'POST',
+        path: `/v1/coupons/${encodeURIComponent(templateId)}/claim`,
+        idempotencyKey: options.idempotencyKey ?? newKey(),
+      }),
+  };
+
+  /** Progress on each stamp card, with the reward. */
+  stamps(): Promise<StampProgress[]> {
+    return this.request<StampProgress[]>({ method: 'GET', path: '/v1/me/stamps' });
+  }
+
   /** Checks that the API is reachable. Needs no session. */
   health(): Promise<Health> {
     return this.request<Health>({ method: 'GET', path: '/healthz', auth: false });
   }
 
   // ---------------------------------------------------------------- internals
+
+  private async *couponPages(options: {
+    state?: CouponFilter;
+    limit?: number;
+  }): AsyncGenerator<CouponInstancePage> {
+    let cursor: string | null | undefined;
+    do {
+      const page: CouponInstancePage = await this.coupons.list({ ...options, cursor });
+      yield page;
+      cursor = page.next_cursor;
+    } while (cursor);
+  }
 
   private startLogin(): void {
     this.redirecting = true;
