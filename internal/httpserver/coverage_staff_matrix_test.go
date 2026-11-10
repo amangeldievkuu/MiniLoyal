@@ -26,11 +26,26 @@ var staffOps = []opCase{
 	{id: "staffEarnPoints", method: http.MethodPost, path: func(*matrixFixtures) string { return "/v1/staff/points/earn" },
 		body: func(f *matrixFixtures) any { return map[string]any{"scan_token": f.scan, "spend_amount": 500} },
 		alt:  func(f *matrixFixtures) any { return map[string]any{"scan_token": f.scan, "spend_amount": 600} },
-		idem: true, created: 200, creates: "points_lots", more: []string{"points_ledger"}},
+		idem: true, created: 200, creates: "points_lots", more: []string{"points_ledger", "outbound_events", "audit_log"}},
 	{id: "staffRedeemPoints", method: http.MethodPost, path: func(*matrixFixtures) string { return "/v1/staff/points/redeem" },
 		body: func(f *matrixFixtures) any { return map[string]any{"scan_token": f.scan, "points": 3} },
 		alt:  func(f *matrixFixtures) any { return map[string]any{"scan_token": f.scan, "points": 4} },
-		idem: true, created: 200, more: []string{"points_ledger"}},
+		idem: true, created: 200, more: []string{"points_ledger", "outbound_events", "audit_log"}},
+	// A coupon redeems once, so refresh issues fresh ones; the mismatch case
+	// reuses the key on the spare coupon (the body is only the scan).
+	{id: "staffRedeemCoupon", method: http.MethodPost, path: func(f *matrixFixtures) string { return "/v1/staff/coupons/" + f.coupon.String() + "/redeem" },
+		body:    func(f *matrixFixtures) any { return map[string]any{"scan_token": f.scan} },
+		altPath: func(f *matrixFixtures) string { return "/v1/staff/coupons/" + f.spareCoupon.String() + "/redeem" },
+		idem:    true, created: 200, more: []string{"outbound_events", "audit_log"},
+		refresh: (*matrixFixtures).freshCoupons},
+	{id: "staffAddStamps", method: http.MethodPost, path: func(*matrixFixtures) string { return "/v1/staff/stamps" },
+		body: func(f *matrixFixtures) any {
+			return map[string]any{"scan_token": f.scan, "stamp_card_id": f.card, "count": 1}
+		},
+		alt: func(f *matrixFixtures) any {
+			return map[string]any{"scan_token": f.scan, "stamp_card_id": f.card, "count": 2}
+		},
+		idem: true, created: 200, creates: "stamp_events", more: []string{"audit_log"}},
 }
 
 // qrOf returns the member's current card code.
@@ -118,6 +133,9 @@ func TestStaffScopeMatrix(t *testing.T) {
 	// Staff A's own operations.
 	for _, op := range staffOps {
 		t.Run(op.id+"/own", func(t *testing.T) {
+			if op.refresh != nil {
+				op.refresh(f)
+			}
 			f.scan = f.scanAs(f.staffSess.SessionToken, f.member)
 			r := f.send(op, f.staffSess.SessionToken, op.body, uuid.NewString())
 			want(t, r, http.StatusOK)
@@ -128,6 +146,9 @@ func TestStaffScopeMatrix(t *testing.T) {
 				Member   struct {
 					Id uuid.UUID `json:"id"`
 				} `json:"member"`
+				Progress struct {
+					StampCardId uuid.UUID `json:"stamp_card_id"`
+				} `json:"progress"`
 			}
 			r.into(t, &got)
 			switch op.id {
@@ -139,6 +160,10 @@ func TestStaffScopeMatrix(t *testing.T) {
 				if got.Member.Id != memberA {
 					t.Errorf("scanned member = %s", got.Member.Id)
 				}
+			case "staffAddStamps":
+				if got.Progress.StampCardId != f.card {
+					t.Errorf("stamped card = %s, want %s", got.Progress.StampCardId, f.card)
+				}
 			default:
 				if got.MemberId != memberA {
 					t.Errorf("transaction for member %s", got.MemberId)
@@ -147,8 +172,12 @@ func TestStaffScopeMatrix(t *testing.T) {
 		})
 	}
 
+	f.freshCoupons()
 	beforeA, beforeB := w.snapshot(w.tenantA), w.snapshot(w.tenantB)
 	tokA := f.scanAs(f.staffSess.SessionToken, f.member)
+	// Staff B's own valid scan of its own member, aimed at app A's coupon
+	// and card.
+	tokB := f.scanAs(sessB.SessionToken, other.member)
 	crossCases := []struct {
 		name   string
 		op     string
@@ -170,6 +199,16 @@ func TestStaffScopeMatrix(t *testing.T) {
 		// Two staff members of one app: the scan is bound to the scanner.
 		{"cashier redeems with the manager's scan token", "staffRedeemPoints", f.cashierSess.SessionToken, tokA, http.StatusForbidden, "scan_mismatch"},
 		{"cashier earns with the manager's scan token", "staffEarnPoints", f.cashierSess.SessionToken, tokA, http.StatusForbidden, "scan_mismatch"},
+		// Coupons and stamps, with the same tokens.
+		{"staff B redeems a coupon with staff A's scan token", "staffRedeemCoupon", sessB.SessionToken, tokA, http.StatusForbidden, "scan_mismatch"},
+		{"staff B stamps with staff A's scan token", "staffAddStamps", sessB.SessionToken, tokA, http.StatusForbidden, "scan_mismatch"},
+		{"cashier redeems a coupon with the manager's scan token", "staffRedeemCoupon", f.cashierSess.SessionToken, tokA, http.StatusForbidden, "scan_mismatch"},
+		{"cashier stamps with the manager's scan token", "staffAddStamps", f.cashierSess.SessionToken, tokA, http.StatusForbidden, "scan_mismatch"},
+		{"staff B redeems, token naming member A in app B", "staffRedeemCoupon", sessB.SessionToken, mustScanToken(t, w, uuid.UUID(staffB.Id), memberA, uuid.UUID(other.app.Id), w.tenantB), http.StatusForbidden, "scan_invalid"},
+		{"staff B stamps, token naming member A in app B", "staffAddStamps", sessB.SessionToken, mustScanToken(t, w, uuid.UUID(staffB.Id), memberA, uuid.UUID(other.app.Id), w.tenantB), http.StatusNotFound, "not_found"},
+		// A valid scan of app B's member cannot reach app A's coupon or card.
+		{"staff B redeems app A's coupon with its own valid scan", "staffRedeemCoupon", sessB.SessionToken, tokB, http.StatusConflict, "coupon_unavailable"},
+		{"staff B stamps app A's card with its own valid scan", "staffAddStamps", sessB.SessionToken, tokB, http.StatusNotFound, "not_found"},
 	}
 	for _, c := range crossCases {
 		t.Run(c.name, func(t *testing.T) {
@@ -320,6 +359,9 @@ func TestStaffIdempotencyMatrix(t *testing.T) {
 			continue
 		}
 		t.Run(op.id, func(t *testing.T) {
+			if op.refresh != nil {
+				op.refresh(f)
+			}
 			before := w.counts(w.tenantA)
 			key := uuid.NewString()
 			f.scan = f.scanAs(f.staffSess.SessionToken, f.member)
@@ -342,6 +384,10 @@ func TestStaffIdempotencyMatrix(t *testing.T) {
 			}
 
 			f.scan = f.scanAs(f.cashierSess.SessionToken, f.member)
+			if op.refresh != nil {
+				// The first run used up the coupon; the spare one is fresh.
+				f.coupon = f.spareCoupon
+			}
 			otherRun := f.send(op, f.cashierSess.SessionToken, op.body, key)
 			if otherRun.code != op.created || bytes.Equal(otherRun.body, first.body) {
 				t.Fatalf("cashier with the same key: status = %d; body %s", otherRun.code, otherRun.body)
@@ -362,6 +408,7 @@ func TestStaffIdempotencyMatrix(t *testing.T) {
 	}
 
 	// The manager's replays after their invite is reset: refused, not served.
+	f.freshCoupons()
 	f.scan = f.scanAs(f.staffSess.SessionToken, f.member)
 	keys := map[string]string{}
 	for _, op := range staffOps {

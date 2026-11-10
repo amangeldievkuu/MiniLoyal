@@ -38,7 +38,7 @@ func newFixture(t *testing.T) *fixture {
 	keyring := crypto.Static(bytes.Repeat([]byte{9}, 32))
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	tenants := tenant.New(d.App, keyring, clock.Real{}, log)
-	f := &fixture{d: d, svc: webhook.New(d.App, tenants, log), keyring: keyring, tenant: d.NewTenant(t, "Alpha"), noSecret: testutil.NewID()}
+	f := &fixture{d: d, svc: webhook.New(d.App, tenants, nil, log), keyring: keyring, tenant: d.NewTenant(t, "Alpha"), noSecret: testutil.NewID()}
 	f.app = f.addApp(t, f.tenant, "cafe", "2001", oaSecret)
 	d.Exec(t, "INSERT INTO apps (id, tenant_id, name, slug) VALUES ($1, $2, 'Bare', 'bare')", f.noSecret, f.tenant)
 	return f

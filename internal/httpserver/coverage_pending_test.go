@@ -14,22 +14,12 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/api"
 )
 
-// pendingOps are spec operations whose handlers are still 501 stubs
-// (stubs_coupon.go, stubs_stamp.go). They are exempt from the coverage
+// pendingOps are spec operations whose handlers are still 501 stubs (none
+// since Phase 4 replaced the coupon and stamp stubs). They are exempt from the coverage
 // matrix only while they answer 501: TestPendingOperationsAreStubs fails as
 // soon as one is implemented, so the implementing change must move it into
 // tenantOps, memberOps, serverOps or staffOps with its fixtures.
-var pendingOps = []string{
-	// Phase 4 coupons.
-	"listMyCoupons", "listCouponOffers", "claimCoupon", "staffRedeemCoupon",
-	"listCouponTemplates", "createCouponTemplate", "getCouponTemplate", "updateCouponTemplate",
-	"listMemberCoupons", "issueMemberCoupon", "voidCoupon",
-	"serverListMemberCoupons", "serverIssueCoupon",
-	// Phase 4 stamps.
-	"listMyStamps", "staffAddStamps",
-	"listStampCards", "createStampCard", "getStampCard", "updateStampCard",
-	"listMemberStamps", "adjustMemberStamps",
-}
+var pendingOps = []string{}
 
 var pathParam = regexp.MustCompile(`\{[^}]+\}`)
 

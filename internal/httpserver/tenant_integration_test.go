@@ -13,9 +13,11 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/amangeldievkuu/miniloyal/internal/access"
 	"github.com/amangeldievkuu/miniloyal/internal/api"
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
+	"github.com/amangeldievkuu/miniloyal/internal/coupon"
 	"github.com/amangeldievkuu/miniloyal/internal/lineauth"
 	"github.com/amangeldievkuu/miniloyal/internal/lineauth/lineauthtest"
 	"github.com/amangeldievkuu/miniloyal/internal/member"
@@ -25,6 +27,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"github.com/amangeldievkuu/miniloyal/internal/principal"
 	"github.com/amangeldievkuu/miniloyal/internal/staffauth"
+	"github.com/amangeldievkuu/miniloyal/internal/stamp"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 	"github.com/amangeldievkuu/miniloyal/internal/testutil"
 )
@@ -82,7 +85,11 @@ func newWorld(t *testing.T) *world {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pointsSvc := points.New(points.Deps{Pool: d.App, Tenants: svc, Keyring: keyring, Card: w.cards, Clock: clock.Real{}, Log: log})
+	// One per-staff limiter for points, coupons and stamps, as in cmd/api.
+	staffLimit := access.NewStaffLimiter(clock.Real{}, 0)
+	pointsSvc := points.New(points.Deps{Pool: d.App, Tenants: svc, Keyring: keyring, Card: w.cards, Clock: clock.Real{}, Log: log, StaffLimiter: staffLimit})
+	couponSvc := coupon.New(coupon.Deps{Pool: d.App, Tenants: svc, Keyring: keyring, Card: w.cards, Clock: clock.Real{}, Log: log, StaffLimiter: staffLimit})
+	stampSvc := stamp.New(stamp.Deps{Pool: d.App, Tenants: svc, Keyring: keyring, Card: w.cards, Clock: clock.Real{}, Log: log, StaffLimiter: staffLimit})
 	w.tenantA = d.NewTenant(t, "Alpha")
 	w.tenantB = d.NewTenant(t, "Beta")
 	w.ownerA = w.user("owner-a@example.com")
@@ -107,6 +114,8 @@ func newWorld(t *testing.T) *world {
 		MemberSvc: members,
 		Card:      w.cards,
 		Points:    pointsSvc,
+		Coupons:   couponSvc,
+		Stamps:    stampSvc,
 		StaffAuth: staffSvc,
 	})
 	w.handler = srv.Handler()

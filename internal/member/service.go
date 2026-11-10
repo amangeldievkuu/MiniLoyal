@@ -21,12 +21,14 @@ import (
 
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
 	"github.com/amangeldievkuu/miniloyal/internal/audit"
+	"github.com/amangeldievkuu/miniloyal/internal/coupon"
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
 	"github.com/amangeldievkuu/miniloyal/internal/idempotency"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"github.com/amangeldievkuu/miniloyal/internal/principal"
+	"github.com/amangeldievkuu/miniloyal/internal/stamp"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 )
 
@@ -103,13 +105,13 @@ type Update struct {
 	CustomFields map[string]any
 }
 
-// Export is everything stored about a member. Coupons and stamps are not
-// read here yet; the HTTP layer answers them as empty lists until the
-// coupon and stamp module fills them.
+// Export is everything stored about a member.
 type Export struct {
 	Member     sqlc.Member
 	Consents   []sqlc.MemberConsent
 	Points     points.MemberData
+	Coupons    []coupon.Instance
+	Stamps     stamp.MemberData
 	ExportedAt time.Time
 }
 
@@ -225,7 +227,7 @@ func (s *Service) EraseSelf(ctx context.Context, p principal.Principal) error {
 		if n != 1 {
 			return apierr.NotFound("member")
 		}
-		if err := s.eraseTraces(ctx, q, p.TenantID, p.MemberID); err != nil {
+		if err := s.eraseTraces(ctx, q, p.TenantID, p.AppID, p.MemberID); err != nil {
 			return err
 		}
 		s.log.InfoContext(ctx, "member erased their data", "member_id", p.MemberID, "app_id", p.AppID)
@@ -337,7 +339,7 @@ func (s *Service) Erase(ctx context.Context, p principal.Principal, memberID uui
 		if n != 1 {
 			return apierr.NotFound("member")
 		}
-		if err := s.eraseTraces(ctx, q, m.TenantID, m.ID); err != nil {
+		if err := s.eraseTraces(ctx, q, m.TenantID, m.AppID, m.ID); err != nil {
 			return err
 		}
 		return s.audit(ctx, tx, p, m, ActionErase)
@@ -434,7 +436,15 @@ func (s *Service) export(ctx context.Context, q *sqlc.Queries, m sqlc.Member, fo
 	if err != nil {
 		return Export{}, fmt.Errorf("member: export points: %w", err)
 	}
-	return Export{Member: m, Consents: consents, Points: pts, ExportedAt: now}, nil
+	coupons, err := coupon.ExportMember(ctx, q, m, now)
+	if err != nil {
+		return Export{}, fmt.Errorf("member: export coupons: %w", err)
+	}
+	stamps, err := stamp.ExportMember(ctx, q, m)
+	if err != nil {
+		return Export{}, fmt.Errorf("member: export stamps: %w", err)
+	}
+	return Export{Member: m, Consents: consents, Points: pts, Coupons: coupons, Stamps: stamps, ExportedAt: now}, nil
 }
 
 func (s *Service) audit(ctx context.Context, tx pgx.Tx, p principal.Principal, m sqlc.Member, action string) error {
@@ -502,10 +512,19 @@ func nonEmpty(s string) *string {
 }
 
 // eraseTraces removes what AnonymizeMember cannot: device details on consent
-// records and stored idempotent outcomes that still hold the profile.
-func (s *Service) eraseTraces(ctx context.Context, q *sqlc.Queries, tenantID, memberID uuid.UUID) error {
+// records, stored idempotent outcomes that still hold the profile, and the
+// free text staff typed about the member (stamp adjustment notes and coupon
+// void reasons). Audit rows outlive the erasure, so they never hold that
+// text; the erasure's own row holds IDs only.
+func (s *Service) eraseTraces(ctx context.Context, q *sqlc.Queries, tenantID, appID, memberID uuid.UUID) error {
 	if err := q.AnonymizeMemberConsents(ctx, memberID); err != nil {
 		return fmt.Errorf("member: anonymize consents: %w", err)
+	}
+	if _, err := q.EraseStampNotes(ctx, sqlc.EraseStampNotesParams{AppID: appID, MemberID: memberID}); err != nil {
+		return fmt.Errorf("member: erase stamp notes: %w", err)
+	}
+	if _, err := q.EraseVoidReasons(ctx, sqlc.EraseVoidReasonsParams{AppID: appID, MemberID: memberID}); err != nil {
+		return fmt.Errorf("member: erase void reasons: %w", err)
 	}
 	if err := q.DeleteIdempotencyScope(ctx, sqlc.DeleteIdempotencyScopeParams{TenantID: tenantID, Scope: idempotency.Scope("member", memberID)}); err != nil {
 		return fmt.Errorf("member: drop idempotent outcomes: %w", err)

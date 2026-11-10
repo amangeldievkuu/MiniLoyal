@@ -51,6 +51,18 @@ func (q *Queries) ArchiveCouponTemplate(ctx context.Context, arg ArchiveCouponTe
 	return i, err
 }
 
+const countCouponTemplates = `-- name: CountCouponTemplates :one
+SELECT count(*) FROM coupon_templates
+`
+
+// Reconciliation: how many templates were checked. System mode.
+func (q *Queries) CountCouponTemplates(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countCouponTemplates)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countMemberCouponInstances = `-- name: CountMemberCouponInstances :one
 SELECT count(*)::integer FROM coupon_instances
 WHERE app_id = $1 AND template_id = $2 AND member_id = $3
@@ -78,6 +90,42 @@ func (q *Queries) CountMemberCouponInstances(ctx context.Context, arg CountMembe
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const countScanCouponRedeem = `-- name: CountScanCouponRedeem :one
+INSERT INTO scan_coupon_redeems (jti, tenant_id, app_id, redeems, used_at)
+VALUES ($1, $2, $3, 1, $4)
+ON CONFLICT (jti) DO UPDATE SET
+  redeems = scan_coupon_redeems.redeems + 1,
+  used_at = EXCLUDED.used_at
+WHERE scan_coupon_redeems.app_id = EXCLUDED.app_id
+  AND scan_coupon_redeems.redeems < $5::integer
+RETURNING redeems
+`
+
+type CountScanCouponRedeemParams struct {
+	Jti        string             `json:"jti"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	AppID      uuid.UUID          `json:"app_id"`
+	UsedAt     pgtype.Timestamptz `json:"used_at"`
+	MaxRedeems int32              `json:"max_redeems"`
+}
+
+// Counts one coupon redeem against the scan token in the redeem
+// transaction. The upsert locks the scan's row, so concurrent redeems on
+// one scan serialize; no row back means the scan already paid for
+// max_redeems coupons.
+func (q *Queries) CountScanCouponRedeem(ctx context.Context, arg CountScanCouponRedeemParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countScanCouponRedeem,
+		arg.Jti,
+		arg.TenantID,
+		arg.AppID,
+		arg.UsedAt,
+		arg.MaxRedeems,
+	)
+	var redeems int32
+	err := row.Scan(&redeems)
+	return redeems, err
 }
 
 const createCouponTemplate = `-- name: CreateCouponTemplate :one
@@ -152,6 +200,70 @@ func (q *Queries) CreateCouponTemplate(ctx context.Context, arg CreateCouponTemp
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const deleteOldScanCouponRedeems = `-- name: DeleteOldScanCouponRedeems :execrows
+DELETE FROM scan_coupon_redeems WHERE used_at < $1
+`
+
+// Scan tokens live five minutes; a day of history is plenty. System mode.
+func (q *Queries) DeleteOldScanCouponRedeems(ctx context.Context, before pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOldScanCouponRedeems, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const eraseVoidReasons = `-- name: EraseVoidReasons :execrows
+UPDATE coupon_instances SET void_reason = NULL
+WHERE app_id = $1 AND member_id = $2 AND void_reason IS NOT NULL
+`
+
+type EraseVoidReasonsParams struct {
+	AppID    uuid.UUID `json:"app_id"`
+	MemberID uuid.UUID `json:"member_id"`
+}
+
+// PDPA erasure: clears the reasons staff typed when voiding the member's
+// coupons. The void itself (who, when) stays.
+func (q *Queries) EraseVoidReasons(ctx context.Context, arg EraseVoidReasonsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, eraseVoidReasons, arg.AppID, arg.MemberID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const finishLoyaltyReconciliationRun = `-- name: FinishLoyaltyReconciliationRun :exec
+UPDATE loyalty_reconciliation_runs SET
+  finished_at       = $1,
+  progress_checked  = $2,
+  templates_checked = $3,
+  mismatches        = $4,
+  details           = $5
+WHERE id = $6
+`
+
+type FinishLoyaltyReconciliationRunParams struct {
+	FinishedAt       pgtype.Timestamptz `json:"finished_at"`
+	ProgressChecked  int32              `json:"progress_checked"`
+	TemplatesChecked int32              `json:"templates_checked"`
+	Mismatches       int32              `json:"mismatches"`
+	Details          []byte             `json:"details"`
+	ID               int64              `json:"id"`
+}
+
+func (q *Queries) FinishLoyaltyReconciliationRun(ctx context.Context, arg FinishLoyaltyReconciliationRunParams) error {
+	_, err := q.db.Exec(ctx, finishLoyaltyReconciliationRun,
+		arg.FinishedAt,
+		arg.ProgressChecked,
+		arg.TemplatesChecked,
+		arg.Mismatches,
+		arg.Details,
+		arg.ID,
+	)
+	return err
 }
 
 const getCouponInstance = `-- name: GetCouponInstance :one
@@ -398,7 +510,10 @@ const listCouponOffers = `-- name: ListCouponOffers :many
 SELECT t.id, t.tenant_id, t.app_id, t.name, t.description, t.type, t.value, t.total_limit, t.per_member_limit, t.valid_from, t.valid_to, t.validity_days, t.claimable, t.claimed_count, t.status, t.created_at, t.updated_at,
   (SELECT count(*) FROM coupon_instances i
    WHERE i.app_id = t.app_id AND i.template_id = t.id AND i.member_id = $1
-     AND i.status <> 'voided')::integer AS held
+     AND i.status <> 'voided')::integer AS held,
+  (SELECT count(*) FROM coupon_instances i
+   WHERE i.app_id = t.app_id AND i.template_id = t.id AND i.member_id = $1
+     AND i.status <> 'voided' AND i.source = 'claim')::integer AS held_from_claims
 FROM coupon_templates t
 WHERE t.app_id = $2
   AND t.status = 'active'
@@ -434,11 +549,13 @@ type ListCouponOffersRow struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	Held           int32              `json:"held"`
+	HeldFromClaims int32              `json:"held_from_claims"`
 }
 
 // Templates a member may claim right now, with how many the member already
-// holds from each (voided ones excluded). The claim itself re-checks every
-// limit under the template lock.
+// holds from each (voided ones excluded). held_from_claims counts only the
+// member's own claims, which is what per_member_limit limits. The claim
+// itself re-checks every limit under the template lock.
 func (q *Queries) ListCouponOffers(ctx context.Context, arg ListCouponOffersParams) ([]ListCouponOffersRow, error) {
 	rows, err := q.db.Query(ctx, listCouponOffers, arg.MemberID, arg.AppID, arg.Now)
 	if err != nil {
@@ -467,6 +584,7 @@ func (q *Queries) ListCouponOffers(ctx context.Context, arg ListCouponOffersPara
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Held,
+			&i.HeldFromClaims,
 		); err != nil {
 			return nil, err
 		}
@@ -773,6 +891,49 @@ func (q *Queries) LockCouponTemplate(ctx context.Context, arg LockCouponTemplate
 	return i, err
 }
 
+const reconcileCouponTemplates = `-- name: ReconcileCouponTemplates :many
+SELECT t.app_id, t.id, t.claimed_count::bigint AS claimed_count, count(i.id)::bigint AS instances
+FROM coupon_templates t
+LEFT JOIN coupon_instances i ON i.app_id = t.app_id AND i.template_id = t.id
+GROUP BY t.app_id, t.id, t.claimed_count
+HAVING t.claimed_count <> count(i.id)
+ORDER BY t.app_id, t.id
+`
+
+type ReconcileCouponTemplatesRow struct {
+	AppID        uuid.UUID `json:"app_id"`
+	ID           uuid.UUID `json:"id"`
+	ClaimedCount int64     `json:"claimed_count"`
+	Instances    int64     `json:"instances"`
+}
+
+// Reconciliation, system mode: templates whose claimed_count differs from
+// the coupons issued from them (voids never lower claimed_count).
+func (q *Queries) ReconcileCouponTemplates(ctx context.Context) ([]ReconcileCouponTemplatesRow, error) {
+	rows, err := q.db.Query(ctx, reconcileCouponTemplates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ReconcileCouponTemplatesRow
+	for rows.Next() {
+		var i ReconcileCouponTemplatesRow
+		if err := rows.Scan(
+			&i.AppID,
+			&i.ID,
+			&i.ClaimedCount,
+			&i.Instances,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const redeemCouponInstance = `-- name: RedeemCouponInstance :one
 UPDATE coupon_instances SET
   status               = 'redeemed',
@@ -835,6 +996,17 @@ func (q *Queries) RedeemCouponInstance(ctx context.Context, arg RedeemCouponInst
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const startLoyaltyReconciliationRun = `-- name: StartLoyaltyReconciliationRun :one
+INSERT INTO loyalty_reconciliation_runs (started_at) VALUES ($1) RETURNING id
+`
+
+func (q *Queries) StartLoyaltyReconciliationRun(ctx context.Context, startedAt pgtype.Timestamptz) (int64, error) {
+	row := q.db.QueryRow(ctx, startLoyaltyReconciliationRun, startedAt)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const updateCouponTemplate = `-- name: UpdateCouponTemplate :one

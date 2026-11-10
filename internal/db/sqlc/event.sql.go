@@ -54,6 +54,39 @@ func (q *Queries) InsertOutboundEvent(ctx context.Context, arg InsertOutboundEve
 	return i, err
 }
 
+const insertOutboundEvents = `-- name: InsertOutboundEvents :exec
+INSERT INTO outbound_events (tenant_id, app_id, type, member_id, payload, occurred_at)
+SELECT $1::uuid, $2::uuid,
+  unnest($3::text[]),
+  unnest($4::uuid[]),
+  unnest($5::jsonb[]),
+  unnest($6::timestamptz[])
+`
+
+type InsertOutboundEventsParams struct {
+	TenantID    uuid.UUID            `json:"tenant_id"`
+	AppID       uuid.UUID            `json:"app_id"`
+	Types       []string             `json:"types"`
+	MemberIds   []uuid.UUID          `json:"member_ids"`
+	Payloads    [][]byte             `json:"payloads"`
+	OccurredAts []pgtype.Timestamptz `json:"occurred_ats"`
+}
+
+// Many events of one app in one statement (a webhook delivery creating
+// many members), in the caller's transaction. The arrays line up by index:
+// set-returning functions in one select list advance together.
+func (q *Queries) InsertOutboundEvents(ctx context.Context, arg InsertOutboundEventsParams) error {
+	_, err := q.db.Exec(ctx, insertOutboundEvents,
+		arg.TenantID,
+		arg.AppID,
+		arg.Types,
+		arg.MemberIds,
+		arg.Payloads,
+		arg.OccurredAts,
+	)
+	return err
+}
+
 const listMemberOutboundEvents = `-- name: ListMemberOutboundEvents :many
 SELECT id, event_id, tenant_id, app_id, type, member_id, payload, occurred_at, created_at FROM outbound_events
 WHERE app_id = $1 AND member_id = $2

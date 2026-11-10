@@ -1323,7 +1323,9 @@ export interface paths {
          *     409 coupon_not_claimable when it is archived, issue-only (claimable
          *     false) or outside its validity window; 409 coupon_sold_out when
          *     total_limit is reached; 409 coupon_limit_reached when the member
-         *     already holds per_member_limit coupons from it (voided ones excluded).
+         *     already holds per_member_limit coupons from it (voided ones excluded);
+         *     429 rate_limited with Retry-After when the member claims more than
+         *     the configured claims per minute (default 10).
          */
         post: operations["claimCoupon"];
         delete?: never;
@@ -1378,10 +1380,13 @@ export interface paths {
          *     self_service (the staff member's own card); 409 coupon_unavailable
          *     when the coupon is already redeemed, voided, expired, belongs to
          *     another member or app, or does not exist (one answer, so the code
-         *     reveals nothing). A retry with the same Idempotency-Key replays the
-         *     stored result even after the scan expired. Coupon redemption does not
-         *     use up the scan: one scan can redeem several coupons within its five
-         *     minutes. Shares the per-staff limit of 30 writes a minute.
+         *     reveals nothing); 409 scan_used when this scan already redeemed three
+         *     coupons (scan the member card again). A retry with the same
+         *     Idempotency-Key replays the stored result even after the scan
+         *     expired. One scan can redeem at most three coupons within its five
+         *     minutes; a refused redeem does not count, and concurrent redeems on
+         *     one scan never pass three. Shares the per-staff limit of 30 writes a
+         *     minute.
          */
         post: operations["staffRedeemCoupon"];
         delete?: never;
@@ -1402,9 +1407,12 @@ export interface paths {
         /**
          * Add stamps to the scanned member's card
          * @description Adds count stamps to one stamp card under a lock on the member's
-         *     progress row. A visit is one scan: all stamps given on one scan token
-         *     to one card together may not exceed the card's max_stamps_per_visit
-         *     (409 stamp_visit_limit). Reaching stamps_required completes the card:
+         *     progress row. A visit is 30 minutes: all stamps the member got on
+         *     the card in the last 30 minutes, on any scan by any staff member,
+         *     plus count may not exceed the card's max_stamps_per_visit (409
+         *     stamp_visit_limit; details give max_stamps_per_visit,
+         *     given_this_visit and visit_window_minutes). Scanning the card again
+         *     does not start a new visit. Reaching stamps_required completes the card:
          *     the count starts again from the overflow, completions goes up, and
          *     the reward coupon (when the card has one) is issued in the same
          *     transaction with source stamp_reward. Rewards ignore the template's
@@ -1415,8 +1423,10 @@ export interface paths {
          *
          *     Errors: 403 scan_invalid, scan_mismatch or self_service as for
          *     points; 404 when the card is not in the staff member's app; 409
-         *     stamp_card_inactive when the card is archived. Retries and the
-         *     per-staff limit work as for points.
+         *     stamp_card_inactive when the card is archived, stamp_visit_limit
+         *     when the visit cap is reached (try again once 30 minutes have
+         *     passed since the visit's first stamp). Retries and the per-staff
+         *     limit work as for points. Audited.
          */
         post: operations["staffAddStamps"];
         delete?: never;
@@ -1674,7 +1684,9 @@ export interface paths {
          * @description Same rules as the dashboard issue: source issue, claimable and
          *     per_member_limit ignored, total_limit applies (409 coupon_sold_out),
          *     template active and inside its validity window (409
-         *     coupon_not_claimable).
+         *     coupon_not_claimable). Audited with the API key as the actor. Each
+         *     key may issue the configured number of coupons per minute (default
+         *     300); above that the answer is 429 rate_limited with Retry-After.
          */
         post: operations["serverIssueCoupon"];
         delete?: never;
@@ -2576,7 +2588,7 @@ export interface components {
              * @description Template issued on each completion; null for no reward coupon.
              */
             reward_coupon_template_id?: string | null;
-            /** @description Most stamps staff may give on one scan. */
+            /** @description Most stamps a member may get on this card in one visit, any 30 minutes, whatever the scan. */
             max_stamps_per_visit: number;
             status: components["schemas"]["ArchiveStatus"];
             /**
@@ -2601,7 +2613,7 @@ export interface components {
              */
             reward_coupon_template_id?: string;
             /**
-             * @description Most stamps staff may give on one scan.
+             * @description Most stamps a member may get on this card in one visit, any 30 minutes, whatever the scan.
              * @default 1
              */
             max_stamps_per_visit: number;
@@ -2617,7 +2629,7 @@ export interface components {
              * @description Applies to completions from now on.
              */
             reward_coupon_template_id?: string;
-            /** @description Most stamps staff may give on one scan. */
+            /** @description Most stamps a member may get on this card in one visit, any 30 minutes, whatever the scan. */
             max_stamps_per_visit?: number;
             status?: components["schemas"]["ArchiveStatus"];
             /** @description Fields to reset to null (no reward coupon). */
@@ -2633,7 +2645,7 @@ export interface components {
             name: string;
             /** @description Stamps that complete the card. */
             stamps_required: number;
-            /** @description Most stamps staff may give on one scan. */
+            /** @description Most stamps a member may get on this card in one visit, any 30 minutes, whatever the scan. */
             max_stamps_per_visit: number;
             status: components["schemas"]["ArchiveStatus"];
             /** @description Stamps toward the next completion, from 0 to stamps_required minus 1. */
@@ -2700,7 +2712,7 @@ export interface components {
              * @description Card of the staff member's app.
              */
             stamp_card_id: string;
-            /** @description Stamps to add; at most the card's max_stamps_per_visit, counting stamps already given on this scan. */
+            /** @description Stamps to add; at most the card's max_stamps_per_visit, counting stamps the member got on this card in the last 30 minutes. */
             count: number;
         };
         StampAdjustment: {
@@ -5054,6 +5066,7 @@ export interface operations {
                 };
             };
             422: components["responses"]["IdempotencyMismatch"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     listMyStamps: {
@@ -5115,7 +5128,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description coupon_unavailable */
+            /** @description coupon_unavailable or scan_used */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5701,6 +5714,7 @@ export interface operations {
                 };
             };
             422: components["responses"]["IdempotencyMismatch"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
 }

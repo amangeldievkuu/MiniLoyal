@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -111,7 +112,7 @@ func TestReconcileWorkerAlertsOnMismatches(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "level=ERROR") || !strings.Contains(out, "mismatches=2") || !strings.Contains(out, "accounts_checked=120") {
+	if !strings.Contains(out, "level=ERROR") || !strings.Contains(out, "mismatches=2") || !strings.Contains(out, "checked=120") {
 		t.Errorf("mismatches must log an ERROR with counts: %s", out)
 	}
 
@@ -128,6 +129,22 @@ func TestReconcileWorkerAlertsOnMismatches(t *testing.T) {
 	w = &PointsReconcileWorker{deps: Deps{Reconciler: fakeReconciler{err: boom}, Clock: clock.Real{}, Log: log}}
 	if err := w.Work(context.Background(), &river.Job[PointsReconcileArgs]{}); !errors.Is(err, boom) {
 		t.Fatalf("err = %v", err)
+	}
+
+	// The loyalty check runs in the same job, after points, even when the
+	// points check fails, and its mismatches are an alert of their own.
+	log, buf = captureLog()
+	w = &PointsReconcileWorker{deps: Deps{Reconciler: fakeReconciler{err: boom}, Loyalty: fakeReconciler{checked: 7, mismatches: 1}, Clock: clock.Real{}, Log: log}}
+	if err := w.Work(context.Background(), &river.Job[PointsReconcileArgs]{}); !errors.Is(err, boom) {
+		t.Fatalf("err = %v", err)
+	}
+	if !strings.Contains(buf.String(), `msg="loyalty reconciliation found mismatches" checked=7 mismatches=1`) {
+		t.Errorf("loyalty mismatches must log an ERROR: %s", buf)
+	}
+	loyaltyBoom := errors.New("loyalty failed")
+	w = &PointsReconcileWorker{deps: Deps{Loyalty: fakeReconciler{err: loyaltyBoom}, Clock: clock.Real{}, Log: log}}
+	if err := w.Work(context.Background(), &river.Job[PointsReconcileArgs]{}); !errors.Is(err, loyaltyBoom) {
+		t.Fatalf("loyalty only: err = %v", err)
 	}
 }
 
@@ -164,6 +181,9 @@ func TestOptionalJobsAreSkippedWithAWarning(t *testing.T) {
 	full := Deps{Log: log, Expirer: &fakeExpirer{}, Reconciler: fakeReconciler{}}
 	if got := len(PeriodicJobs(full)); got != 3 {
 		t.Errorf("periodic jobs with points = %d, want 3", got)
+	}
+	if got := len(PeriodicJobs(Deps{Log: log, Loyalty: fakeReconciler{}})); got != 2 {
+		t.Errorf("periodic jobs with the loyalty check only = %d, want 2", got)
 	}
 }
 
@@ -212,7 +232,9 @@ func TestMaintenanceRunsThroughRiver(t *testing.T) {
 		_ = client.StopAndCancel(stopCtx)
 	})
 
-	inserter, err := NewInserter(d.App)
+	// The API role enqueues nothing since 00010, so the worker's own pool
+	// inserts.
+	inserter, err := NewInserter(d.Worker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +242,7 @@ func TestMaintenanceRunsThroughRiver(t *testing.T) {
 	// the per-period uniqueness so the inserter path is exercised.
 	res, err := inserter.Insert(ctx, MaintenanceArgs{}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{}})
 	if err != nil {
-		t.Fatalf("insert as the API role: %v", err)
+		t.Fatalf("insert as the worker role: %v", err)
 	}
 
 	deadline := time.After(30 * time.Second)
@@ -247,8 +269,9 @@ func TestMaintenanceRunsThroughRiver(t *testing.T) {
 	}
 }
 
-// The worker refuses the API's role, which cannot run jobs, and the owner
-// role, which would run them without row-level security.
+// The worker refuses the API's role, which cannot run jobs, the owner role,
+// which would run them without row-level security, and any other role that
+// merely belongs to the worker role.
 func TestCheckWorkerRole(t *testing.T) {
 	if WorkerRole != migrate.WorkerRole {
 		t.Fatalf("WorkerRole %q differs from migrate.WorkerRole %q", WorkerRole, migrate.WorkerRole)
@@ -258,9 +281,27 @@ func TestCheckWorkerRole(t *testing.T) {
 	if err := CheckWorkerRole(ctx, d.Worker); err != nil {
 		t.Errorf("worker role rejected: %v", err)
 	}
-	for name, pool := range map[string]*pgxpool.Pool{"api": d.App, "owner": d.Admin} {
+	// A role that is a member of miniloyal_worker but not it: the schema
+	// owner is one when it is not a superuser.
+	member := "miniloyal_worker_member_" + strings.ReplaceAll(testutil.NewID().String()[:8], "-", "")
+	d.Exec(t, "CREATE ROLE "+member+" NOLOGIN NOBYPASSRLS NOSUPERUSER IN ROLE "+WorkerRole)
+	t.Cleanup(func() { _, _ = d.Admin.Exec(context.Background(), "DROP ROLE IF EXISTS "+member) })
+	cfg, err := pgxpool.ParseConfig(d.AdminURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.AfterConnect = func(ctx context.Context, c *pgx.Conn) error {
+		_, err := c.Exec(ctx, "SET ROLE "+member)
+		return err
+	}
+	memberPool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer memberPool.Close()
+	for name, pool := range map[string]*pgxpool.Pool{"api": d.App, "owner": d.Admin, "member of the worker role": memberPool} {
 		if err := CheckWorkerRole(ctx, pool); !errors.Is(err, ErrNotWorkerRole) {
-			t.Errorf("%s role: %v, want ErrNotWorkerRole", name, err)
+			t.Errorf("%s: %v, want ErrNotWorkerRole", name, err)
 		}
 	}
 }

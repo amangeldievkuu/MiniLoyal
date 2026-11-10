@@ -464,13 +464,18 @@ func TestStampCompletionRecordedOnce(t *testing.T) {
 	}
 }
 
-// Stamps of one scan on one card are summed for max_stamps_per_visit;
-// adjustments, completions, other scans and other cards do not count.
-func TestSumScanStamps(t *testing.T) {
+// Stamps of one member on one card since a moment are summed for
+// max_stamps_per_visit, whatever the scan; adjustments, completions, older
+// stamps, other members and other cards do not count.
+func TestSumVisitStamps(t *testing.T) {
 	d := testutil.NewDB(t)
 	ctx := context.Background()
 	f := phase4Fixture(t, d, "Alpha")
 	memberID, err := f.member(ctx, d.Admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherMember, err := f.member(ctx, d.Admin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -482,32 +487,40 @@ func TestSumScanStamps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ins := "INSERT INTO stamp_events (tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, scan_id, actor_type) VALUES ($1, $2, $3, $4, gen_random_uuid(), $5, 1, $8, $6, $7, 'staff')"
+	now := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+	since := now.Add(-30 * time.Minute)
+	ins := "INSERT INTO stamp_events (tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, scan_id, actor_type, created_at) VALUES ($1, $2, $3, $4, gen_random_uuid(), $5, 1, $8, $6, $7, 'staff', $9)"
 	for i, r := range []struct {
+		member uuid.UUID
 		card   uuid.UUID
 		delta  int
 		reason string
 		scan   any
+		at     time.Time
 	}{
-		{cardID, 2, "stamp", "scan-a"},
-		{cardID, 1, "stamp", "scan-a"},
-		{cardID, -3, "completion", "scan-a"},
-		{cardID, 4, "stamp", "scan-b"},
-		{otherCard, 5, "stamp", "scan-a"},
-		{cardID, 1, "adjust", nil},
+		{memberID, cardID, 2, "stamp", "scan-a", now.Add(-time.Minute)},
+		{memberID, cardID, 1, "stamp", "scan-b", now.Add(-29 * time.Minute)},
+		{memberID, cardID, -3, "completion", "scan-a", now.Add(-time.Minute)},
+		{memberID, cardID, 4, "stamp", "scan-c", since},
+		{memberID, cardID, 6, "stamp", "scan-d", now.Add(-2 * time.Hour)},
+		{memberID, otherCard, 5, "stamp", "scan-a", now},
+		{otherMember, cardID, 7, "stamp", "scan-e", now},
+		{memberID, cardID, 1, "adjust", nil, now},
 	} {
-		d.Exec(t, ins, f.tenant, f.app, memberID, r.card, r.delta, r.reason, r.scan, i)
+		d.Exec(t, ins, f.tenant, f.app, r.member, r.card, r.delta, r.reason, r.scan, i, r.at)
 	}
 	var got int32
 	err = d.WithTenant(t, f.tenant, func(ctx context.Context, tx pgx.Tx) (err error) {
-		got, err = sqlc.New(tx).SumScanStamps(ctx, sqlc.SumScanStampsParams{AppID: f.app, StampCardID: cardID, ScanID: ptr("scan-a")})
+		got, err = sqlc.New(tx).SumVisitStamps(ctx, sqlc.SumVisitStampsParams{
+			AppID: f.app, StampCardID: cardID, MemberID: memberID, Since: pgtype.Timestamptz{Time: since, Valid: true},
+		})
 		return err
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != 3 {
-		t.Errorf("stamps on scan-a = %d, want 3", got)
+		t.Errorf("stamps in the visit window = %d, want 3", got)
 	}
 }
 

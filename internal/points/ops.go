@@ -8,10 +8,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/amangeldievkuu/miniloyal/internal/access"
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
+	"github.com/amangeldievkuu/miniloyal/internal/audit"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
-	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/principal"
 )
 
@@ -25,24 +26,9 @@ type StaffEarnInput struct {
 }
 
 // verifyScan checks the scan token's MAC and that it was issued to this
-// staff member of this app. Its lifetime is checked only when a write is
-// made for the first time (see staffOp), so an idempotent retry of a write
-// that already happened replays even after the token ran out.
+// staff member of this app (access.VerifyScan).
 func (s *Service) verifyScan(p principal.Principal, token string) (card.ScanClaims, error) {
-	if !p.IsStaff() {
-		return card.ScanClaims{}, apierr.Unauthorized("sign in to the staff app")
-	}
-	if s.card == nil {
-		return card.ScanClaims{}, apierr.Unavailable("member cards are not configured")
-	}
-	cl, err := s.card.VerifyScanTokenIgnoringExpiry(token)
-	if err != nil {
-		return card.ScanClaims{}, errScanInvalid
-	}
-	if cl.StaffID != p.StaffID || cl.AppID != p.AppID || cl.TenantID != p.TenantID {
-		return card.ScanClaims{}, errScanMismatch
-	}
-	return cl, nil
+	return access.VerifyScan(s.card, p, token)
 }
 
 // StaffEarn gives points for a purchase to the member whose card was scanned.
@@ -98,39 +84,21 @@ func (s *Service) StaffRedeem(ctx context.Context, p principal.Principal, idem I
 // single-use rule for redemptions are checked only for a first write; a
 // retry with the same Idempotency-Key replays the stored outcome instead.
 func (s *Service) staffOp(ctx context.Context, p principal.Principal, cl card.ScanClaims, idem Idem, singleUse bool, build func(Rules) (operation, error)) (Txn, error) {
-	if s.staffLimit != nil {
-		if wait, ok := s.staffLimit.Allow("staff:" + p.StaffID.String()); !ok {
-			return Txn{}, apierr.RateLimited(wait)
-		}
+	if err := access.AllowStaff(s.staffLimit, p); err != nil {
+		return Txn{}, err
 	}
 	var m sqlc.Member
 	var out Txn
 	err := s.write(ctx, p.TenantID, scopeOf(p), idem,
 		func(ctx context.Context, tx pgx.Tx) (err error) {
-			q := sqlc.New(tx)
-			if m, err = loadMember(ctx, q, cl.MemberID, p.AppID); err != nil {
-				return err
-			}
-			// Staff and members of one app share a LINE provider, so the
-			// same LINE account means the staff member's own card. (The
-			// session already proved the staff row exists; a missing row
-			// cannot be the member.)
-			st, err := q.GetStaff(ctx, p.StaffID)
-			switch {
-			case err == nil:
-				if st.LineUserID != nil && *st.LineUserID != "" && *st.LineUserID == m.LineUserID {
-					return errSelfService
-				}
-			case !db.IsNotFound(err):
-				return fmt.Errorf("points: load staff: %w", err)
-			}
-			return nil
+			m, err = access.StaffMember(ctx, sqlc.New(tx), p, cl, errSelfService)
+			return err
 		},
 		func(ctx context.Context, tx pgx.Tx) (any, error) {
 			q := sqlc.New(tx)
 			now := s.clock.Now()
-			if cl.Expired(now) || cl.KeyVersion != int(m.QrKeyVersion) {
-				return nil, errScanInvalid
+			if err := access.ScanFresh(cl, m, now); err != nil {
+				return nil, err
 			}
 			if singleUse {
 				n, err := q.UseScanToken(ctx, sqlc.UseScanTokenParams{
@@ -153,7 +121,26 @@ func (s *Service) staffOp(ctx context.Context, p principal.Principal, cl card.Sc
 			}
 			op.actorType, op.actorID = actorOf(p)
 			op.storeID = p.StoreID
-			return s.apply(ctx, q, m, rules, op)
+			t, err := s.apply(ctx, q, m, rules, op)
+			if err != nil {
+				return nil, err
+			}
+			action := ActionStaffEarn
+			if op.kind == KindRedeem {
+				action = ActionStaffRedeem
+			}
+			appID := m.AppID
+			meta := map[string]any{"staff_id": p.StaffID.String(), "txn_id": t.ID.String(), "points": t.Points}
+			if p.StoreID != uuid.Nil {
+				meta["store_id"] = p.StoreID.String()
+			}
+			if err := audit.Record(ctx, tx, audit.Entry{
+				TenantID: m.TenantID, AppID: &appID, Actor: p, Action: action,
+				TargetType: "member", TargetID: m.ID.String(), Metadata: meta,
+			}); err != nil {
+				return nil, err
+			}
+			return t, nil
 		}, &out)
 	return out, err
 }
@@ -232,8 +219,8 @@ func (s *Service) ServerPost(ctx context.Context, p principal.Principal, memberI
 	}
 	var m sqlc.Member
 	var out Txn
-	err = s.write(ctx, acc.tenantID, scopeOf(p), idem,
-		func(ctx context.Context, tx pgx.Tx) (err error) { m, err = acc.check(ctx, tx); return err },
+	err = s.write(ctx, acc.TenantID, scopeOf(p), idem,
+		func(ctx context.Context, tx pgx.Tx) (err error) { m, err = acc.Check(ctx, tx); return err },
 		func(ctx context.Context, tx pgx.Tx) (any, error) {
 			q := sqlc.New(tx)
 			rules, err := rulesFor(ctx, q, m.AppID)

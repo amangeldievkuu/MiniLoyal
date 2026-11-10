@@ -52,8 +52,8 @@ func (s *Service) read(ctx context.Context, p principal.Principal, memberID uuid
 	if err != nil {
 		return err
 	}
-	return db.WithTenant(ctx, s.pool, acc.tenantID, func(ctx context.Context, tx pgx.Tx) error {
-		m, err := acc.check(ctx, tx)
+	return db.WithTenant(ctx, s.pool, acc.TenantID, func(ctx context.Context, tx pgx.Tx) error {
+		m, err := acc.Check(ctx, tx)
 		if err != nil {
 			return err
 		}

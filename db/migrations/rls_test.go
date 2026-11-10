@@ -365,6 +365,12 @@ var rlsTables = []tenantTable{
 		_, err := f.outboundEvent(ctx, x)
 		return err
 	}},
+	// Phase 4 hardening (00010): coupon redeem counts per scan, swept by the
+	// maintenance job.
+	{name: "scan_coupon_redeems", col: "tenant_id", seeded: true, appDelete: true, insert: func(ctx context.Context, x execer, f rlsFixture) error {
+		_, err := x.Exec(ctx, "INSERT INTO scan_coupon_redeems (jti, tenant_id, app_id, redeems, used_at) VALUES ($1, $2, $3, 1, now())", randHex(16), f.tenant, f.app)
+		return err
+	}},
 }
 
 // member inserts a member of f.app through x and returns its ID.
@@ -656,6 +662,15 @@ func TestApplicationRoleGrants(t *testing.T) {
 		{"outbound_events", "INSERT", true},
 		{"outbound_events", "UPDATE", false},
 		{"outbound_events", "DELETE", false},
+		// Phase 4 hardening (00010).
+		{"scan_coupon_redeems", "SELECT", true},
+		{"scan_coupon_redeems", "INSERT", true},
+		{"scan_coupon_redeems", "UPDATE", false},
+		{"scan_coupon_redeems", "DELETE", true},
+		{"loyalty_reconciliation_runs", "SELECT", true},
+		{"loyalty_reconciliation_runs", "INSERT", true},
+		{"loyalty_reconciliation_runs", "UPDATE", true},
+		{"loyalty_reconciliation_runs", "DELETE", false},
 	}
 	for _, role := range []string{migrate.GroupRole, migrate.LoginRole} {
 		for _, tc := range cases {
@@ -705,4 +720,4 @@ func TestApplicationRoleGrants(t *testing.T) {
 }
 
 // systemOnlyTables have row-level security that only system mode passes.
-var systemOnlyTables = []string{"points_reconciliation_runs"}
+var systemOnlyTables = []string{"points_reconciliation_runs", "loyalty_reconciliation_runs"}

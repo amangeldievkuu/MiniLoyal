@@ -63,10 +63,8 @@ func (s *Server) StaffScan(ctx context.Context, req api.StaffScanRequestObject) 
 			PictureUrl:  res.Member.PictureUrl,
 			IsFriend:    res.Member.IsFriend,
 		},
-		// Required arrays, so never null. The coupon and stamp modules fill
-		// them; until then the counter shows none.
-		Coupons: []api.CouponInstance{},
-		Stamps:  []api.StampProgress{},
+		Coupons: toCouponInstances(res.Coupons),
+		Stamps:  toStampProgressList(res.Stamps),
 	}), nil
 }
 

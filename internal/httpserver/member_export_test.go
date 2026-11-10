@@ -10,8 +10,9 @@ import (
 
 // The PDPA export carries the member's points summary and full history, in
 // one snapshot, past the export page size. The member's own copy drops the
-// brand's notes and references as /v1/me/points/history does; coupons and
-// stamps are present as empty lists until their module fills them.
+// brand's notes and references as /v1/me/points/history does. Coupons and
+// stamps are required lists, empty for a member without any
+// (coupon_stamp_test.go covers them filled).
 func TestMemberExportCarriesPoints(t *testing.T) {
 	w := newPointsWorld(t)
 	memberPath := "/v1/dashboard/members/" + w.member.String()

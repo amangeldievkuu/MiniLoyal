@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -22,6 +23,13 @@ const (
 	Development Env = "development"
 	Staging     Env = "staging"
 	Production  Env = "production"
+)
+
+// Development passwords of the login roles, refused in staging and
+// production.
+const (
+	defaultAppDBPassword    = "miniloyal_api"
+	defaultWorkerDBPassword = "miniloyal_worker"
 )
 
 // Config holds every setting the services read. Fields are plain values so
@@ -60,6 +68,12 @@ type Config struct {
 	WorkerConcurrency int
 	OTLPEndpoint      string
 	ShutdownTimeout   time.Duration
+
+	// CouponClaimsPerMinute limits each member's coupon claims and
+	// CouponAPIIssuesPerMinute each API key's coupon issues; over the limit
+	// the API answers 429 with Retry-After.
+	CouponClaimsPerMinute    int
+	CouponAPIIssuesPerMinute int
 
 	// TrustProxy makes the API read X-Forwarded-For and X-Forwarded-Proto
 	// from the reverse proxy in front of it (nginx in docker compose).
@@ -122,18 +136,28 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 	cfg.MigrateDatabaseURL = get("MIGRATE_DATABASE_URL", cfg.DatabaseURL)
 	if cfg.Env == Development {
 		if cfg.AppDBPassword == "" {
-			cfg.AppDBPassword = "miniloyal_api"
+			cfg.AppDBPassword = defaultAppDBPassword
 		}
 		if cfg.WorkerDBPassword == "" {
-			cfg.WorkerDBPassword = "miniloyal_worker"
+			cfg.WorkerDBPassword = defaultWorkerDBPassword
 		}
+	} else if usesDefaultPassword(cfg) {
+		// The development passwords are public; outside development they
+		// would let anyone who reaches the database log in as the API or
+		// the worker.
+		errs = append(errs, errors.New("APP_DB_PASSWORD and WORKER_DB_PASSWORD (and the passwords in DATABASE_URL and WORKER_DATABASE_URL) must not be the development defaults outside development"))
 	}
 
-	n, err := strconv.Atoi(get("WORKER_CONCURRENCY", "4"))
-	if err != nil || n < 1 {
-		errs = append(errs, errors.New("WORKER_CONCURRENCY must be a positive integer"))
+	positive := func(key, def string) int {
+		n, err := strconv.Atoi(get(key, def))
+		if err != nil || n < 1 {
+			errs = append(errs, fmt.Errorf("%s must be a positive integer", key))
+		}
+		return n
 	}
-	cfg.WorkerConcurrency = n
+	cfg.WorkerConcurrency = positive("WORKER_CONCURRENCY", "4")
+	cfg.CouponClaimsPerMinute = positive("COUPON_CLAIMS_PER_MINUTE", "10")
+	cfg.CouponAPIIssuesPerMinute = positive("COUPON_API_ISSUES_PER_MINUTE", "300")
 
 	if raw := get("SESSION_SIGNING_KEY", ""); raw != "" {
 		key, err := base64.StdEncoding.DecodeString(raw)
@@ -165,6 +189,24 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 		return nil, fmt.Errorf("config: %w", errors.Join(errs...))
 	}
 	return cfg, nil
+}
+
+// usesDefaultPassword reports whether a login role password, set directly
+// or inside a connection URL, is a development default.
+func usesDefaultPassword(cfg *Config) bool {
+	if cfg.AppDBPassword == defaultAppDBPassword || cfg.WorkerDBPassword == defaultWorkerDBPassword {
+		return true
+	}
+	for _, raw := range []string{cfg.DatabaseURL, cfg.WorkerDatabaseURL} {
+		u, err := url.Parse(raw)
+		if err != nil || u.User == nil {
+			continue
+		}
+		if pw, ok := u.User.Password(); ok && (pw == defaultAppDBPassword || pw == defaultWorkerDBPassword) {
+			return true
+		}
+	}
+	return false
 }
 
 // LoadDotEnv sets environment variables from a .env file of KEY=VALUE lines.

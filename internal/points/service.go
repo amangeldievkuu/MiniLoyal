@@ -7,7 +7,6 @@ package points
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -17,23 +16,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/amangeldievkuu/miniloyal/internal/access"
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
 	"github.com/amangeldievkuu/miniloyal/internal/audit"
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
 	"github.com/amangeldievkuu/miniloyal/internal/db/sqlc"
-	"github.com/amangeldievkuu/miniloyal/internal/idempotency"
+	"github.com/amangeldievkuu/miniloyal/internal/events"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
-	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/principal"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 )
 
 // Audit actions.
 const (
-	ActionAdjust = "points.adjust"
-	ActionRules  = "points.rules"
+	ActionAdjust      = "points.adjust"
+	ActionStaffEarn   = "points.earn"
+	ActionStaffRedeem = "points.redeem"
+	ActionRules       = "points.rules"
 )
 
 // Ledger reasons, which are also the transaction kinds.
@@ -59,17 +60,12 @@ const DefaultMaxPointsPerTxn = 10_000
 // only in the API spec.
 const MaxSpendAmount = 100_000_000
 
-// defaultStaffWritesPerMinute limits points writes per staff member.
-const defaultStaffWritesPerMinute = 30
-
 var (
 	errInsufficient = apierr.New(409, "insufficient_points", "the member does not have enough points")
 	errDisabled     = apierr.New(409, "points_disabled", "points are disabled for this app")
-	errScanInvalid  = apierr.New(403, "scan_invalid", "scan the member card again")
-	errScanMismatch = apierr.New(403, "scan_mismatch", "this scan belongs to another staff member or app")
 	errScanUsed     = apierr.New(409, "scan_used", "this scan already paid for a redemption; scan the member card again")
 	errSelfService  = apierr.New(403, "self_service", "staff cannot give or spend points on their own member card")
-	errNotFound     = apierr.NotFound("member")
+	errNotFound     = access.ErrMemberNotFound
 )
 
 // Deps are the service's collaborators.
@@ -85,14 +81,19 @@ type Deps struct {
 	Log   *slog.Logger
 	// StaffWritesPerMinute limits points writes per staff member. Zero
 	// means the default (30); a negative value turns the limit off (tests).
+	// Ignored when StaffLimiter is set.
 	StaffWritesPerMinute int
+	// StaffLimiter is the per-staff write limiter shared with coupons and
+	// stamps, so the limit counts every staff write together. Nil builds
+	// one from StaffWritesPerMinute.
+	StaffLimiter *auth.Limiter
 }
 
 // Service is the points domain.
 type Service struct {
 	pool    *pgxpool.Pool
 	tenants *tenant.Service
-	idem    *idempotency.Store
+	writer  *access.Writer
 	card    *card.Codec
 	clock   clock.Clock
 	log     *slog.Logger
@@ -108,21 +109,14 @@ func New(d Deps) *Service {
 	if d.Log == nil {
 		d.Log = slog.Default()
 	}
-	var codec idempotency.Codec
-	if d.Keyring != nil {
-		codec = idempotency.NewEncryptedCodec(d.Keyring)
-	}
-	var staffLimit *auth.Limiter
-	switch n := d.StaffWritesPerMinute; {
-	case n == 0:
-		staffLimit = auth.NewLimiter(d.Clock, defaultStaffWritesPerMinute, defaultStaffWritesPerMinute)
-	case n > 0:
-		staffLimit = auth.NewLimiter(d.Clock, n, n)
+	staffLimit := d.StaffLimiter
+	if staffLimit == nil {
+		staffLimit = access.NewStaffLimiter(d.Clock, d.StaffWritesPerMinute)
 	}
 	return &Service{
 		pool:       d.Pool,
 		tenants:    d.Tenants,
-		idem:       idempotency.New(d.Pool, codec, d.Clock),
+		writer:     access.NewWriter(d.Pool, d.Keyring, d.Clock),
 		card:       d.Card,
 		clock:      d.Clock,
 		log:        d.Log,
@@ -131,10 +125,7 @@ func New(d Deps) *Service {
 }
 
 // Idem is the client's idempotency key and the request fingerprint.
-type Idem struct {
-	Key  string
-	Hash []byte
-}
+type Idem = access.Idem
 
 // Txn is one points operation as clients see it.
 type Txn struct {
@@ -266,6 +257,9 @@ func (s *Service) apply(ctx context.Context, q *sqlc.Queries, m sqlc.Member, rul
 	if err := q.SetPointsBalance(ctx, sqlc.SetPointsBalanceParams{MemberID: m.ID, Balance: balance, EarnedDelta: op.earnedDelta}); err != nil {
 		return Txn{}, fmt.Errorf("points: set balance: %w", err)
 	}
+	if err := emitChanged(ctx, q, m.TenantID, m.AppID, m.ID, txnID, op.kind, op.delta, balance, now); err != nil {
+		return Txn{}, err
+	}
 	t := Txn{
 		ID: txnID, MemberID: m.ID, Kind: op.kind, Points: op.delta, BalanceAfter: balance,
 		SpendAmount: op.spend, RefType: op.refType, RefID: op.refID, Note: op.note,
@@ -278,143 +272,31 @@ func (s *Service) apply(ctx context.Context, q *sqlc.Queries, m sqlc.Member, rul
 	return t, nil
 }
 
-// write resolves nothing itself: tenantID and the authorization hook come
-// from the caller. It runs fn once per idempotency key and replays the
-// stored outcome for retries; authorize runs before claim and replay.
+// write runs fn once per idempotency key and replays the stored outcome
+// for retries; authorize runs before claim and replay (access.Writer).
 func (s *Service) write(ctx context.Context, tenantID uuid.UUID, scope string, idem Idem, authorize func(ctx context.Context, tx pgx.Tx) error, fn func(ctx context.Context, tx pgx.Tx) (any, error), out any) error {
-	res, err := s.idem.Run(ctx, idempotency.Request{
-		TenantID: tenantID,
-		Scope:    scope,
-		Key:      idem.Key,
-		Hash:     idem.Hash,
-		Before:   authorize,
-	}, func(ctx context.Context, tx pgx.Tx) (int, any, error) {
-		v, err := fn(ctx, tx)
-		if err != nil {
-			return 0, nil, err
-		}
-		return 200, v, nil
-	})
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(res.Body, out); err != nil {
-		return fmt.Errorf("points: decode outcome: %w", err)
-	}
-	return nil
-}
-
-// loadMember reads the member inside a tenant transaction and checks it
-// belongs to appID, is not erased, and that the app is active.
-func loadMember(ctx context.Context, q *sqlc.Queries, memberID, appID uuid.UUID) (sqlc.Member, error) {
-	m, err := q.GetMember(ctx, memberID)
-	if err != nil {
-		if db.IsNotFound(err) {
-			return sqlc.Member{}, errNotFound
-		}
-		return sqlc.Member{}, fmt.Errorf("points: load member: %w", err)
-	}
-	if (appID != uuid.Nil && m.AppID != appID) || m.AnonymizedAt.Valid {
-		return sqlc.Member{}, errNotFound
-	}
-	app, err := q.GetApp(ctx, m.AppID)
-	if err != nil {
-		return sqlc.Member{}, fmt.Errorf("points: load app: %w", err)
-	}
-	if app.Status != "active" {
-		return sqlc.Member{}, errNotFound
-	}
-	return m, nil
-}
-
-// memberTenant resolves a member to its tenant with a system lookup.
-func (s *Service) memberTenant(ctx context.Context, memberID uuid.UUID) (uuid.UUID, error) {
-	var tenantID uuid.UUID
-	err := db.WithSystem(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
-		id, err := sqlc.New(tx).GetMemberTenant(ctx, memberID)
-		if err != nil {
-			if db.IsNotFound(err) {
-				return errNotFound
-			}
-			return fmt.Errorf("points: member tenant: %w", err)
-		}
-		tenantID = id
-		return nil
-	})
-	return tenantID, err
-}
-
-// access describes how a caller reaches a member: the tenant to scope the
-// transaction to, and a check run inside it that loads the member.
-type access struct {
-	tenantID uuid.UUID
-	check    func(ctx context.Context, tx pgx.Tx) (sqlc.Member, error)
+	return s.writer.Write(ctx, tenantID, scope, idem, authorize, fn, out)
 }
 
 // reach builds the access for p on memberID. Dashboard users need at least
 // role min; API keys and members stay inside their own app.
-func (s *Service) reach(ctx context.Context, p principal.Principal, memberID uuid.UUID, min principal.Role) (access, error) {
-	switch {
-	case p.IsMember():
-		if memberID != p.MemberID {
-			return access{}, errNotFound
-		}
-		return access{tenantID: p.TenantID, check: func(ctx context.Context, tx pgx.Tx) (sqlc.Member, error) {
-			return loadMember(ctx, sqlc.New(tx), memberID, p.AppID)
-		}}, nil
-	case p.IsAPIKey():
-		tenantID, err := s.memberTenant(ctx, memberID)
-		if err != nil {
-			return access{}, err
-		}
-		if tenantID != p.TenantID {
-			return access{}, errNotFound
-		}
-		return access{tenantID: tenantID, check: func(ctx context.Context, tx pgx.Tx) (sqlc.Member, error) {
-			return loadMember(ctx, sqlc.New(tx), memberID, p.AppID)
-		}}, nil
-	case p.IsUser():
-		tenantID, err := s.memberTenant(ctx, memberID)
-		if err != nil {
-			return access{}, err
-		}
-		return access{tenantID: tenantID, check: func(ctx context.Context, tx pgx.Tx) (sqlc.Member, error) {
-			if _, err := s.tenants.Authorize(ctx, tx, p, tenantID, min); err != nil {
-				return sqlc.Member{}, err
-			}
-			return loadMember(ctx, sqlc.New(tx), memberID, uuid.Nil)
-		}}, nil
-	default:
-		return access{}, errNotFound
-	}
+func (s *Service) reach(ctx context.Context, p principal.Principal, memberID uuid.UUID, min principal.Role) (access.Access, error) {
+	return access.Reach(ctx, s.pool, s.tenants, p, memberID, min)
 }
 
-func scopeOf(p principal.Principal) string {
-	switch {
-	case p.IsStaff():
-		return idempotency.Scope("staff", p.StaffID)
-	case p.IsAPIKey():
-		return idempotency.Scope("apikey", p.APIKeyID)
-	case p.IsMember():
-		return idempotency.Scope("member", p.MemberID)
-	default:
-		return idempotency.Scope("user", p.UserID)
-	}
-}
+func scopeOf(p principal.Principal) string { return access.ScopeOf(p) }
 
-func actorOf(p principal.Principal) (string, uuid.UUID) {
-	switch {
-	case p.IsStaff():
-		return "staff", p.StaffID
-	case p.IsAPIKey():
-		return "api_key", p.APIKeyID
-	case p.IsMember():
-		return "member", p.MemberID
-	case p.IsUser():
-		return "user", p.UserID
-	default:
-		return "system", uuid.Nil
-	}
+func actorOf(p principal.Principal) (string, uuid.UUID) { return access.ActorOf(p) }
+
+// emitChanged records points.changed for one transaction of a member, in
+// the transaction that made it.
+func emitChanged(ctx context.Context, q *sqlc.Queries, tenantID, appID, memberID, txnID uuid.UUID, kind string, delta, balance int64, at time.Time) error {
+	return events.Emit(ctx, q, events.Event{
+		TenantID: tenantID, AppID: appID, Type: events.PointsChanged, MemberID: memberID, OccurredAt: at,
+		Payload: map[string]any{
+			"member_id": memberID, "txn_id": txnID, "kind": kind, "points": delta, "balance_after": balance,
+		},
+	})
 }
 
 // Adjust corrects a member's points on a dashboard user's behalf. Owners and
@@ -435,8 +317,8 @@ func (s *Service) Adjust(ctx context.Context, p principal.Principal, memberID uu
 	}
 	var m sqlc.Member
 	var out Txn
-	err = s.write(ctx, acc.tenantID, scopeOf(p), idem,
-		func(ctx context.Context, tx pgx.Tx) (err error) { m, err = acc.check(ctx, tx); return err },
+	err = s.write(ctx, acc.TenantID, scopeOf(p), idem,
+		func(ctx context.Context, tx pgx.Tx) (err error) { m, err = acc.Check(ctx, tx); return err },
 		func(ctx context.Context, tx pgx.Tx) (any, error) {
 			q := sqlc.New(tx)
 			rules, err := rulesFor(ctx, q, m.AppID)
@@ -452,7 +334,8 @@ func (s *Service) Adjust(ctx context.Context, p principal.Principal, memberID uu
 			if err := audit.Record(ctx, tx, audit.Entry{
 				TenantID: m.TenantID, AppID: &appID, Actor: p, Action: ActionAdjust,
 				TargetType: "member", TargetID: m.ID.String(),
-				Metadata: map[string]any{"delta": delta, "note": note, "txn_id": t.ID.String()},
+				// No note: audit rows outlive a PDPA erasure.
+				Metadata: map[string]any{"delta": delta, "txn_id": t.ID.String()},
 			}); err != nil {
 				return nil, err
 			}
@@ -479,12 +362,16 @@ func (s *Service) expireMemberDue(ctx context.Context, q *sqlc.Queries, m sqlc.M
 			return 0, fmt.Errorf("points: member %s balance is below its expiring lot %d", m.ID, lot.ID)
 		}
 		lotID := lot.ID
+		txnID := uuid.Must(uuid.NewV7())
 		if _, err := q.InsertLedgerEntry(ctx, sqlc.InsertLedgerEntryParams{
 			TenantID: lot.TenantID, AppID: lot.AppID, MemberID: lot.MemberID,
-			TxnID: uuid.Must(uuid.NewV7()), LotID: &lotID, Delta: -lot.Remaining, BalanceAfter: balance,
+			TxnID: txnID, LotID: &lotID, Delta: -lot.Remaining, BalanceAfter: balance,
 			Reason: KindExpire, ActorType: "system",
 		}); err != nil {
 			return 0, fmt.Errorf("points: expire lot %d: %w", lot.ID, err)
+		}
+		if err := emitChanged(ctx, q, lot.TenantID, lot.AppID, lot.MemberID, txnID, KindExpire, -int64(lot.Remaining), balance, now); err != nil {
+			return 0, err
 		}
 		if err := q.SetLotRemaining(ctx, sqlc.SetLotRemainingParams{ID: lot.ID, Remaining: 0}); err != nil {
 			return 0, fmt.Errorf("points: empty lot %d: %w", lot.ID, err)

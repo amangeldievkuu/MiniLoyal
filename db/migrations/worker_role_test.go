@@ -5,8 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/riverqueue/river"
-
 	"github.com/amangeldievkuu/miniloyal/internal/jobs"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/migrate"
@@ -59,47 +57,51 @@ func TestWorkerRoleOwnsRiverOnly(t *testing.T) {
 	}
 }
 
-// The API role inserts jobs through River's client, including the unique
-// insert that ends in ON CONFLICT DO UPDATE, and nothing more: it cannot
-// rewrite, cancel or delete a job and cannot touch River's other tables.
-func TestAPIRoleCanOnlyInsertRiverJobs(t *testing.T) {
+// Since 00010 the API role has nothing on River: cmd/api enqueues no jobs,
+// so it cannot insert, read, rewrite, cancel or delete one, and cannot
+// touch River's other tables. The worker inserts and works jobs.
+func TestAPIRoleHasNoRiverAccess(t *testing.T) {
 	d := testutil.NewDB(t)
 	ctx := context.Background()
 
-	inserter, err := jobs.NewInserter(d.App)
+	apiInserter, err := jobs.NewInserter(d.App)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := apiInserter.Insert(ctx, jobs.MaintenanceArgs{}, nil); db.Code(err) != db.CodeInsufficientPrivilege {
+		t.Fatalf("insert as the API role: %v, want permission denied", err)
+	}
+	inserter, err := jobs.NewInserter(d.Worker)
 	if err != nil {
 		t.Fatal(err)
 	}
 	first, err := inserter.Insert(ctx, jobs.MaintenanceArgs{}, nil)
 	if err != nil {
-		t.Fatalf("unique insert as the API role: %v", err)
+		t.Fatalf("unique insert as the worker role: %v", err)
 	}
 	second, err := inserter.Insert(ctx, jobs.MaintenanceArgs{}, nil)
 	if err != nil {
-		t.Fatalf("duplicate unique insert as the API role: %v", err)
+		t.Fatalf("duplicate unique insert as the worker role: %v", err)
 	}
 	if !second.UniqueSkippedAsDuplicate || second.Job.ID != first.Job.ID {
 		t.Fatalf("duplicate insert: skipped %v, id %d, want the first job %d", second.UniqueSkippedAsDuplicate, second.Job.ID, first.Job.ID)
 	}
-	plain, err := inserter.Insert(ctx, jobs.MaintenanceArgs{}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{}})
-	if err != nil {
-		t.Fatalf("plain insert as the API role: %v", err)
-	}
-	id := plain.Job.ID
+	id := first.Job.ID
 
 	denied := map[string][]any{
-		"UPDATE river_job SET state = 'cancelled', finalized_at = now() WHERE id = $1": {id},
-		"UPDATE river_job SET kind = 'points_expiry' WHERE id = $1":                    {id},
-		"UPDATE river_job SET args = '{\"x\":1}' WHERE id = $1":                        {id},
-		"DELETE FROM river_job WHERE id = $1":                                          {id},
-		"TRUNCATE river_job":                                                           nil,
+		"SELECT count(*) FROM river_job": nil,
+		"INSERT INTO river_job (args, kind, max_attempts, priority, queue, state) VALUES ('{}', 'maintenance', 1, 1, 'default', 'available')": nil,
+		"UPDATE river_job SET state = 'cancelled', finalized_at = now() WHERE id = $1":                                                        {id},
+		"UPDATE river_job SET kind = 'points_expiry' WHERE id = $1":                                                                           {id},
+		"DELETE FROM river_job WHERE id = $1":                                                                                                 {id},
+		"TRUNCATE river_job":                                                                                                                  nil,
+		"SELECT nextval('river_job_id_seq')":                                                                                                  nil,
 	}
 	for _, table := range riverTables[1:] {
 		denied["SELECT count(*) FROM "+table] = nil
 		denied["DELETE FROM "+table] = nil
 	}
 	denied["INSERT INTO river_leader (leader_id, elected_at, expires_at) VALUES ('evil', now(), now() + interval '1 hour')"] = nil
-	denied["INSERT INTO river_queue (name, metadata, created_at, updated_at, paused_at) VALUES ('default', '{}', now(), now(), now())"] = nil
 	denied["UPDATE river_queue SET paused_at = now()"] = nil
 	for stmt, args := range denied {
 		if _, err := d.App.Exec(ctx, stmt, args...); db.Code(err) != db.CodeInsufficientPrivilege {
@@ -107,16 +109,6 @@ func TestAPIRoleCanOnlyInsertRiverJobs(t *testing.T) {
 		}
 	}
 
-	// The column grant River's conflict path needs is the only update right,
-	// and the shared group role has nothing on River at all.
-	var kindUpdate, stateUpdate bool
-	if err := d.Admin.QueryRow(ctx, `SELECT has_column_privilege($1, 'river_job', 'kind', 'UPDATE'),
-		has_column_privilege($1, 'river_job', 'state', 'UPDATE')`, migrate.LoginRole).Scan(&kindUpdate, &stateUpdate); err != nil {
-		t.Fatal(err)
-	}
-	if !kindUpdate || stateUpdate {
-		t.Errorf("column UPDATE on river_job: kind %v (want true), state %v (want false)", kindUpdate, stateUpdate)
-	}
 	for _, table := range riverTables {
 		for _, priv := range []string{"SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
 			var group, api bool
@@ -124,14 +116,17 @@ func TestAPIRoleCanOnlyInsertRiverJobs(t *testing.T) {
 				migrate.GroupRole, migrate.LoginRole, table, priv).Scan(&group, &api); err != nil {
 				t.Fatal(err)
 			}
-			if group {
-				t.Errorf("%s may %s %s", migrate.GroupRole, priv, table)
-			}
-			wantAPI := table == "river_job" && (priv == "SELECT" || priv == "INSERT")
-			if api != wantAPI {
-				t.Errorf("%s %s on %s = %v, want %v", migrate.LoginRole, priv, table, api, wantAPI)
+			if group || api {
+				t.Errorf("%s on %s: %s %v, %s %v, want neither", priv, table, migrate.GroupRole, group, migrate.LoginRole, api)
 			}
 		}
+	}
+	var kindUpdate bool
+	if err := d.Admin.QueryRow(ctx, "SELECT has_column_privilege($1, 'river_job', 'kind', 'UPDATE')", migrate.LoginRole).Scan(&kindUpdate); err != nil {
+		t.Fatal(err)
+	}
+	if kindUpdate {
+		t.Error("the API role kept UPDATE (kind) on river_job")
 	}
 
 	// The worker changes and removes jobs.

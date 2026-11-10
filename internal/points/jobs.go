@@ -98,11 +98,15 @@ func (s *Service) expireLot(ctx context.Context, q *sqlc.Queries, due sqlc.Point
 		return fmt.Errorf("member %s balance %d is below the lot's %d remaining points", lot.MemberID, acct.Balance, lot.Remaining)
 	}
 	lotID := lot.ID
+	txnID := uuid.Must(uuid.NewV7())
 	if _, err := q.InsertLedgerEntry(ctx, sqlc.InsertLedgerEntryParams{
 		TenantID: lot.TenantID, AppID: lot.AppID, MemberID: lot.MemberID,
-		TxnID: uuid.Must(uuid.NewV7()), LotID: &lotID, Delta: -lot.Remaining, BalanceAfter: balance,
+		TxnID: txnID, LotID: &lotID, Delta: -lot.Remaining, BalanceAfter: balance,
 		Reason: KindExpire, ActorType: "system",
 	}); err != nil {
+		return err
+	}
+	if err := emitChanged(ctx, q, lot.TenantID, lot.AppID, lot.MemberID, txnID, KindExpire, -int64(lot.Remaining), balance, now); err != nil {
 		return err
 	}
 	if err := q.SetLotRemaining(ctx, sqlc.SetLotRemainingParams{ID: lot.ID, Remaining: 0}); err != nil {

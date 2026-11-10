@@ -111,21 +111,61 @@ WHERE c.app_id = sqlc.arg('app_id')
 ORDER BY c.created_at, c.id;
 
 -- name: InsertStampEvent :one
+-- created_at comes from the service clock, since the visit window counts
+-- on it; a caller that leaves it unset (NULL) gets the database's now().
 INSERT INTO stamp_events (
   tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after,
-  reason, coupon_instance_id, scan_id, note, staff_id, store_id, actor_type, actor_id
+  reason, coupon_instance_id, scan_id, note, staff_id, store_id, actor_type, actor_id, created_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+  sqlc.arg('tenant_id'), sqlc.arg('app_id'), sqlc.arg('member_id'), sqlc.arg('stamp_card_id'), sqlc.arg('txn_id'),
+  sqlc.arg('delta'), sqlc.arg('count_after'), sqlc.arg('completions_after'), sqlc.arg('reason'),
+  sqlc.narg('coupon_instance_id'), sqlc.narg('scan_id'), sqlc.narg('note'), sqlc.narg('staff_id'), sqlc.narg('store_id'),
+  sqlc.arg('actor_type'), sqlc.narg('actor_id'), coalesce(sqlc.narg('created_at')::timestamptz, now())
 )
 RETURNING *;
 
--- name: SumScanStamps :one
--- Stamps already given on one scan to one card, for max_stamps_per_visit.
--- Call it after LockStampProgress so concurrent requests on the same scan
--- see each other's rows.
+-- name: SumVisitStamps :one
+-- Stamps the member got on the card since a moment (now minus the visit
+-- window), whatever the scan, for max_stamps_per_visit. Call it after
+-- LockStampProgress so concurrent stamps see each other's rows.
 SELECT coalesce(sum(delta), 0)::integer AS stamps
 FROM stamp_events
-WHERE app_id = $1 AND stamp_card_id = $2 AND scan_id = $3 AND reason = 'stamp';
+WHERE app_id = sqlc.arg('app_id') AND stamp_card_id = sqlc.arg('stamp_card_id')
+  AND member_id = sqlc.arg('member_id') AND reason = 'stamp'
+  AND created_at > sqlc.arg('since');
+
+-- name: EraseStampNotes :execrows
+-- PDPA erasure: clears the notes staff typed on the member's adjustments.
+-- Completion markers (reward_unavailable) stay; a trigger allows nothing else.
+UPDATE stamp_events SET note = NULL
+WHERE app_id = $1 AND member_id = $2 AND reason = 'adjust' AND note IS NOT NULL;
+
+-- name: CountStampProgress :one
+-- Reconciliation: how many progress rows were checked. System mode.
+SELECT count(*) FROM stamp_progress;
+
+-- name: ReconcileStampProgress :many
+-- Reconciliation, system mode: progress rows whose count differs from the
+-- sum of their events, or whose completions differ from their completion
+-- rows. Events without a progress row show up with zero progress.
+SELECT
+  coalesce(p.app_id, e.app_id)::uuid               AS app_id,
+  coalesce(p.member_id, e.member_id)::uuid         AS member_id,
+  coalesce(p.stamp_card_id, e.stamp_card_id)::uuid AS stamp_card_id,
+  coalesce(p.count, 0)::bigint                     AS count,
+  coalesce(p.completions, 0)::bigint               AS completions,
+  coalesce(e.delta_sum, 0)::bigint                 AS event_sum,
+  coalesce(e.completion_rows, 0)::bigint           AS completion_rows
+FROM stamp_progress p
+FULL JOIN (
+  SELECT app_id, member_id, stamp_card_id, sum(delta) AS delta_sum,
+         count(*) FILTER (WHERE reason = 'completion') AS completion_rows
+  FROM stamp_events
+  GROUP BY app_id, member_id, stamp_card_id
+) e ON e.app_id = p.app_id AND e.member_id = p.member_id AND e.stamp_card_id = p.stamp_card_id
+WHERE coalesce(p.count, 0) <> coalesce(e.delta_sum, 0)
+   OR coalesce(p.completions, 0) <> coalesce(e.completion_rows, 0)
+ORDER BY 1, 2, 3;
 
 -- name: ListStampEvents :many
 -- A member's stamp history, newest first; stamp_card_id NULL lists every
@@ -136,3 +176,15 @@ WHERE app_id = sqlc.arg('app_id') AND member_id = sqlc.arg('member_id')
   AND (sqlc.narg('before_id')::bigint IS NULL OR id < sqlc.narg('before_id')::bigint)
 ORDER BY id DESC
 LIMIT sqlc.arg('page_limit');
+
+-- name: LockStampCard :one
+-- Serializes dashboard changes of one card with each other and with stamps
+-- (which hold GetStampCardForShare), so stamps_required cannot change
+-- between the in-use check and a first stamp.
+SELECT * FROM stamp_cards WHERE app_id = $1 AND id = $2 FOR UPDATE;
+
+-- name: GetStampCardForShare :one
+-- The card as a stamp or adjustment sees it, held until the transaction
+-- ends so a concurrent update waits for it. Share locks do not block each
+-- other, so stamps of different members on one card still run in parallel.
+SELECT * FROM stamp_cards WHERE app_id = $1 AND id = $2 FOR SHARE;

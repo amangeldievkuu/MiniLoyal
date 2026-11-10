@@ -1,7 +1,7 @@
 // Command worker runs background jobs on River: hourly maintenance that keeps
 // the identity and webhook tables bounded, points expiry every 15 minutes and
-// the daily points reconciliation. Several workers may run at once; River's
-// leader election schedules each periodic job once.
+// the daily reconciliation of points, stamps and coupons. Several workers
+// may run at once; River's leader election schedules each periodic job once.
 //
 // It connects with WORKER_DATABASE_URL as miniloyal_worker, the role that owns
 // River's tables. That role cannot bypass row-level security: jobs that span
@@ -22,6 +22,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/platform/log"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/otel"
 	"github.com/amangeldievkuu/miniloyal/internal/points"
+	"github.com/amangeldievkuu/miniloyal/internal/stamp"
 )
 
 var version = "dev"
@@ -74,6 +75,7 @@ func run() int {
 	// HTTP-facing dependencies (tenants, keyring, card) stay nil here.
 	pointsSvc := points.New(points.Deps{Pool: pool, Clock: clock.Real{}, Log: logger})
 	deps.Expirer, deps.Reconciler = pointsSvc, pointsSvc
+	deps.Loyalty = stamp.New(stamp.Deps{Pool: pool, Clock: clock.Real{}, Log: logger, StaffWritesPerMinute: -1})
 
 	client, err := jobs.NewClient(pool, deps, cfg.WorkerConcurrency)
 	if err != nil {
