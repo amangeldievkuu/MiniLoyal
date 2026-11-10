@@ -3,7 +3,11 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Member, Session } from '@miniloyal/sdk';
 import { MiniLoyal, MiniLoyalError } from '@miniloyal/sdk';
 
+import { CardScreen } from './Card';
 import { strings } from './i18n';
+import { PointsScreen } from './Points';
+
+type Tab = 'card' | 'points' | 'profile';
 
 const CONSENT_VERSION = import.meta.env.VITE_CONSENT_VERSION ?? '2026-11';
 
@@ -96,6 +100,7 @@ function MemberView({
   const t = strings(session.app.locale);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('card');
 
   async function accept() {
     setBusy(true);
@@ -111,41 +116,73 @@ function MemberView({
 
   const addFriendUrl = ml.addFriendUrl();
 
+  const profile = (
+    <section className="card profile" aria-label={t.member}>
+      {member.picture_url ? (
+        <img className="avatar" src={member.picture_url} alt="" width={64} height={64} />
+      ) : (
+        <div className="avatar placeholder" aria-hidden="true" />
+      )}
+      <div>
+        <h2>{member.display_name ?? t.member}</h2>
+        <p className="muted">
+          {isFriend ? t.following : t.notFollowing}
+          {session.isNew ? ` · ${t.welcome}` : ''}
+        </p>
+      </div>
+    </section>
+  );
+
   return (
     <Shell title={session.app.name} footer={`${session.app.name} · ${session.app.locale}`}>
-      <section className="card" aria-label={t.member}>
-        {member.picture_url ? (
-          <img className="avatar" src={member.picture_url} alt="" width={64} height={64} />
-        ) : (
-          <div className="avatar placeholder" aria-hidden="true" />
-        )}
-        <div>
-          <h2>{member.display_name ?? t.member}</h2>
-          <p className="muted">
-            {isFriend ? t.following : t.notFollowing}
-            {session.isNew ? ` · ${t.welcome}` : ''}
-          </p>
-        </div>
-      </section>
-
       {!member.consent ? (
-        <section className="card" aria-label={t.consentTitle}>
-          <h3>{t.consentTitle}</h3>
-          <p>{t.consentBody}</p>
-          <button type="button" onClick={accept} disabled={busy}>
-            {busy ? t.saving : t.agree}
-          </button>
-          {error && <p role="alert">{error}</p>}
-        </section>
+        <>
+          {profile}
+          <section className="card" aria-label={t.consentTitle}>
+            <h3>{t.consentTitle}</h3>
+            <p>{t.consentBody}</p>
+            <button type="button" onClick={accept} disabled={busy}>
+              {busy ? t.saving : t.agree}
+            </button>
+            {error && <p role="alert">{error}</p>}
+          </section>
+        </>
       ) : (
-        <section className="card" aria-label={t.cardTitle}>
-          <h3>{t.cardTitle}</h3>
-          <p className="muted">
-            {t.consentVersion} {member.consent.version} · {t.memberSince}{' '}
-            {member.created_at.slice(0, 10)}
-          </p>
-          <p>{t.comingSoon}</p>
-        </section>
+        <>
+          <nav className="tabs" role="tablist" aria-label={session.app.name}>
+            {(
+              [
+                ['card', t.tabCard],
+                ['points', t.tabPoints],
+                ['profile', t.tabProfile],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                className={tab === id ? 'tab active' : 'tab'}
+                onClick={() => setTab(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          {tab === 'card' && <CardScreen ml={ml} t={t} />}
+          {tab === 'points' && <PointsScreen ml={ml} t={t} />}
+          {tab === 'profile' && (
+            <>
+              {profile}
+              <section className="card" aria-label={t.cardTitle}>
+                <p className="muted">
+                  {t.consentVersion} {member.consent.version} · {t.memberSince}{' '}
+                  {member.created_at.slice(0, 10)}
+                </p>
+              </section>
+            </>
+          )}
+        </>
       )}
 
       {!isFriend && addFriendUrl && (

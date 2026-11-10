@@ -111,3 +111,92 @@ footer {
   text-align: center;
   padding: 8px;
 }
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  background: var(--card);
+  border-radius: 999px;
+  padding: 4px;
+}
+.tab {
+  flex: 1;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 0;
+}
+.tab.active {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.member-card {
+  flex-direction: column;
+  text-align: center;
+}
+.qr-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 12px;
+}
+.qr-wrap canvas {
+  width: min(240px, 70vw);
+  height: auto;
+  aspect-ratio: 1;
+}
+.qr-placeholder {
+  background: #eeeeee;
+}
+.ring {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+}
+.ring-track {
+  fill: var(--card);
+  stroke: var(--muted);
+  stroke-opacity: 0.3;
+  stroke-width: 4;
+}
+.ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s linear;
+}
+
+.balance {
+  font-size: 1.1rem;
+}
+.balance.big strong {
+  font-size: 2.2rem;
+}
+.card > .balance,
+.card > p {
+  flex-basis: 100%;
+}
+
+.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex-basis: 100%;
+}
+.history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
+}
+.plus {
+  color: var(--accent);
+  font-weight: 600;
+}
+.minus {
+  font-weight: 600;
+}
