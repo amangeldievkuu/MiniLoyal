@@ -2,6 +2,13 @@
 
 ## SDK
 
+### 0.3.0
+
+- Member card: `card()` returns the rotating QR payload; `watchCard(onCard, onError)` keeps it current (refresh at `refresh_in_seconds`, paused while the page is hidden, backoff 1 to 30 s on errors) and returns `stop()`.
+- Points: `points()` (balance, next expiries, earn rule), `pointsHistory({ limit, cursor })` and the async iterator `pointsHistoryAll({ limit })`.
+- New types: `MemberCard`, `PointsSummary`, `PointsTransaction`, `PointsHistoryPage`, `PointsKind`, `PageOptions`, `StopWatching`.
+- No breaking changes.
+
 ### 0.2.0
 
 - `MiniLoyal.init()` is now asynchronous: it runs `liff.init()`, starts LINE login when needed (`state === 'redirecting'`) and exchanges the LIFF ID token for a member session.

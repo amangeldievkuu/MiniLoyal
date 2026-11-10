@@ -14,10 +14,17 @@ export type {
   MemberExport,
   MemberSession,
   MemberUpdate,
+  MemberCard,
   MiniLoyalOptions,
   MutationOptions,
+  PageOptions,
+  PointsHistoryPage,
+  PointsKind,
+  PointsSummary,
+  PointsTransaction,
   Session,
   SessionState,
+  StopWatching,
 } from './client';
 export { MiniLoyalError, isMiniLoyalError } from './errors';
 export type { ApiError, SdkErrorCode } from './errors';

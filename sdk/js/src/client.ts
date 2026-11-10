@@ -11,6 +11,22 @@ export type MemberSession = components['schemas']['MemberSession'];
 export type AppPublic = components['schemas']['AppPublic'];
 export type LineLoginRequest = components['schemas']['LineLoginRequest'];
 export type Health = components['schemas']['Health'];
+export type MemberCard = components['schemas']['MemberCard'];
+export type PointsSummary = components['schemas']['PointsSummary'];
+export type PointsTransaction = components['schemas']['PointsTransaction'];
+export type PointsHistoryPage = components['schemas']['PointsHistoryPage'];
+export type PointsKind = components['schemas']['PointsKind'];
+
+/** Paging for points history. */
+export interface PageOptions {
+  /** 1 to 100; the API defaults to 50. */
+  limit?: number;
+  /** The `next_cursor` of the previous page. */
+  cursor?: string | null;
+}
+
+/** Stops a {@link MiniLoyal.watchCard} loop. */
+export type StopWatching = () => void;
 
 /** Where the client is in its life cycle. */
 export type SessionState = 'redirecting' | 'signed_in' | 'signed_out';
@@ -58,6 +74,13 @@ export interface MutationOptions {
 
 /** How long before expiry a session is renewed proactively. */
 const RENEW_BEFORE_MS = 60_000;
+/** watchCard never refreshes faster than this. */
+const MIN_CARD_REFRESH_MS = 1_000;
+/** Up to this much random delay spreads card refreshes across members. */
+const CARD_JITTER_MS = 250;
+/** Retry delays after a failed card fetch: 1, 2, 4, 8 ... capped at 30 s. */
+const CARD_RETRY_BASE_MS = 1_000;
+const CARD_RETRY_MAX_MS = 30_000;
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
@@ -216,6 +239,110 @@ export class MiniLoyal {
     const basicId = this.current?.app.oa_basic_id;
     if (!basicId) return null;
     return `https://line.me/R/ti/p/${encodeURIComponent(basicId)}`;
+  }
+
+  /**
+   * The member card: an opaque payload to render as a QR code. It changes
+   * every 30 seconds; use {@link watchCard} to keep it current.
+   */
+  card(): Promise<MemberCard> {
+    return this.request<MemberCard>({ method: 'GET', path: '/v1/me/card' });
+  }
+
+  /**
+   * Keeps the member card current: fetches it, calls `onCard`, and fetches
+   * again after `refresh_in_seconds`. Pauses while the page is hidden and
+   * refreshes as soon as it is visible again. Errors go to `onError` and are
+   * retried with backoff (1, 2, 4, 8 s, at most 30 s); nothing is thrown.
+   * Returns a function that stops the loop.
+   */
+  watchCard(
+    onCard: (card: MemberCard) => void,
+    onError?: (err: MiniLoyalError) => void,
+  ): StopWatching {
+    const doc = typeof document !== 'undefined' ? document : undefined;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let failures = 0;
+    let inFlight = false;
+
+    const hidden = () => doc?.visibilityState === 'hidden';
+    const clear = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+    };
+    const schedule = (ms: number) => {
+      clear();
+      timer = setTimeout(() => void tick(), ms);
+    };
+    const tick = async (): Promise<void> => {
+      timer = undefined;
+      if (stopped || hidden() || inFlight) return;
+      inFlight = true;
+      try {
+        const card = await this.card();
+        if (stopped) return;
+        failures = 0;
+        onCard(card);
+        const ms = Math.max(MIN_CARD_REFRESH_MS, card.refresh_in_seconds * 1000);
+        if (!hidden()) schedule(ms + Math.floor(Math.random() * CARD_JITTER_MS));
+      } catch (err) {
+        if (stopped) return;
+        const delay = Math.min(CARD_RETRY_MAX_MS, CARD_RETRY_BASE_MS * 2 ** failures);
+        failures++;
+        onError?.(
+          err instanceof MiniLoyalError
+            ? err
+            : new MiniLoyalError(
+                'network',
+                err instanceof Error ? err.message : 'card fetch failed',
+              ),
+        );
+        if (!hidden()) schedule(delay);
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onVisibility = () => {
+      if (stopped) return;
+      if (hidden()) clear();
+      else schedule(0);
+    };
+
+    doc?.addEventListener('visibilitychange', onVisibility);
+    void tick();
+    return () => {
+      stopped = true;
+      clear();
+      doc?.removeEventListener('visibilitychange', onVisibility);
+    };
+  }
+
+  /** The member's points balance, what expires soon, and the earn rule. */
+  points(): Promise<PointsSummary> {
+    return this.request<PointsSummary>({ method: 'GET', path: '/v1/me/points' });
+  }
+
+  /** One page of the member's points transactions, newest first. */
+  pointsHistory(options: PageOptions = {}): Promise<PointsHistoryPage> {
+    const q = new URLSearchParams();
+    if (options.limit !== undefined) q.set('limit', String(options.limit));
+    if (options.cursor) q.set('cursor', options.cursor);
+    const qs = q.toString();
+    return this.request<PointsHistoryPage>({
+      method: 'GET',
+      path: '/v1/me/points/history' + (qs ? '?' + qs : ''),
+    });
+  }
+
+  /** Every page of the member's points history, newest first. */
+  async *pointsHistoryAll(options: { limit?: number } = {}): AsyncGenerator<PointsHistoryPage> {
+    let cursor: string | null | undefined;
+    do {
+      const page = await this.pointsHistory({ limit: options.limit, cursor });
+      yield page;
+      cursor = page.next_cursor;
+    } while (cursor);
   }
 
   /** Checks that the API is reachable. Needs no session. */

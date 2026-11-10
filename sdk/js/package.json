@@ -1,7 +1,7 @@
 {
   "name": "@miniloyal/sdk",
-  "version": "0.2.0",
-  "description": "MiniLoyal client for LINE MINI Apps: LIFF login, member sessions, profile, consent and friendship",
+  "version": "0.3.0",
+  "description": "MiniLoyal client for LINE MINI Apps: LIFF login, member sessions, profile, consent, friendship, member card and points",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
