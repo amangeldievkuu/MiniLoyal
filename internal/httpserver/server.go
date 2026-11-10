@@ -5,6 +5,7 @@ package httpserver
 import (
 	"context"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
+	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"log/slog"
 	"net/http"
 	"time"
@@ -44,6 +45,9 @@ type Deps struct {
 	Staff StaffAuthenticator
 	// Card issues and verifies member card QR codes and scan tokens.
 	Card *card.Codec
+	// Points serves earn rules, balances, history, adjustments and staff
+	// earn and redeem (internal/points). Nil answers those routes 503.
+	Points *points.Service
 	// Tenants serves tenants, team, apps, channels, stores, staff, API keys
 	// and the audit log.
 	Tenants *tenant.Service
@@ -69,6 +73,7 @@ type Server struct {
 	members   MemberAuthenticator
 	staff     StaffAuthenticator
 	card      *card.Codec
+	points    *points.Service
 	tenants   *tenant.Service
 	lineauth  *lineauth.Service
 	memberSvc *member.Service
@@ -103,6 +108,7 @@ func New(d Deps) *Server {
 		members:   d.Members,
 		staff:     d.Staff,
 		card:      d.Card,
+		points:    d.Points,
 		tenants:   d.Tenants,
 		lineauth:  d.LineAuth,
 		memberSvc: d.MemberSvc,

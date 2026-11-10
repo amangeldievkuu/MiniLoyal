@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
+	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"net"
 	"net/http"
 	"os"
@@ -129,6 +130,7 @@ func run() int {
 		logger.Error("card codec setup failed", "err", err)
 		return 1
 	}
+	pointsSvc := points.New(points.Deps{Pool: pool, Tenants: tenants, Keyring: keyring, Card: cards, Clock: clock.Real{}, Log: logger})
 	members := member.New(member.Deps{Pool: pool, Tenants: tenants, Keyring: keyring, Clock: clock.Real{}, Log: logger})
 
 	srv := &http.Server{
@@ -143,6 +145,7 @@ func run() int {
 			MemberSvc: members,
 			Webhooks:  webhooks,
 			Card:      cards,
+			Points:    pointsSvc,
 		}).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
