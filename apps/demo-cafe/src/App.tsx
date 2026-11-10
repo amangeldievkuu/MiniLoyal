@@ -5,9 +5,11 @@ import { MiniLoyal, MiniLoyalError } from '@miniloyal/sdk';
 
 import { CardScreen } from './Card';
 import { strings } from './i18n';
+import { CouponsScreen } from './Coupons';
 import { PointsScreen } from './Points';
+import { StampsScreen } from './Stamps';
 
-type Tab = 'card' | 'points' | 'profile';
+type Tab = 'card' | 'points' | 'coupons' | 'stamps' | 'profile';
 
 const CONSENT_VERSION = import.meta.env.VITE_CONSENT_VERSION ?? '2026-11';
 
@@ -154,6 +156,8 @@ function MemberView({
               [
                 ['card', t.tabCard],
                 ['points', t.tabPoints],
+                ['coupons', t.tabCoupons],
+                ['stamps', t.tabStamps],
                 ['profile', t.tabProfile],
               ] as const
             ).map(([id, label]) => (
@@ -171,6 +175,8 @@ function MemberView({
           </nav>
           {tab === 'card' && <CardScreen ml={ml} t={t} />}
           {tab === 'points' && <PointsScreen ml={ml} t={t} />}
+          {tab === 'coupons' && <CouponsScreen ml={ml} t={t} />}
+          {tab === 'stamps' && <StampsScreen ml={ml} t={t} />}
           {tab === 'profile' && (
             <>
               {profile}

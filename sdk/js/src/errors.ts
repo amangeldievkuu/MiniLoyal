@@ -12,6 +12,14 @@ export type ApiError = components['schemas']['Error'];
  */
 export type SdkErrorCode = 'network' | 'redirecting' | 'not_signed_in' | 'invalid_response';
 
+/**
+ * Codes `coupons.claim()` can fail with (HTTP 409):
+ * - `coupon_sold_out`: the template reached its total limit.
+ * - `coupon_limit_reached`: the member already holds the most allowed.
+ * - `coupon_not_claimable`: the template is archived, outside its dates or issue-only.
+ */
+export type CouponErrorCode = 'coupon_sold_out' | 'coupon_limit_reached' | 'coupon_not_claimable';
+
 /** Every failure the SDK throws. `code` is stable; `message` is for humans. */
 export class MiniLoyalError extends Error {
   readonly code: string;
