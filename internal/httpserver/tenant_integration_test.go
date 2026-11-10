@@ -547,7 +547,7 @@ func TestStoresAndStaff(t *testing.T) {
 	want(t, created, http.StatusCreated)
 	var staff api.StaffCreated
 	created.into(t, &staff)
-	if len(staff.InviteCode) != 8 || staff.StoreId == nil || *staff.StoreId != store.Id || staff.LineLinked {
+	if len(staff.InviteCode) != 12 || staff.StoreId == nil || *staff.StoreId != store.Id || staff.LineLinked {
 		t.Fatalf("staff: %+v", staff)
 	}
 	list := owner.get(appPath + "/staff")

@@ -36,6 +36,12 @@ const (
 	StaffDelete      = "staff.delete"
 	APIKeyCreate     = "api_key.create"
 	APIKeyRevoke     = "api_key.revoke"
+
+	// Phase 3: member cards, member sessions and the staff app.
+	MemberCardRotate  = "member.card_rotate"
+	MemberSessionsEnd = "app.member_sessions_end"
+	StaffInviteReset  = "staff.invite_reset"
+	StaffLoginBound   = "staff.login_bound"
 )
 
 // Entry is one audit record. Metadata must never hold secrets.

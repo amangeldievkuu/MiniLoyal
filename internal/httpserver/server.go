@@ -5,6 +5,7 @@ package httpserver
 import (
 	"context"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
+	"github.com/amangeldievkuu/miniloyal/internal/staffauth"
 	"log/slog"
 	"net/http"
 	"time"
@@ -44,6 +45,10 @@ type Deps struct {
 	Staff StaffAuthenticator
 	// Card issues and verifies member card QR codes and scan tokens.
 	Card *card.Codec
+	// StaffAuth serves the staff app (sign-in, profile, card scans) and the
+	// member's own card. It also verifies staff sessions, so Staff defaults
+	// to it.
+	StaffAuth *staffauth.Service
 	// Tenants serves tenants, team, apps, channels, stores, staff, API keys
 	// and the audit log.
 	Tenants *tenant.Service
@@ -69,6 +74,7 @@ type Server struct {
 	members   MemberAuthenticator
 	staff     StaffAuthenticator
 	card      *card.Codec
+	staffAuth *staffauth.Service
 	tenants   *tenant.Service
 	lineauth  *lineauth.Service
 	memberSvc *member.Service
@@ -92,6 +98,9 @@ func New(d Deps) *Server {
 	if d.Members == nil && d.LineAuth != nil {
 		d.Members = d.LineAuth
 	}
+	if d.Staff == nil && d.StaffAuth != nil {
+		d.Staff = d.StaffAuth
+	}
 	return &Server{
 		cfg:       d.Config,
 		log:       d.Log,
@@ -103,6 +112,7 @@ func New(d Deps) *Server {
 		members:   d.Members,
 		staff:     d.Staff,
 		card:      d.Card,
+		staffAuth: d.StaffAuth,
 		tenants:   d.Tenants,
 		lineauth:  d.LineAuth,
 		memberSvc: d.MemberSvc,

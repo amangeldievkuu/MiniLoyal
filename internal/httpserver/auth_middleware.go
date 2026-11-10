@@ -122,8 +122,6 @@ func requireUser(ctx context.Context) (principal.Principal, error) {
 }
 
 // requireStaff returns the staff member calling, or 401.
-//
-//lint:ignore U1000 used by the staff handlers that replace stubs_staff.go
 func requireStaff(ctx context.Context) (principal.Principal, error) {
 	p, ok := principal.FromContext(ctx)
 	if !ok || !p.IsStaff() {

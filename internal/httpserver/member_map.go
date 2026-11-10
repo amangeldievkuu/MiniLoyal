@@ -55,7 +55,11 @@ func toMemberDetail(m sqlc.Member) api.MemberDetail {
 		Consent:      base.Consent,
 		CreatedAt:    base.CreatedAt,
 		UpdatedAt:    m.UpdatedAt.Time,
-		LineUserId:   &m.LineUserID,
+	}
+	// Empty when the caller's role sees a redacted member.
+	if m.LineUserID != "" {
+		id := m.LineUserID
+		out.LineUserId = &id
 	}
 	if m.FriendChangedAt.Valid {
 		t := m.FriendChangedAt.Time

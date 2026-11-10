@@ -31,8 +31,9 @@ import (
 
 // Audit actions written for dashboard-initiated data-rights requests.
 const (
-	ActionErase  = "member.erase"
-	ActionExport = "member.export"
+	ActionErase      = "member.erase"
+	ActionExport     = "member.export"
+	ActionCardRotate = "member.card_rotate"
 )
 
 // Deps are the service's collaborators.
@@ -242,11 +243,15 @@ func (s *Service) List(ctx context.Context, p principal.Principal, appID uuid.UU
 	var page Page
 	err = db.WithTenant(ctx, s.pool, tenantID, func(ctx context.Context, tx pgx.Tx) error {
 		q := sqlc.New(tx)
+		var role principal.Role
 		if p.IsUser() {
-			if _, err := s.tenants.Authorize(ctx, tx, p, tenantID, principal.RoleStaff); err != nil {
+			r, err := s.tenants.Authorize(ctx, tx, p, tenantID, principal.RoleStaff)
+			if err != nil {
 				return err
 			}
+			role = r
 		}
+		defer func() { redactFor(p, role, page.Items) }()
 		params := sqlc.ListMembersParams{AppID: appID, PageLimit: int32(limit + 1)}
 		if in.Q != "" {
 			q := escapeLike(in.Q)
@@ -274,8 +279,11 @@ func (s *Service) List(ctx context.Context, p principal.Principal, appID uuid.UU
 // Get returns one member for a dashboard user or the app's API key.
 func (s *Service) Get(ctx context.Context, p principal.Principal, memberID uuid.UUID) (sqlc.Member, error) {
 	var m sqlc.Member
-	err := s.readMember(ctx, p, memberID, principal.RoleStaff, func(_ context.Context, _ pgx.Tx, found sqlc.Member) error {
+	err := s.readMember(ctx, p, memberID, principal.RoleStaff, func(_ context.Context, _ pgx.Tx, found sqlc.Member, role principal.Role) error {
 		m = found
+		if p.IsUser() && !role.AtLeast(principal.RoleAdmin) {
+			redact(&m)
+		}
 		return nil
 	})
 	return m, err
@@ -290,7 +298,7 @@ func (s *Service) Export(ctx context.Context, p principal.Principal, memberID uu
 		return Export{}, apierr.NotFound("member")
 	}
 	var out Export
-	err := s.readMember(ctx, p, memberID, principal.RoleAdmin, func(ctx context.Context, tx pgx.Tx, m sqlc.Member) error {
+	err := s.readMember(ctx, p, memberID, principal.RoleAdmin, func(ctx context.Context, tx pgx.Tx, m sqlc.Member, _ principal.Role) error {
 		var err error
 		out, err = s.export(ctx, sqlc.New(tx), m)
 		if err != nil {
@@ -310,7 +318,7 @@ func (s *Service) Erase(ctx context.Context, p principal.Principal, memberID uui
 	if !p.IsUser() {
 		return apierr.NotFound("member")
 	}
-	return s.readMember(ctx, p, memberID, principal.RoleAdmin, func(ctx context.Context, tx pgx.Tx, m sqlc.Member) error {
+	return s.readMember(ctx, p, memberID, principal.RoleAdmin, func(ctx context.Context, tx pgx.Tx, m sqlc.Member, _ principal.Role) error {
 		q := sqlc.New(tx)
 		n, err := q.AnonymizeMember(ctx, m.ID)
 		if err != nil {
@@ -329,7 +337,7 @@ func (s *Service) Erase(ctx context.Context, p principal.Principal, memberID uui
 // readMember resolves the member's tenant, authorizes the caller and runs fn
 // with the member inside the tenant transaction. API keys may only reach
 // members of their own app.
-func (s *Service) readMember(ctx context.Context, p principal.Principal, memberID uuid.UUID, min principal.Role, fn func(ctx context.Context, tx pgx.Tx, m sqlc.Member) error) error {
+func (s *Service) readMember(ctx context.Context, p principal.Principal, memberID uuid.UUID, min principal.Role, fn func(ctx context.Context, tx pgx.Tx, m sqlc.Member, role principal.Role) error) error {
 	if !p.IsUser() && !p.IsAPIKey() {
 		return apierr.NotFound("member")
 	}
@@ -350,10 +358,13 @@ func (s *Service) readMember(ctx context.Context, p principal.Principal, memberI
 	}
 	return db.WithTenant(ctx, s.pool, tenantID, func(ctx context.Context, tx pgx.Tx) error {
 		q := sqlc.New(tx)
+		var role principal.Role
 		if p.IsUser() {
-			if _, err := s.tenants.Authorize(ctx, tx, p, tenantID, min); err != nil {
+			r, err := s.tenants.Authorize(ctx, tx, p, tenantID, min)
+			if err != nil {
 				return err
 			}
+			role = r
 		}
 		m, err := q.GetMember(ctx, memberID)
 		if err != nil {
@@ -365,7 +376,7 @@ func (s *Service) readMember(ctx context.Context, p principal.Principal, memberI
 		if m.AnonymizedAt.Valid {
 			return apierr.NotFound("member")
 		}
-		return fn(ctx, tx, m)
+		return fn(ctx, tx, m, role)
 	})
 }
 
@@ -489,4 +500,88 @@ func (s *Service) eraseTraces(ctx context.Context, q *sqlc.Queries, tenantID, me
 func escapeLike(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 	return r.Replace(s)
+}
+
+// redactFor hides personal fields from dashboard users below admin: the
+// staff role sees who a member is, not their LINE ID, phone, birthday or
+// custom fields. Owners, admins and API keys see everything.
+func redactFor(p principal.Principal, role principal.Role, items []sqlc.Member) {
+	if !p.IsUser() || role.AtLeast(principal.RoleAdmin) {
+		return
+	}
+	for i := range items {
+		redact(&items[i])
+	}
+}
+
+func redact(m *sqlc.Member) {
+	m.LineUserID = ""
+	m.Phone = nil
+	m.Birthday = pgtype.Date{}
+	m.CustomFields = []byte("{}")
+}
+
+// CardRotated is the outcome of RotateCard.
+type CardRotated struct {
+	QRKeyVersion int `json:"qr_key_version"`
+}
+
+// RotateCard invalidates every QR code the member's card ever showed (lost or
+// shared phone). Owners and admins; idempotent; audited.
+func (s *Service) RotateCard(ctx context.Context, p principal.Principal, memberID uuid.UUID, idem Idem) (CardRotated, error) {
+	if !p.IsUser() {
+		return CardRotated{}, apierr.NotFound("member")
+	}
+	var tenantID uuid.UUID
+	err := db.WithSystem(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+		id, err := sqlc.New(tx).GetMemberTenant(ctx, memberID)
+		if err != nil {
+			return notFound(err)
+		}
+		tenantID = id
+		return nil
+	})
+	if err != nil {
+		return CardRotated{}, err
+	}
+	var fresh CardRotated
+	res, err := s.idem.Run(ctx, idempotency.Request{
+		TenantID: tenantID,
+		Scope:    idempotency.Scope("user", p.UserID),
+		Key:      idem.Key,
+		Hash:     idem.Hash,
+		Before: func(ctx context.Context, tx pgx.Tx) error {
+			_, err := s.tenants.Authorize(ctx, tx, p, tenantID, principal.RoleAdmin)
+			return err
+		},
+	}, func(ctx context.Context, tx pgx.Tx) (int, any, error) {
+		q := sqlc.New(tx)
+		m, err := q.GetMember(ctx, memberID)
+		if err != nil {
+			return 0, nil, notFound(err)
+		}
+		if m.AnonymizedAt.Valid {
+			return 0, nil, apierr.NotFound("member")
+		}
+		v, err := q.RotateMemberQRKey(ctx, memberID)
+		if err != nil {
+			return 0, nil, fmt.Errorf("member: rotate card: %w", notFound(err))
+		}
+		if err := s.audit(ctx, tx, p, m, ActionCardRotate); err != nil {
+			return 0, nil, err
+		}
+		fresh = CardRotated{QRKeyVersion: int(v)}
+		return 200, fresh, nil
+	})
+	if err != nil {
+		return CardRotated{}, err
+	}
+	if !res.Replayed {
+		return fresh, nil
+	}
+	var out CardRotated
+	if err := json.Unmarshal(res.Body, &out); err != nil {
+		return CardRotated{}, fmt.Errorf("member: decode replay: %w", err)
+	}
+	return out, nil
 }

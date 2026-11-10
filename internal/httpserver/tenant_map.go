@@ -66,12 +66,17 @@ func (s *Server) toApp(a sqlc.App) api.App {
 		OaBasicId:          a.OaBasicID,
 		OaChannelSecretSet: len(a.OaChannelSecretEnc) > 0,
 		WebhookUrl:         strings.TrimRight(s.cfg.PublicBaseURL, "/") + "/webhooks/line/" + a.ID.String(),
+		AllowHs256IdTokens: &a.AllowHs256IDTokens,
 		CreatedAt:          a.CreatedAt.Time,
 		UpdatedAt:          a.UpdatedAt.Time,
 	}
 	if a.OaVerifiedAt.Valid {
 		t := a.OaVerifiedAt.Time
 		out.OaVerifiedAt = &t
+	}
+	if a.MemberSessionsValidFrom.Valid {
+		t := a.MemberSessionsValidFrom.Time
+		out.MemberSessionsValidFrom = &t
 	}
 	return out
 }
@@ -125,6 +130,10 @@ func toStaff(st sqlc.Staff) api.Staff {
 		id := openapi_types.UUID(st.StoreID.UUID)
 		out.StoreId = &id
 	}
+	if st.LastLoginAt.Valid {
+		t := st.LastLoginAt.Time
+		out.LastLoginAt = &t
+	}
 	return out
 }
 
@@ -132,7 +141,7 @@ func toStaffCreated(c tenant.StaffCreated) api.StaffCreated {
 	st := toStaff(c.Staff)
 	return api.StaffCreated{
 		Id: st.Id, AppId: st.AppId, DisplayName: st.DisplayName, Role: st.Role, Status: st.Status,
-		LineLinked: st.LineLinked, StoreId: st.StoreId, CreatedAt: st.CreatedAt,
+		LineLinked: st.LineLinked, StoreId: st.StoreId, CreatedAt: st.CreatedAt, LastLoginAt: st.LastLoginAt,
 		InviteCode: c.InviteCode,
 	}
 }

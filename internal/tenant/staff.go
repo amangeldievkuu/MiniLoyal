@@ -206,3 +206,48 @@ func nullUUIDString(v uuid.NullUUID) any {
 	}
 	return v.UUID.String()
 }
+
+// ResetStaffInvite issues a new invite code and unlinks the staff member's
+// LINE account (a new phone or a new person). Their sessions end at once.
+// Owners and admins; the code is returned once.
+func (s *Service) ResetStaffInvite(ctx context.Context, p principal.Principal, staffID uuid.UUID, idem Idem) (StaffCreated, error) {
+	tenantID, err := s.staffTenant(ctx, staffID)
+	if err != nil {
+		return StaffCreated{}, err
+	}
+	return write(ctx, s, p, tenantID, principal.RoleAdmin, idem, func(ctx context.Context, tx pgx.Tx, _ principal.Role) (StaffCreated, error) {
+		q := sqlc.New(tx)
+		now := s.clock.Now()
+		code := randomInviteCode()
+		hash := hashInvite(code)
+		st, err := q.ResetStaffInvite(ctx, sqlc.ResetStaffInviteParams{
+			ID:                staffID,
+			InviteCodeHash:    &hash,
+			InviteExpiresAt:   pgtype.Timestamptz{Time: now.Add(inviteTTL), Valid: true},
+			SessionsValidFrom: pgtype.Timestamptz{Time: now.Truncate(time.Millisecond), Valid: true},
+		})
+		if err != nil {
+			return StaffCreated{}, notFound(err, "staff member")
+		}
+		return StaffCreated{Staff: st, InviteCode: code}, audit.Record(ctx, tx, audit.Entry{
+			TenantID: tenantID, AppID: &st.AppID, Actor: p, Action: audit.StaffInviteReset,
+			TargetType: "staff", TargetID: st.ID.String(),
+		})
+	})
+}
+
+// HashInviteCode normalizes a code as typed by a person (case, spaces and
+// dashes do not matter) and returns its stored form.
+func HashInviteCode(code string) string {
+	return hashInvite(NormalizeInviteCode(code))
+}
+
+// NormalizeInviteCode uppercases a code and strips spaces and dashes.
+func NormalizeInviteCode(code string) string {
+	return strings.Map(func(r rune) rune {
+		if r == ' ' || r == '-' || r == '\t' {
+			return -1
+		}
+		return r
+	}, strings.ToUpper(strings.TrimSpace(code)))
+}

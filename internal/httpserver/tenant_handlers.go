@@ -224,6 +224,7 @@ func (s *Server) UpdateApp(ctx context.Context, req api.UpdateAppRequestObject) 
 	app, err := s.tenants.UpdateApp(ctx, p, uuid.UUID(req.AppId), idem(ctx, req.Params.IdempotencyKey, body), tenant.AppUpdate{
 		Name: body.Name, Locale: body.Locale, Status: statusPtr(body.Status),
 		OAChannelID: body.OaChannelId, OABasicID: body.OaBasicId, OAChannelSecret: body.OaChannelSecret,
+		AllowHS256: body.AllowHs256IdTokens,
 	})
 	if err != nil {
 		return nil, err
