@@ -73,7 +73,7 @@ func TestPhase4ColumnGrants(t *testing.T) {
 	}{
 		{"coupon_templates", "tenant_id", false},
 		{"coupon_templates", "app_id", false},
-		{"coupon_templates", "type", false},
+		{"coupon_templates", "type", true},
 		{"coupon_templates", "status", true},
 		{"coupon_templates", "claimed_count", true},
 		{"coupon_instances", "tenant_id", false},
@@ -198,38 +198,53 @@ func TestPhase4CheckConstraints(t *testing.T) {
 	tmpl := "INSERT INTO coupon_templates (tenant_id, app_id, name, type, value, total_limit, per_member_limit, validity_days) VALUES ($1, $2, 'x', $3, $4, $5, $6, $7)"
 	inst := "INSERT INTO coupon_instances (tenant_id, app_id, template_id, member_id, code, status, source, txn_id, issued_at, expires_at, issued_by_type) VALUES ($1, $2, $3, $4, $5, $6, 'issue', gen_random_uuid(), $7, $8, 'system')"
 	card := "INSERT INTO stamp_cards (tenant_id, app_id, name, stamps_required, max_stamps_per_visit, reward_coupon_template_id) VALUES ($1, $2, 'x', $3, $4, $5)"
-	event := "INSERT INTO stamp_events (tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, coupon_instance_id, actor_type) VALUES ($1, $2, $3, $4, gen_random_uuid(), $5, 0, 1, $6, NULL, 'system')"
+	event := "INSERT INTO stamp_events (tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, coupon_instance_id, scan_id, actor_type) VALUES ($1, $2, $3, $4, gen_random_uuid(), $5, 0, $7, $6, NULL, $8, 'system')"
 	now := time.Now()
 
+	const notNull = "23502"
 	cases := []struct {
 		name string
 		sql  string
 		args []any
-		ok   bool
+		// code is the expected SQLSTATE; empty means accepted.
+		code string
 	}{
-		{"percent 100", tmpl, []any{f.tenant, f.app, "percent_off", 100, nil, nil, nil}, true},
-		{"percent 101", tmpl, []any{f.tenant, f.app, "percent_off", 101, nil, nil, nil}, false},
-		{"percent 0", tmpl, []any{f.tenant, f.app, "percent_off", 0, nil, nil, nil}, false},
-		{"amount 0", tmpl, []any{f.tenant, f.app, "amount_off", 0, nil, nil, nil}, false},
-		{"amount without value", tmpl, []any{f.tenant, f.app, "amount_off", nil, nil, nil, nil}, false},
-		{"free item", tmpl, []any{f.tenant, f.app, "free_item", nil, nil, nil, nil}, true},
-		{"free item with value", tmpl, []any{f.tenant, f.app, "free_item", 5, nil, nil, nil}, false},
-		{"unknown type", tmpl, []any{f.tenant, f.app, "bogo", 5, nil, nil, nil}, false},
-		{"zero total limit", tmpl, []any{f.tenant, f.app, "amount_off", 50, 0, nil, nil}, false},
-		{"zero per-member limit", tmpl, []any{f.tenant, f.app, "amount_off", 50, nil, 0, nil}, false},
-		{"per-member above total", tmpl, []any{f.tenant, f.app, "amount_off", 50, 5, 6, nil}, false},
-		{"zero validity days", tmpl, []any{f.tenant, f.app, "amount_off", 50, nil, nil, 0}, false},
-		{"lowercase code", inst, []any{f.tenant, f.app, templateID, memberID, "abcdef12", "issued", now, nil}, false},
-		{"short code", inst, []any{f.tenant, f.app, templateID, memberID, "ABC", "issued", now, nil}, false},
-		{"expires before issue", inst, []any{f.tenant, f.app, templateID, memberID, "ABCDEF12", "issued", now, now.Add(-time.Hour)}, false},
-		{"redeemed without redeemed_at", inst, []any{f.tenant, f.app, templateID, memberID, "ABCDEF13", "redeemed", now, nil}, false},
-		{"stored expired status", inst, []any{f.tenant, f.app, templateID, memberID, "ABCDEF14", "expired", now, nil}, false},
-		{"zero stamps required", card, []any{f.tenant, f.app, 0, 1, templateID}, false},
-		{"101 stamps required", card, []any{f.tenant, f.app, 101, 1, templateID}, false},
-		{"zero per visit", card, []any{f.tenant, f.app, 10, 0, templateID}, false},
-		{"negative stamp", event, []any{f.tenant, f.app, memberID, cardID, -1, "stamp"}, false},
-		{"completion without reward", event, []any{f.tenant, f.app, memberID, cardID, -10, "completion"}, false},
-		{"zero delta adjust", event, []any{f.tenant, f.app, memberID, cardID, 0, "adjust"}, false},
+		{"percent 100", tmpl, []any{f.tenant, f.app, "percent_off", 100, nil, 1, nil}, ""},
+		{"percent 101", tmpl, []any{f.tenant, f.app, "percent_off", 101, nil, 1, nil}, db.CodeCheckViolation},
+		{"percent 0", tmpl, []any{f.tenant, f.app, "percent_off", 0, nil, 1, nil}, db.CodeCheckViolation},
+		{"amount 1000000", tmpl, []any{f.tenant, f.app, "amount_off", 1000000, nil, 1, nil}, ""},
+		{"amount 0", tmpl, []any{f.tenant, f.app, "amount_off", 0, nil, 1, nil}, db.CodeCheckViolation},
+		{"amount 1000001", tmpl, []any{f.tenant, f.app, "amount_off", 1000001, nil, 1, nil}, db.CodeCheckViolation},
+		{"amount without value", tmpl, []any{f.tenant, f.app, "amount_off", nil, nil, 1, nil}, notNull},
+		{"free item 0", tmpl, []any{f.tenant, f.app, "free_item", 0, nil, 1, nil}, ""},
+		{"free item without value", tmpl, []any{f.tenant, f.app, "free_item", nil, nil, 1, nil}, notNull},
+		{"free item with value", tmpl, []any{f.tenant, f.app, "free_item", 5, nil, 1, nil}, db.CodeCheckViolation},
+		{"unknown type", tmpl, []any{f.tenant, f.app, "bogo", 5, nil, 1, nil}, db.CodeCheckViolation},
+		{"zero total limit", tmpl, []any{f.tenant, f.app, "amount_off", 50, 0, 1, nil}, db.CodeCheckViolation},
+		{"total limit 10000001", tmpl, []any{f.tenant, f.app, "amount_off", 50, 10000001, 1, nil}, db.CodeCheckViolation},
+		{"per-member above total", tmpl, []any{f.tenant, f.app, "amount_off", 50, 1, 5, nil}, ""},
+		{"zero per-member limit", tmpl, []any{f.tenant, f.app, "amount_off", 50, nil, 0, nil}, db.CodeCheckViolation},
+		{"per-member limit 101", tmpl, []any{f.tenant, f.app, "amount_off", 50, nil, 101, nil}, db.CodeCheckViolation},
+		{"no per-member limit", tmpl, []any{f.tenant, f.app, "amount_off", 50, nil, nil, nil}, notNull},
+		{"zero validity days", tmpl, []any{f.tenant, f.app, "amount_off", 50, nil, 1, 0}, db.CodeCheckViolation},
+		{"lowercase code", inst, []any{f.tenant, f.app, templateID, memberID, "abcdef12", "issued", now, nil}, db.CodeCheckViolation},
+		{"short code", inst, []any{f.tenant, f.app, templateID, memberID, "ABC", "issued", now, nil}, db.CodeCheckViolation},
+		{"expires before issue", inst, []any{f.tenant, f.app, templateID, memberID, "ABCDEF12", "issued", now, now.Add(-time.Hour)}, db.CodeCheckViolation},
+		{"redeemed without redeemed_at", inst, []any{f.tenant, f.app, templateID, memberID, "ABCDEF13", "redeemed", now, nil}, db.CodeCheckViolation},
+		{"stored expired status", inst, []any{f.tenant, f.app, templateID, memberID, "ABCDEF14", "expired", now, nil}, db.CodeCheckViolation},
+		{"2 stamps required", card, []any{f.tenant, f.app, 2, 1, templateID}, ""},
+		{"no reward coupon", card, []any{f.tenant, f.app, 10, 1, nil}, ""},
+		{"1 stamp required", card, []any{f.tenant, f.app, 1, 1, templateID}, db.CodeCheckViolation},
+		{"101 stamps required", card, []any{f.tenant, f.app, 101, 1, templateID}, db.CodeCheckViolation},
+		{"zero per visit", card, []any{f.tenant, f.app, 10, 0, templateID}, db.CodeCheckViolation},
+		{"101 per visit", card, []any{f.tenant, f.app, 10, 101, templateID}, db.CodeCheckViolation},
+		{"stamp", event, []any{f.tenant, f.app, memberID, cardID, 1, "stamp", 0, "jti-1"}, ""},
+		{"stamp without scan", event, []any{f.tenant, f.app, memberID, cardID, 1, "stamp", 0, nil}, db.CodeCheckViolation},
+		{"negative stamp", event, []any{f.tenant, f.app, memberID, cardID, -1, "stamp", 0, "jti-1"}, db.CodeCheckViolation},
+		{"adjust with scan", event, []any{f.tenant, f.app, memberID, cardID, -1, "adjust", 0, "jti-1"}, db.CodeCheckViolation},
+		{"zero delta adjust", event, []any{f.tenant, f.app, memberID, cardID, 0, "adjust", 0, nil}, db.CodeCheckViolation},
+		{"completion without reward", event, []any{f.tenant, f.app, memberID, cardID, -10, "completion", 1, nil}, ""},
+		{"positive completion", event, []any{f.tenant, f.app, memberID, cardID, 10, "completion", 2, nil}, db.CodeCheckViolation},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -238,10 +253,10 @@ func TestPhase4CheckConstraints(t *testing.T) {
 				return err
 			})
 			switch {
-			case tc.ok && err != nil:
+			case tc.code == "" && err != nil:
 				t.Errorf("want accepted, got %v", err)
-			case !tc.ok && db.Code(err) != db.CodeCheckViolation:
-				t.Errorf("got %v, want a check violation", err)
+			case tc.code != "" && db.Code(err) != tc.code:
+				t.Errorf("got %v, want SQLSTATE %s", err, tc.code)
 			}
 		})
 	}
@@ -337,6 +352,7 @@ func TestRedeemCouponInstanceQuery(t *testing.T) {
 		issue(t, "REDEEM03")
 		var rows []sqlc.ListMemberCouponsRow
 		state := "expired"
+		available := "available"
 		err := d.WithTenant(t, f.tenant, func(ctx context.Context, tx pgx.Tx) (err error) {
 			rows, err = sqlc.New(tx).ListMemberCoupons(ctx, sqlc.ListMemberCouponsParams{
 				Now: ts(expires), AppID: f.app, MemberID: memberID, State: &state, PageLimit: 50,
@@ -346,8 +362,29 @@ func TestRedeemCouponInstanceQuery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(rows) != 1 || rows[0].Code != "REDEEM03" || rows[0].EffectiveStatus != "expired" {
+		if len(rows) != 1 || rows[0].Code != "REDEEM03" || rows[0].State != "expired" {
 			t.Errorf("expired coupons at expires_at = %+v, want only REDEEM03", rows)
+		}
+		// Just before expiry the same coupon is available and redeemable.
+		var redeemable []sqlc.ListRedeemableMemberCouponsRow
+		err = d.WithTenant(t, f.tenant, func(ctx context.Context, tx pgx.Tx) (err error) {
+			q := sqlc.New(tx)
+			before := ts(expires.Add(-time.Second))
+			if rows, err = q.ListMemberCoupons(ctx, sqlc.ListMemberCouponsParams{
+				Now: before, AppID: f.app, MemberID: memberID, State: &available, PageLimit: 50,
+			}); err != nil {
+				return err
+			}
+			redeemable, err = q.ListRedeemableMemberCoupons(ctx, sqlc.ListRedeemableMemberCouponsParams{
+				Now: before, AppID: f.app, MemberID: memberID, PageLimit: 50,
+			})
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 1 || rows[0].Code != "REDEEM03" || len(redeemable) != 1 || redeemable[0].Code != "REDEEM03" {
+			t.Errorf("available before expiry = %+v, redeemable = %+v, want only REDEEM03", rows, redeemable)
 		}
 	})
 }
@@ -379,7 +416,7 @@ func TestStampCompletionRecordedOnce(t *testing.T) {
 			_, err := sqlc.New(tx).InsertStampEvent(ctx, sqlc.InsertStampEventParams{
 				TenantID: f.tenant, AppID: f.app, MemberID: memberID, StampCardID: cardID, TxnID: testutil.NewID(),
 				Delta: -10, CountAfter: 0, CompletionsAfter: completionsAfter, Reason: "completion",
-				CouponInstanceID: uuid.NullUUID{UUID: reward, Valid: true}, ActorType: "staff",
+				CouponInstanceID: uuid.NullUUID{UUID: reward, Valid: reward != uuid.Nil}, ActorType: "staff",
 			})
 			return err
 		})
@@ -396,7 +433,60 @@ func TestStampCompletionRecordedOnce(t *testing.T) {
 	if err := insert(rewardB, 2); err != nil {
 		t.Errorf("completion number 2: %v", err)
 	}
+	// A card without a reward completes with no instance.
+	if err := insert(uuid.Nil, 3); err != nil {
+		t.Errorf("completion without reward: %v", err)
+	}
 }
+
+// Stamps of one scan on one card are summed for max_stamps_per_visit;
+// adjustments, completions, other scans and other cards do not count.
+func TestSumScanStamps(t *testing.T) {
+	d := testutil.NewDB(t)
+	ctx := context.Background()
+	f := phase4Fixture(t, d, "Alpha")
+	memberID, err := f.member(ctx, d.Admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cardID, err := f.stampCard(ctx, d.Admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherCard, err := f.stampCard(ctx, d.Admin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ins := "INSERT INTO stamp_events (tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, scan_id, actor_type) VALUES ($1, $2, $3, $4, gen_random_uuid(), $5, 1, $8, $6, $7, 'staff')"
+	for i, r := range []struct {
+		card   uuid.UUID
+		delta  int
+		reason string
+		scan   any
+	}{
+		{cardID, 2, "stamp", "scan-a"},
+		{cardID, 1, "stamp", "scan-a"},
+		{cardID, -3, "completion", "scan-a"},
+		{cardID, 4, "stamp", "scan-b"},
+		{otherCard, 5, "stamp", "scan-a"},
+		{cardID, 1, "adjust", nil},
+	} {
+		d.Exec(t, ins, f.tenant, f.app, memberID, r.card, r.delta, r.reason, r.scan, i)
+	}
+	var got int32
+	err = d.WithTenant(t, f.tenant, func(ctx context.Context, tx pgx.Tx) (err error) {
+		got, err = sqlc.New(tx).SumScanStamps(ctx, sqlc.SumScanStampsParams{AppID: f.app, StampCardID: cardID, ScanID: ptr("scan-a")})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 3 {
+		t.Errorf("stamps on scan-a = %d, want 3", got)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
 
 // Every migration has a working Down: roll the schema back to nothing and
 // apply it again on a fresh database.

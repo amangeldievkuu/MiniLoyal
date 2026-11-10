@@ -18,7 +18,8 @@ ALTER TABLE members ADD CONSTRAINT members_app_id_id_key UNIQUE (app_id, id);
 -- ---------------------------------------------------------------------------- coupon templates
 -- Templates are archived, never deleted, because instances reference them.
 -- claimed_count counts issued instances of every source (claim, issue and
--- stamp_reward) and is incremented under SELECT ... FOR UPDATE on this row.
+-- stamp_reward) and is incremented under SELECT ... FOR UPDATE on this row;
+-- voids never lower it. Archived templates can be made active again.
 CREATE TABLE coupon_templates (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id         uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -26,31 +27,33 @@ CREATE TABLE coupon_templates (
   name              text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 100),
   description       text CHECK (description IS NULL OR char_length(description) <= 2000),
   type              text NOT NULL CHECK (type IN ('amount_off', 'percent_off', 'free_item')),
-  -- amount_off: whole currency units; percent_off: 1..100; free_item: none.
-  value             integer,
-  total_limit       integer CHECK (total_limit IS NULL OR total_limit > 0),
-  per_member_limit  integer CHECK (per_member_limit IS NULL OR per_member_limit > 0),
+  -- amount_off: whole currency units; percent_off: 1..100; free_item: 0.
+  value             integer NOT NULL,
+  -- Most instances ever issued, from every source; NULL for no limit.
+  total_limit       integer CHECK (total_limit IS NULL OR total_limit BETWEEN 1 AND 10000000),
+  -- Most instances one member may hold from claims (voided ones excluded).
+  -- Dashboard, API and stamp reward issues ignore it.
+  per_member_limit  integer NOT NULL DEFAULT 1 CHECK (per_member_limit BETWEEN 1 AND 100),
   valid_from        timestamptz,
   valid_to          timestamptz,
   -- Days an instance stays valid after issue; valid_to caps it when both are set.
   validity_days     integer CHECK (validity_days IS NULL OR validity_days BETWEEN 1 AND 3650),
   -- Members may claim it themselves. False for reward and issue-only templates.
-  claimable         boolean NOT NULL DEFAULT true,
+  claimable         boolean NOT NULL DEFAULT false,
   claimed_count     integer NOT NULL DEFAULT 0 CHECK (claimed_count >= 0),
   status            text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (tenant_id, app_id) REFERENCES apps (tenant_id, id) ON DELETE CASCADE,
   UNIQUE (app_id, id),
-  -- value IS NOT NULL is explicit: a NULL comparison would pass the CHECK.
   CONSTRAINT coupon_templates_value_check CHECK (
-    (type = 'amount_off' AND value IS NOT NULL AND value BETWEEN 1 AND 1000000) OR
-    (type = 'percent_off' AND value IS NOT NULL AND value BETWEEN 1 AND 100) OR
-    (type = 'free_item' AND value IS NULL)
+    (type = 'amount_off' AND value BETWEEN 1 AND 1000000) OR
+    (type = 'percent_off' AND value BETWEEN 1 AND 100) OR
+    (type = 'free_item' AND value = 0)
   ),
   CONSTRAINT coupon_templates_window_check CHECK (valid_from IS NULL OR valid_to IS NULL OR valid_to > valid_from),
-  CONSTRAINT coupon_templates_limit_check CHECK (total_limit IS NULL OR claimed_count <= total_limit),
-  CONSTRAINT coupon_templates_per_member_check CHECK (total_limit IS NULL OR per_member_limit IS NULL OR per_member_limit <= total_limit)
+  -- total_limit cannot go below claimed_count (the API answers 409 coupon_template_in_use).
+  CONSTRAINT coupon_templates_limit_check CHECK (total_limit IS NULL OR claimed_count <= total_limit)
 );
 CREATE INDEX coupon_templates_app_idx ON coupon_templates (app_id, status, created_at DESC, id DESC);
 ALTER TABLE coupon_templates ENABLE ROW LEVEL SECURITY;
@@ -58,9 +61,10 @@ ALTER TABLE coupon_templates FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON coupon_templates
   USING (app_is_system() OR tenant_id = app_tenant_id())
   WITH CHECK (app_is_system() OR tenant_id = app_tenant_id());
--- No DELETE: archive instead. tenant_id, app_id and type never change.
+-- No DELETE: archive instead. tenant_id and app_id never change; type and
+-- value change only while claimed_count is zero (enforced by the service).
 GRANT SELECT, INSERT ON coupon_templates TO miniloyal_app;
-GRANT UPDATE (name, description, value, total_limit, per_member_limit, valid_from, valid_to,
+GRANT UPDATE (name, description, type, value, total_limit, per_member_limit, valid_from, valid_to,
   validity_days, claimable, claimed_count, status, updated_at) ON coupon_templates TO miniloyal_app;
 
 -- ---------------------------------------------------------------------------- coupon instances
@@ -122,15 +126,17 @@ GRANT UPDATE (status, redeemed_at, redeemed_by_staff_id, redeemed_at_store_id,
   voided_at, voided_by_type, voided_by_id, void_reason, updated_at) ON coupon_instances TO miniloyal_app;
 
 -- -------------------------------------------------------------------------------- stamp cards
+-- Archived cards take no stamps and can be made active again.
 CREATE TABLE stamp_cards (
   id                         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id                  uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   app_id                     uuid NOT NULL,
   name                       text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 100),
   description                text CHECK (description IS NULL OR char_length(description) <= 2000),
-  stamps_required            integer NOT NULL CHECK (stamps_required BETWEEN 1 AND 100),
-  -- Issued with source stamp_reward on completion; must belong to the same app.
-  reward_coupon_template_id  uuid NOT NULL,
+  stamps_required            integer NOT NULL CHECK (stamps_required BETWEEN 2 AND 100),
+  -- Issued with source stamp_reward on each completion; must belong to the
+  -- same app. NULL for a card without a reward coupon.
+  reward_coupon_template_id  uuid,
   max_stamps_per_visit       integer NOT NULL DEFAULT 1 CHECK (max_stamps_per_visit BETWEEN 1 AND 100),
   status                     text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
   created_at                 timestamptz NOT NULL DEFAULT now(),
@@ -181,9 +187,12 @@ GRANT UPDATE (count, completions, last_stamped_at, updated_at) ON stamp_progress
 
 -- ------------------------------------------------------------------------------- stamp events
 -- Append-only. Rows of one operation share txn_id. A stamp that fills the card
--- writes a positive 'stamp' row, then a 'completion' row with delta
--- -stamps_required and the reward coupon instance. count_after and
--- completions_after are the progress once the row applied.
+-- writes a positive 'stamp' row, then one 'completion' row per completion
+-- with delta -stamps_required and the reward coupon instance (NULL when the
+-- card has no reward). count_after and completions_after are the progress
+-- once the row applied. scan_id is the scan token's jti (internal/card
+-- ScanClaims.JTI): a visit is one scan, so the stamps of one scan on one card
+-- are summed to enforce max_stamps_per_visit.
 CREATE TABLE stamp_events (
   id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   tenant_id           uuid NOT NULL,
@@ -196,6 +205,7 @@ CREATE TABLE stamp_events (
   completions_after   integer NOT NULL CHECK (completions_after >= 0),
   reason              text NOT NULL CHECK (reason IN ('stamp', 'adjust', 'completion')),
   coupon_instance_id  uuid REFERENCES coupon_instances(id) ON DELETE RESTRICT,
+  scan_id             text CHECK (scan_id IS NULL OR char_length(scan_id) BETWEEN 1 AND 128),
   note                text CHECK (note IS NULL OR char_length(note) <= 500),
   staff_id            uuid,
   store_id            uuid,
@@ -206,13 +216,15 @@ CREATE TABLE stamp_events (
   FOREIGN KEY (app_id, member_id) REFERENCES members (app_id, id) ON DELETE RESTRICT,
   FOREIGN KEY (app_id, stamp_card_id) REFERENCES stamp_cards (app_id, id) ON DELETE RESTRICT,
   CONSTRAINT stamp_events_reason_shape_check CHECK (
-    (reason = 'stamp' AND delta > 0 AND coupon_instance_id IS NULL) OR
-    (reason = 'adjust' AND coupon_instance_id IS NULL) OR
-    (reason = 'completion' AND delta < 0 AND coupon_instance_id IS NOT NULL)
+    (reason = 'stamp' AND delta > 0 AND scan_id IS NOT NULL AND coupon_instance_id IS NULL) OR
+    (reason = 'adjust' AND scan_id IS NULL AND coupon_instance_id IS NULL) OR
+    (reason = 'completion' AND delta < 0)
   )
 );
 CREATE INDEX stamp_events_member_idx ON stamp_events (app_id, member_id, id DESC);
 CREATE INDEX stamp_events_card_member_idx ON stamp_events (app_id, stamp_card_id, member_id, id DESC);
+-- Stamps given on one scan to one card (max_stamps_per_visit).
+CREATE INDEX stamp_events_scan_idx ON stamp_events (app_id, stamp_card_id, scan_id) WHERE scan_id IS NOT NULL;
 -- One reward instance pays for one completion, and a card completes once per
 -- completion number, so a retried or racing stamp can never double a reward.
 CREATE UNIQUE INDEX stamp_events_reward_once_idx ON stamp_events (coupon_instance_id) WHERE coupon_instance_id IS NOT NULL;

@@ -25,6 +25,7 @@ type ArchiveCouponTemplateParams struct {
 }
 
 // Archived templates take no new claims or issues; held instances stay valid.
+// UpdateCouponTemplate with status 'active' reactivates one.
 func (q *Queries) ArchiveCouponTemplate(ctx context.Context, arg ArchiveCouponTemplateParams) (CouponTemplate, error) {
 	row := q.db.QueryRow(ctx, archiveCouponTemplate, arg.Now, arg.AppID, arg.ID)
 	var i CouponTemplate
@@ -53,18 +54,27 @@ func (q *Queries) ArchiveCouponTemplate(ctx context.Context, arg ArchiveCouponTe
 const countMemberCouponInstances = `-- name: CountMemberCouponInstances :one
 SELECT count(*)::integer FROM coupon_instances
 WHERE app_id = $1 AND template_id = $2 AND member_id = $3
+  AND status <> 'voided'
+  AND ($4::text IS NULL OR source = $4::text)
 `
 
 type CountMemberCouponInstancesParams struct {
 	AppID      uuid.UUID `json:"app_id"`
 	TemplateID uuid.UUID `json:"template_id"`
 	MemberID   uuid.UUID `json:"member_id"`
+	Source     *string   `json:"source"`
 }
 
-// Instances of every status count toward per_member_limit: a void does not
-// hand the claim back, just as it does not lower claimed_count.
+// Instances the member holds from the template for per_member_limit: voided
+// ones are excluded (a void does lower this, though never claimed_count).
+// source NULL counts every source.
 func (q *Queries) CountMemberCouponInstances(ctx context.Context, arg CountMemberCouponInstancesParams) (int32, error) {
-	row := q.db.QueryRow(ctx, countMemberCouponInstances, arg.AppID, arg.TemplateID, arg.MemberID)
+	row := q.db.QueryRow(ctx, countMemberCouponInstances,
+		arg.AppID,
+		arg.TemplateID,
+		arg.MemberID,
+		arg.Source,
+	)
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -91,9 +101,9 @@ type CreateCouponTemplateParams struct {
 	Name           string             `json:"name"`
 	Description    *string            `json:"description"`
 	Type           string             `json:"type"`
-	Value          *int32             `json:"value"`
+	Value          int32              `json:"value"`
 	TotalLimit     *int32             `json:"total_limit"`
-	PerMemberLimit *int32             `json:"per_member_limit"`
+	PerMemberLimit int32              `json:"per_member_limit"`
 	ValidFrom      pgtype.Timestamptz `json:"valid_from"`
 	ValidTo        pgtype.Timestamptz `json:"valid_to"`
 	ValidityDays   *int32             `json:"validity_days"`
@@ -387,7 +397,8 @@ func (q *Queries) InsertCouponInstance(ctx context.Context, arg InsertCouponInst
 const listCouponOffers = `-- name: ListCouponOffers :many
 SELECT t.id, t.tenant_id, t.app_id, t.name, t.description, t.type, t.value, t.total_limit, t.per_member_limit, t.valid_from, t.valid_to, t.validity_days, t.claimable, t.claimed_count, t.status, t.created_at, t.updated_at,
   (SELECT count(*) FROM coupon_instances i
-   WHERE i.app_id = t.app_id AND i.template_id = t.id AND i.member_id = $1)::integer AS member_claimed
+   WHERE i.app_id = t.app_id AND i.template_id = t.id AND i.member_id = $1
+     AND i.status <> 'voided')::integer AS held
 FROM coupon_templates t
 WHERE t.app_id = $2
   AND t.status = 'active'
@@ -411,9 +422,9 @@ type ListCouponOffersRow struct {
 	Name           string             `json:"name"`
 	Description    *string            `json:"description"`
 	Type           string             `json:"type"`
-	Value          *int32             `json:"value"`
+	Value          int32              `json:"value"`
 	TotalLimit     *int32             `json:"total_limit"`
-	PerMemberLimit *int32             `json:"per_member_limit"`
+	PerMemberLimit int32              `json:"per_member_limit"`
 	ValidFrom      pgtype.Timestamptz `json:"valid_from"`
 	ValidTo        pgtype.Timestamptz `json:"valid_to"`
 	ValidityDays   *int32             `json:"validity_days"`
@@ -422,11 +433,12 @@ type ListCouponOffersRow struct {
 	Status         string             `json:"status"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	MemberClaimed  int32              `json:"member_claimed"`
+	Held           int32              `json:"held"`
 }
 
 // Templates a member may claim right now, with how many the member already
-// holds. The claim itself re-checks every limit under the template lock.
+// holds from each (voided ones excluded). The claim itself re-checks every
+// limit under the template lock.
 func (q *Queries) ListCouponOffers(ctx context.Context, arg ListCouponOffersParams) ([]ListCouponOffersRow, error) {
 	rows, err := q.db.Query(ctx, listCouponOffers, arg.MemberID, arg.AppID, arg.Now)
 	if err != nil {
@@ -454,7 +466,7 @@ func (q *Queries) ListCouponOffers(ctx context.Context, arg ListCouponOffersPara
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.MemberClaimed,
+			&i.Held,
 		); err != nil {
 			return nil, err
 		}
@@ -525,26 +537,32 @@ SELECT
   i.issued_at, i.expires_at, i.issued_by_type, i.issued_by_id,
   i.redeemed_at, i.redeemed_by_staff_id, i.redeemed_at_store_id,
   i.voided_at, i.voided_by_type, i.voided_by_id, i.void_reason, i.created_at, i.updated_at,
-  (CASE WHEN i.status = 'issued' AND i.expires_at IS NOT NULL AND i.expires_at <= $1
-        THEN 'expired' ELSE i.status END)::text AS effective_status,
+  (CASE WHEN i.status <> 'issued' THEN i.status
+        WHEN i.expires_at IS NOT NULL AND i.expires_at <= $1 THEN 'expired'
+        ELSE 'available' END)::text AS state,
   t.name AS template_name, t.description AS template_description,
-  t.type AS template_type, t.value AS template_value
+  t.type AS template_type, t.value AS template_value,
+  s.name AS store_name
 FROM coupon_instances i
 JOIN coupon_templates t ON t.app_id = i.app_id AND t.id = i.template_id
+LEFT JOIN stores s ON s.app_id = i.app_id AND s.id = i.redeemed_at_store_id
 WHERE i.app_id = $2 AND i.member_id = $3
-  AND ($4::text IS NULL OR $4::text =
-       CASE WHEN i.status = 'issued' AND i.expires_at IS NOT NULL AND i.expires_at <= $1
-            THEN 'expired' ELSE i.status END)
-  AND ($5::timestamptz IS NULL
-       OR (i.issued_at, i.id) < ($5::timestamptz, $6::uuid))
+  AND NOT ($4::boolean AND i.status = 'voided')
+  AND ($5::text IS NULL OR $5::text =
+       CASE WHEN i.status <> 'issued' THEN i.status
+            WHEN i.expires_at IS NOT NULL AND i.expires_at <= $1 THEN 'expired'
+            ELSE 'available' END)
+  AND ($6::timestamptz IS NULL
+       OR (i.issued_at, i.id) < ($6::timestamptz, $7::uuid))
 ORDER BY i.issued_at DESC, i.id DESC
-LIMIT $7
+LIMIT $8
 `
 
 type ListMemberCouponsParams struct {
 	Now            pgtype.Timestamptz `json:"now"`
 	AppID          uuid.UUID          `json:"app_id"`
 	MemberID       uuid.UUID          `json:"member_id"`
+	ExcludeVoided  bool               `json:"exclude_voided"`
 	State          *string            `json:"state"`
 	BeforeIssuedAt pgtype.Timestamptz `json:"before_issued_at"`
 	BeforeID       uuid.NullUUID      `json:"before_id"`
@@ -574,22 +592,26 @@ type ListMemberCouponsRow struct {
 	VoidReason          *string            `json:"void_reason"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
-	EffectiveStatus     string             `json:"effective_status"`
+	State               string             `json:"state"`
 	TemplateName        string             `json:"template_name"`
 	TemplateDescription *string            `json:"template_description"`
 	TemplateType        string             `json:"template_type"`
-	TemplateValue       *int32             `json:"template_value"`
+	TemplateValue       int32              `json:"template_value"`
+	StoreName           *string            `json:"store_name"`
 }
 
-// A member's coupons with template details, newest first. effective_status is
-// 'expired' for an issued instance at or past expires_at (as of the passed
-// clock time). state filters on effective_status; NULL lists all. Keyset on
-// (issued_at, id) of the last row.
+// A member's coupons with template details and the redeeming store, newest
+// first. state is the effective state as of the passed clock time:
+// 'available' (issued, not expired), 'expired' (issued, at or past
+// expires_at), 'redeemed' or 'voided'; NULL lists all. exclude_voided hides
+// voided coupons (the member's own list). Keyset on (issued_at, id) of the
+// last row.
 func (q *Queries) ListMemberCoupons(ctx context.Context, arg ListMemberCouponsParams) ([]ListMemberCouponsRow, error) {
 	rows, err := q.db.Query(ctx, listMemberCoupons,
 		arg.Now,
 		arg.AppID,
 		arg.MemberID,
+		arg.ExcludeVoided,
 		arg.State,
 		arg.BeforeIssuedAt,
 		arg.BeforeID,
@@ -625,7 +647,82 @@ func (q *Queries) ListMemberCoupons(ctx context.Context, arg ListMemberCouponsPa
 			&i.VoidReason,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.EffectiveStatus,
+			&i.State,
+			&i.TemplateName,
+			&i.TemplateDescription,
+			&i.TemplateType,
+			&i.TemplateValue,
+			&i.StoreName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRedeemableMemberCoupons = `-- name: ListRedeemableMemberCoupons :many
+SELECT
+  i.id, i.template_id, i.member_id, i.code, i.source, i.issued_at, i.expires_at,
+  t.name AS template_name, t.description AS template_description,
+  t.type AS template_type, t.value AS template_value
+FROM coupon_instances i
+JOIN coupon_templates t ON t.app_id = i.app_id AND t.id = i.template_id
+WHERE i.app_id = $1 AND i.member_id = $2
+  AND i.status = 'issued'
+  AND (i.expires_at IS NULL OR i.expires_at > $3)
+ORDER BY i.expires_at NULLS LAST, i.issued_at, i.id
+LIMIT $4
+`
+
+type ListRedeemableMemberCouponsParams struct {
+	AppID     uuid.UUID          `json:"app_id"`
+	MemberID  uuid.UUID          `json:"member_id"`
+	Now       pgtype.Timestamptz `json:"now"`
+	PageLimit int32              `json:"page_limit"`
+}
+
+type ListRedeemableMemberCouponsRow struct {
+	ID                  uuid.UUID          `json:"id"`
+	TemplateID          uuid.UUID          `json:"template_id"`
+	MemberID            uuid.UUID          `json:"member_id"`
+	Code                string             `json:"code"`
+	Source              string             `json:"source"`
+	IssuedAt            pgtype.Timestamptz `json:"issued_at"`
+	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
+	TemplateName        string             `json:"template_name"`
+	TemplateDescription *string            `json:"template_description"`
+	TemplateType        string             `json:"template_type"`
+	TemplateValue       int32              `json:"template_value"`
+}
+
+// What staff can redeem for the scanned member now (state available),
+// soonest expiry first, never-expiring last.
+func (q *Queries) ListRedeemableMemberCoupons(ctx context.Context, arg ListRedeemableMemberCouponsParams) ([]ListRedeemableMemberCouponsRow, error) {
+	rows, err := q.db.Query(ctx, listRedeemableMemberCoupons,
+		arg.AppID,
+		arg.MemberID,
+		arg.Now,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRedeemableMemberCouponsRow
+	for rows.Next() {
+		var i ListRedeemableMemberCouponsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TemplateID,
+			&i.MemberID,
+			&i.Code,
+			&i.Source,
+			&i.IssuedAt,
+			&i.ExpiresAt,
 			&i.TemplateName,
 			&i.TemplateDescription,
 			&i.TemplateType,
@@ -744,55 +841,57 @@ const updateCouponTemplate = `-- name: UpdateCouponTemplate :one
 UPDATE coupon_templates SET
   name             = coalesce($1, name),
   description      = CASE WHEN $2::boolean THEN $3 ELSE description END,
-  value            = CASE WHEN $4::boolean THEN $5 ELSE value END,
+  type             = coalesce($4, type),
+  value            = coalesce($5, value),
   total_limit      = CASE WHEN $6::boolean THEN $7 ELSE total_limit END,
-  per_member_limit = CASE WHEN $8::boolean THEN $9 ELSE per_member_limit END,
-  valid_from       = CASE WHEN $10::boolean THEN $11 ELSE valid_from END,
-  valid_to         = CASE WHEN $12::boolean THEN $13 ELSE valid_to END,
-  validity_days    = CASE WHEN $14::boolean THEN $15 ELSE validity_days END,
-  claimable        = coalesce($16, claimable),
-  status           = coalesce($17, status),
-  updated_at       = $18
-WHERE app_id = $19 AND id = $20
+  per_member_limit = coalesce($8, per_member_limit),
+  valid_from       = CASE WHEN $9::boolean THEN $10 ELSE valid_from END,
+  valid_to         = CASE WHEN $11::boolean THEN $12 ELSE valid_to END,
+  validity_days    = CASE WHEN $13::boolean THEN $14 ELSE validity_days END,
+  claimable        = coalesce($15, claimable),
+  status           = coalesce($16, status),
+  updated_at       = $17
+WHERE app_id = $18 AND id = $19
 RETURNING id, tenant_id, app_id, name, description, type, value, total_limit, per_member_limit, valid_from, valid_to, validity_days, claimable, claimed_count, status, created_at, updated_at
 `
 
 type UpdateCouponTemplateParams struct {
-	Name              *string            `json:"name"`
-	SetDescription    bool               `json:"set_description"`
-	Description       *string            `json:"description"`
-	SetValue          bool               `json:"set_value"`
-	Value             *int32             `json:"value"`
-	SetTotalLimit     bool               `json:"set_total_limit"`
-	TotalLimit        *int32             `json:"total_limit"`
-	SetPerMemberLimit bool               `json:"set_per_member_limit"`
-	PerMemberLimit    *int32             `json:"per_member_limit"`
-	SetValidFrom      bool               `json:"set_valid_from"`
-	ValidFrom         pgtype.Timestamptz `json:"valid_from"`
-	SetValidTo        bool               `json:"set_valid_to"`
-	ValidTo           pgtype.Timestamptz `json:"valid_to"`
-	SetValidityDays   bool               `json:"set_validity_days"`
-	ValidityDays      *int32             `json:"validity_days"`
-	Claimable         *bool              `json:"claimable"`
-	Status            *string            `json:"status"`
-	Now               pgtype.Timestamptz `json:"now"`
-	AppID             uuid.UUID          `json:"app_id"`
-	ID                uuid.UUID          `json:"id"`
+	Name            *string            `json:"name"`
+	SetDescription  bool               `json:"set_description"`
+	Description     *string            `json:"description"`
+	Type            *string            `json:"type"`
+	Value           *int32             `json:"value"`
+	SetTotalLimit   bool               `json:"set_total_limit"`
+	TotalLimit      *int32             `json:"total_limit"`
+	PerMemberLimit  *int32             `json:"per_member_limit"`
+	SetValidFrom    bool               `json:"set_valid_from"`
+	ValidFrom       pgtype.Timestamptz `json:"valid_from"`
+	SetValidTo      bool               `json:"set_valid_to"`
+	ValidTo         pgtype.Timestamptz `json:"valid_to"`
+	SetValidityDays bool               `json:"set_validity_days"`
+	ValidityDays    *int32             `json:"validity_days"`
+	Claimable       *bool              `json:"claimable"`
+	Status          *string            `json:"status"`
+	Now             pgtype.Timestamptz `json:"now"`
+	AppID           uuid.UUID          `json:"app_id"`
+	ID              uuid.UUID          `json:"id"`
 }
 
-// Partial update. Nullable fields take a set_* flag so they can be cleared.
-// The type never changes. A total_limit below claimed_count fails
+// Partial update: a NULL argument keeps the column. The clearable columns
+// (description, total_limit, valid_from, valid_to, validity_days) take a
+// set_* flag so they can be set back to NULL. Type and value change only
+// while claimed_count is zero; the service checks that under
+// LockCouponTemplate. A total_limit below claimed_count fails
 // coupon_templates_limit_check (SQLSTATE 23514).
 func (q *Queries) UpdateCouponTemplate(ctx context.Context, arg UpdateCouponTemplateParams) (CouponTemplate, error) {
 	row := q.db.QueryRow(ctx, updateCouponTemplate,
 		arg.Name,
 		arg.SetDescription,
 		arg.Description,
-		arg.SetValue,
+		arg.Type,
 		arg.Value,
 		arg.SetTotalLimit,
 		arg.TotalLimit,
-		arg.SetPerMemberLimit,
 		arg.PerMemberLimit,
 		arg.SetValidFrom,
 		arg.ValidFrom,

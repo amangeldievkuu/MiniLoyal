@@ -63,7 +63,7 @@ type CreateStampCardParams struct {
 	Name                   string             `json:"name"`
 	Description            *string            `json:"description"`
 	StampsRequired         int32              `json:"stamps_required"`
-	RewardCouponTemplateID uuid.UUID          `json:"reward_coupon_template_id"`
+	RewardCouponTemplateID uuid.NullUUID      `json:"reward_coupon_template_id"`
 	MaxStampsPerVisit      int32              `json:"max_stamps_per_visit"`
 	Now                    pgtype.Timestamptz `json:"now"`
 }
@@ -198,11 +198,11 @@ func (q *Queries) GetStampProgress(ctx context.Context, arg GetStampProgressPara
 const insertStampEvent = `-- name: InsertStampEvent :one
 INSERT INTO stamp_events (
   tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after,
-  reason, coupon_instance_id, note, staff_id, store_id, actor_type, actor_id
+  reason, coupon_instance_id, scan_id, note, staff_id, store_id, actor_type, actor_id
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
 )
-RETURNING id, tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, coupon_instance_id, note, staff_id, store_id, actor_type, actor_id, created_at
+RETURNING id, tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, coupon_instance_id, scan_id, note, staff_id, store_id, actor_type, actor_id, created_at
 `
 
 type InsertStampEventParams struct {
@@ -216,6 +216,7 @@ type InsertStampEventParams struct {
 	CompletionsAfter int32         `json:"completions_after"`
 	Reason           string        `json:"reason"`
 	CouponInstanceID uuid.NullUUID `json:"coupon_instance_id"`
+	ScanID           *string       `json:"scan_id"`
 	Note             *string       `json:"note"`
 	StaffID          uuid.NullUUID `json:"staff_id"`
 	StoreID          uuid.NullUUID `json:"store_id"`
@@ -235,6 +236,7 @@ func (q *Queries) InsertStampEvent(ctx context.Context, arg InsertStampEventPara
 		arg.CompletionsAfter,
 		arg.Reason,
 		arg.CouponInstanceID,
+		arg.ScanID,
 		arg.Note,
 		arg.StaffID,
 		arg.StoreID,
@@ -254,6 +256,7 @@ func (q *Queries) InsertStampEvent(ctx context.Context, arg InsertStampEventPara
 		&i.CompletionsAfter,
 		&i.Reason,
 		&i.CouponInstanceID,
+		&i.ScanID,
 		&i.Note,
 		&i.StaffID,
 		&i.StoreID,
@@ -270,10 +273,15 @@ SELECT
   c.reward_coupon_template_id, c.status,
   coalesce(p.count, 0)::integer AS count,
   coalesce(p.completions, 0)::integer AS completions,
-  p.last_stamped_at
+  p.last_stamped_at,
+  p.updated_at AS progress_updated_at,
+  r.name AS reward_name, r.description AS reward_description,
+  r.type AS reward_type, r.value AS reward_value
 FROM stamp_cards c
 LEFT JOIN stamp_progress p
   ON p.app_id = c.app_id AND p.stamp_card_id = c.id AND p.member_id = $1
+LEFT JOIN coupon_templates r
+  ON r.app_id = c.app_id AND r.id = c.reward_coupon_template_id
 WHERE c.app_id = $2
   AND (c.status = 'active' OR ($3::boolean AND p.member_id IS NOT NULL))
 ORDER BY c.created_at, c.id
@@ -291,16 +299,23 @@ type ListMemberStampProgressRow struct {
 	Description            *string            `json:"description"`
 	StampsRequired         int32              `json:"stamps_required"`
 	MaxStampsPerVisit      int32              `json:"max_stamps_per_visit"`
-	RewardCouponTemplateID uuid.UUID          `json:"reward_coupon_template_id"`
+	RewardCouponTemplateID uuid.NullUUID      `json:"reward_coupon_template_id"`
 	Status                 string             `json:"status"`
 	Count                  int32              `json:"count"`
 	Completions            int32              `json:"completions"`
 	LastStampedAt          pgtype.Timestamptz `json:"last_stamped_at"`
+	ProgressUpdatedAt      pgtype.Timestamptz `json:"progress_updated_at"`
+	RewardName             *string            `json:"reward_name"`
+	RewardDescription      *string            `json:"reward_description"`
+	RewardType             *string            `json:"reward_type"`
+	RewardValue            *int32             `json:"reward_value"`
 }
 
 // Every active card of the app with the member's progress (zero when the
-// member has none yet). include_archived adds archived cards the member has
-// progress on, for history and the PDPA export.
+// member has none yet) and the reward template summary (NULL columns when
+// the card has no reward). include_archived adds archived cards the member
+// has progress on, for history and the PDPA export. progress_updated_at is
+// NULL until the member's first stamp or adjustment.
 func (q *Queries) ListMemberStampProgress(ctx context.Context, arg ListMemberStampProgressParams) ([]ListMemberStampProgressRow, error) {
 	rows, err := q.db.Query(ctx, listMemberStampProgress, arg.MemberID, arg.AppID, arg.IncludeArchived)
 	if err != nil {
@@ -321,6 +336,11 @@ func (q *Queries) ListMemberStampProgress(ctx context.Context, arg ListMemberSta
 			&i.Count,
 			&i.Completions,
 			&i.LastStampedAt,
+			&i.ProgressUpdatedAt,
+			&i.RewardName,
+			&i.RewardDescription,
+			&i.RewardType,
+			&i.RewardValue,
 		); err != nil {
 			return nil, err
 		}
@@ -380,7 +400,7 @@ func (q *Queries) ListStampCards(ctx context.Context, arg ListStampCardsParams) 
 }
 
 const listStampEvents = `-- name: ListStampEvents :many
-SELECT id, tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, coupon_instance_id, note, staff_id, store_id, actor_type, actor_id, created_at FROM stamp_events
+SELECT id, tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, coupon_instance_id, scan_id, note, staff_id, store_id, actor_type, actor_id, created_at FROM stamp_events
 WHERE app_id = $1 AND member_id = $2
   AND ($3::uuid IS NULL OR stamp_card_id = $3::uuid)
   AND ($4::bigint IS NULL OR id < $4::bigint)
@@ -425,6 +445,7 @@ func (q *Queries) ListStampEvents(ctx context.Context, arg ListStampEventsParams
 			&i.CompletionsAfter,
 			&i.Reason,
 			&i.CouponInstanceID,
+			&i.ScanID,
 			&i.Note,
 			&i.StaffID,
 			&i.StoreID,
@@ -504,40 +525,85 @@ func (q *Queries) SetStampProgress(ctx context.Context, arg SetStampProgressPara
 	return err
 }
 
+const stampCardInUse = `-- name: StampCardInUse :one
+SELECT EXISTS (SELECT 1 FROM stamp_events WHERE app_id = $1 AND stamp_card_id = $2)::boolean AS in_use
+`
+
+type StampCardInUseParams struct {
+	AppID       uuid.UUID `json:"app_id"`
+	StampCardID uuid.UUID `json:"stamp_card_id"`
+}
+
+// True once any member has a stamp event on the card.
+func (q *Queries) StampCardInUse(ctx context.Context, arg StampCardInUseParams) (bool, error) {
+	row := q.db.QueryRow(ctx, stampCardInUse, arg.AppID, arg.StampCardID)
+	var in_use bool
+	err := row.Scan(&in_use)
+	return in_use, err
+}
+
+const sumScanStamps = `-- name: SumScanStamps :one
+SELECT coalesce(sum(delta), 0)::integer AS stamps
+FROM stamp_events
+WHERE app_id = $1 AND stamp_card_id = $2 AND scan_id = $3 AND reason = 'stamp'
+`
+
+type SumScanStampsParams struct {
+	AppID       uuid.UUID `json:"app_id"`
+	StampCardID uuid.UUID `json:"stamp_card_id"`
+	ScanID      *string   `json:"scan_id"`
+}
+
+// Stamps already given on one scan to one card, for max_stamps_per_visit.
+// Call it after LockStampProgress so concurrent requests on the same scan
+// see each other's rows.
+func (q *Queries) SumScanStamps(ctx context.Context, arg SumScanStampsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, sumScanStamps, arg.AppID, arg.StampCardID, arg.ScanID)
+	var stamps int32
+	err := row.Scan(&stamps)
+	return stamps, err
+}
+
 const updateStampCard = `-- name: UpdateStampCard :one
 UPDATE stamp_cards SET
   name                      = coalesce($1, name),
   description               = CASE WHEN $2::boolean THEN $3 ELSE description END,
   stamps_required           = coalesce($4, stamps_required),
-  reward_coupon_template_id = coalesce($5, reward_coupon_template_id),
-  max_stamps_per_visit      = coalesce($6, max_stamps_per_visit),
-  status                    = coalesce($7, status),
-  updated_at                = $8
-WHERE app_id = $9 AND id = $10
+  reward_coupon_template_id = CASE WHEN $5::boolean
+                                   THEN $6 ELSE reward_coupon_template_id END,
+  max_stamps_per_visit      = coalesce($7, max_stamps_per_visit),
+  status                    = coalesce($8, status),
+  updated_at                = $9
+WHERE app_id = $10 AND id = $11
 RETURNING id, tenant_id, app_id, name, description, stamps_required, reward_coupon_template_id, max_stamps_per_visit, status, created_at, updated_at
 `
 
 type UpdateStampCardParams struct {
-	Name                   *string            `json:"name"`
-	SetDescription         bool               `json:"set_description"`
-	Description            *string            `json:"description"`
-	StampsRequired         *int32             `json:"stamps_required"`
-	RewardCouponTemplateID uuid.NullUUID      `json:"reward_coupon_template_id"`
-	MaxStampsPerVisit      *int32             `json:"max_stamps_per_visit"`
-	Status                 *string            `json:"status"`
-	Now                    pgtype.Timestamptz `json:"now"`
-	AppID                  uuid.UUID          `json:"app_id"`
-	ID                     uuid.UUID          `json:"id"`
+	Name                      *string            `json:"name"`
+	SetDescription            bool               `json:"set_description"`
+	Description               *string            `json:"description"`
+	StampsRequired            *int32             `json:"stamps_required"`
+	SetRewardCouponTemplateID bool               `json:"set_reward_coupon_template_id"`
+	RewardCouponTemplateID    uuid.NullUUID      `json:"reward_coupon_template_id"`
+	MaxStampsPerVisit         *int32             `json:"max_stamps_per_visit"`
+	Status                    *string            `json:"status"`
+	Now                       pgtype.Timestamptz `json:"now"`
+	AppID                     uuid.UUID          `json:"app_id"`
+	ID                        uuid.UUID          `json:"id"`
 }
 
-// Partial update. Lowering stamps_required does not complete cards on its
-// own; the next stamp does.
+// Partial update: a NULL argument keeps the column; set_* flags let
+// description and reward_coupon_template_id be cleared. stamps_required is
+// fixed once StampCardInUse is true (the service checks). A reward template
+// of another app fails the foreign key (SQLSTATE 23503). status 'active'
+// reactivates an archived card.
 func (q *Queries) UpdateStampCard(ctx context.Context, arg UpdateStampCardParams) (StampCard, error) {
 	row := q.db.QueryRow(ctx, updateStampCard,
 		arg.Name,
 		arg.SetDescription,
 		arg.Description,
 		arg.StampsRequired,
+		arg.SetRewardCouponTemplateID,
 		arg.RewardCouponTemplateID,
 		arg.MaxStampsPerVisit,
 		arg.Status,

@@ -8,7 +8,7 @@ INSERT INTO coupon_templates (
   valid_from, valid_to, validity_days, claimable, created_at, updated_at
 ) VALUES (
   sqlc.arg('id'), sqlc.arg('tenant_id'), sqlc.arg('app_id'), sqlc.arg('name'), sqlc.narg('description'),
-  sqlc.arg('type'), sqlc.narg('value'), sqlc.narg('total_limit'), sqlc.narg('per_member_limit'),
+  sqlc.arg('type'), sqlc.arg('value'), sqlc.narg('total_limit'), sqlc.arg('per_member_limit'),
   sqlc.narg('valid_from'), sqlc.narg('valid_to'), sqlc.narg('validity_days'), sqlc.arg('claimable'),
   sqlc.arg('now'), sqlc.arg('now')
 )
@@ -32,10 +32,12 @@ LIMIT sqlc.arg('page_limit');
 
 -- name: ListCouponOffers :many
 -- Templates a member may claim right now, with how many the member already
--- holds. The claim itself re-checks every limit under the template lock.
+-- holds from each (voided ones excluded). The claim itself re-checks every
+-- limit under the template lock.
 SELECT t.*,
   (SELECT count(*) FROM coupon_instances i
-   WHERE i.app_id = t.app_id AND i.template_id = t.id AND i.member_id = sqlc.arg('member_id'))::integer AS member_claimed
+   WHERE i.app_id = t.app_id AND i.template_id = t.id AND i.member_id = sqlc.arg('member_id')
+     AND i.status <> 'voided')::integer AS held
 FROM coupon_templates t
 WHERE t.app_id = sqlc.arg('app_id')
   AND t.status = 'active'
@@ -46,15 +48,19 @@ WHERE t.app_id = sqlc.arg('app_id')
 ORDER BY t.created_at DESC, t.id DESC;
 
 -- name: UpdateCouponTemplate :one
--- Partial update. Nullable fields take a set_* flag so they can be cleared.
--- The type never changes. A total_limit below claimed_count fails
+-- Partial update: a NULL argument keeps the column. The clearable columns
+-- (description, total_limit, valid_from, valid_to, validity_days) take a
+-- set_* flag so they can be set back to NULL. Type and value change only
+-- while claimed_count is zero; the service checks that under
+-- LockCouponTemplate. A total_limit below claimed_count fails
 -- coupon_templates_limit_check (SQLSTATE 23514).
 UPDATE coupon_templates SET
   name             = coalesce(sqlc.narg('name'), name),
   description      = CASE WHEN sqlc.arg('set_description')::boolean THEN sqlc.narg('description') ELSE description END,
-  value            = CASE WHEN sqlc.arg('set_value')::boolean THEN sqlc.narg('value') ELSE value END,
+  type             = coalesce(sqlc.narg('type'), type),
+  value            = coalesce(sqlc.narg('value'), value),
   total_limit      = CASE WHEN sqlc.arg('set_total_limit')::boolean THEN sqlc.narg('total_limit') ELSE total_limit END,
-  per_member_limit = CASE WHEN sqlc.arg('set_per_member_limit')::boolean THEN sqlc.narg('per_member_limit') ELSE per_member_limit END,
+  per_member_limit = coalesce(sqlc.narg('per_member_limit'), per_member_limit),
   valid_from       = CASE WHEN sqlc.arg('set_valid_from')::boolean THEN sqlc.narg('valid_from') ELSE valid_from END,
   valid_to         = CASE WHEN sqlc.arg('set_valid_to')::boolean THEN sqlc.narg('valid_to') ELSE valid_to END,
   validity_days    = CASE WHEN sqlc.arg('set_validity_days')::boolean THEN sqlc.narg('validity_days') ELSE validity_days END,
@@ -66,6 +72,7 @@ RETURNING *;
 
 -- name: ArchiveCouponTemplate :one
 -- Archived templates take no new claims or issues; held instances stay valid.
+-- UpdateCouponTemplate with status 'active' reactivates one.
 UPDATE coupon_templates SET status = 'archived', updated_at = sqlc.arg('now')
 WHERE app_id = sqlc.arg('app_id') AND id = sqlc.arg('id')
 RETURNING *;
@@ -82,10 +89,13 @@ WHERE app_id = $1 AND id = $2 AND (total_limit IS NULL OR claimed_count < total_
 RETURNING claimed_count;
 
 -- name: CountMemberCouponInstances :one
--- Instances of every status count toward per_member_limit: a void does not
--- hand the claim back, just as it does not lower claimed_count.
+-- Instances the member holds from the template for per_member_limit: voided
+-- ones are excluded (a void does lower this, though never claimed_count).
+-- source NULL counts every source.
 SELECT count(*)::integer FROM coupon_instances
-WHERE app_id = $1 AND template_id = $2 AND member_id = $3;
+WHERE app_id = sqlc.arg('app_id') AND template_id = sqlc.arg('template_id') AND member_id = sqlc.arg('member_id')
+  AND status <> 'voided'
+  AND (sqlc.narg('source')::text IS NULL OR source = sqlc.narg('source')::text);
 
 -- name: InsertCouponInstance :one
 -- code is unique per app; on a unique violation of coupon_instances_app_id_code_key
@@ -111,28 +121,50 @@ SELECT * FROM coupon_instances WHERE app_id = $1 AND code = $2;
 SELECT tenant_id, app_id, member_id FROM coupon_instances WHERE id = $1;
 
 -- name: ListMemberCoupons :many
--- A member's coupons with template details, newest first. effective_status is
--- 'expired' for an issued instance at or past expires_at (as of the passed
--- clock time). state filters on effective_status; NULL lists all. Keyset on
--- (issued_at, id) of the last row.
+-- A member's coupons with template details and the redeeming store, newest
+-- first. state is the effective state as of the passed clock time:
+-- 'available' (issued, not expired), 'expired' (issued, at or past
+-- expires_at), 'redeemed' or 'voided'; NULL lists all. exclude_voided hides
+-- voided coupons (the member's own list). Keyset on (issued_at, id) of the
+-- last row.
 SELECT
   i.id, i.tenant_id, i.app_id, i.template_id, i.member_id, i.code, i.status, i.source, i.txn_id,
   i.issued_at, i.expires_at, i.issued_by_type, i.issued_by_id,
   i.redeemed_at, i.redeemed_by_staff_id, i.redeemed_at_store_id,
   i.voided_at, i.voided_by_type, i.voided_by_id, i.void_reason, i.created_at, i.updated_at,
-  (CASE WHEN i.status = 'issued' AND i.expires_at IS NOT NULL AND i.expires_at <= sqlc.arg('now')
-        THEN 'expired' ELSE i.status END)::text AS effective_status,
+  (CASE WHEN i.status <> 'issued' THEN i.status
+        WHEN i.expires_at IS NOT NULL AND i.expires_at <= sqlc.arg('now') THEN 'expired'
+        ELSE 'available' END)::text AS state,
+  t.name AS template_name, t.description AS template_description,
+  t.type AS template_type, t.value AS template_value,
+  s.name AS store_name
+FROM coupon_instances i
+JOIN coupon_templates t ON t.app_id = i.app_id AND t.id = i.template_id
+LEFT JOIN stores s ON s.app_id = i.app_id AND s.id = i.redeemed_at_store_id
+WHERE i.app_id = sqlc.arg('app_id') AND i.member_id = sqlc.arg('member_id')
+  AND NOT (sqlc.arg('exclude_voided')::boolean AND i.status = 'voided')
+  AND (sqlc.narg('state')::text IS NULL OR sqlc.narg('state')::text =
+       CASE WHEN i.status <> 'issued' THEN i.status
+            WHEN i.expires_at IS NOT NULL AND i.expires_at <= sqlc.arg('now') THEN 'expired'
+            ELSE 'available' END)
+  AND (sqlc.narg('before_issued_at')::timestamptz IS NULL
+       OR (i.issued_at, i.id) < (sqlc.narg('before_issued_at')::timestamptz, sqlc.narg('before_id')::uuid))
+ORDER BY i.issued_at DESC, i.id DESC
+LIMIT sqlc.arg('page_limit');
+
+-- name: ListRedeemableMemberCoupons :many
+-- What staff can redeem for the scanned member now (state available),
+-- soonest expiry first, never-expiring last.
+SELECT
+  i.id, i.template_id, i.member_id, i.code, i.source, i.issued_at, i.expires_at,
   t.name AS template_name, t.description AS template_description,
   t.type AS template_type, t.value AS template_value
 FROM coupon_instances i
 JOIN coupon_templates t ON t.app_id = i.app_id AND t.id = i.template_id
 WHERE i.app_id = sqlc.arg('app_id') AND i.member_id = sqlc.arg('member_id')
-  AND (sqlc.narg('state')::text IS NULL OR sqlc.narg('state')::text =
-       CASE WHEN i.status = 'issued' AND i.expires_at IS NOT NULL AND i.expires_at <= sqlc.arg('now')
-            THEN 'expired' ELSE i.status END)
-  AND (sqlc.narg('before_issued_at')::timestamptz IS NULL
-       OR (i.issued_at, i.id) < (sqlc.narg('before_issued_at')::timestamptz, sqlc.narg('before_id')::uuid))
-ORDER BY i.issued_at DESC, i.id DESC
+  AND i.status = 'issued'
+  AND (i.expires_at IS NULL OR i.expires_at > sqlc.arg('now'))
+ORDER BY i.expires_at NULLS LAST, i.issued_at, i.id
 LIMIT sqlc.arg('page_limit');
 
 -- name: RedeemCouponInstance :one

@@ -415,8 +415,8 @@ func (f rlsFixture) stampEvent(ctx context.Context, x execer) (int64, error) {
 		return 0, err
 	}
 	var id int64
-	err = queryRow(ctx, x, "INSERT INTO stamp_events (tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, actor_type) VALUES ($1, $2, $3, $4, $5, 1, 1, 0, 'stamp', 'system') RETURNING id",
-		f.tenant, f.app, memberID, cardID, testutil.NewID()).Scan(&id)
+	err = queryRow(ctx, x, "INSERT INTO stamp_events (tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, scan_id, actor_type) VALUES ($1, $2, $3, $4, $5, 1, 1, 0, 'stamp', $6, 'system') RETURNING id",
+		f.tenant, f.app, memberID, cardID, testutil.NewID(), randHex(16)).Scan(&id)
 	return id, err
 }
 

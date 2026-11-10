@@ -102,9 +102,9 @@ type CouponTemplate struct {
 	Name           string             `json:"name"`
 	Description    *string            `json:"description"`
 	Type           string             `json:"type"`
-	Value          *int32             `json:"value"`
+	Value          int32              `json:"value"`
 	TotalLimit     *int32             `json:"total_limit"`
-	PerMemberLimit *int32             `json:"per_member_limit"`
+	PerMemberLimit int32              `json:"per_member_limit"`
 	ValidFrom      pgtype.Timestamptz `json:"valid_from"`
 	ValidTo        pgtype.Timestamptz `json:"valid_to"`
 	ValidityDays   *int32             `json:"validity_days"`
@@ -314,7 +314,7 @@ type StampCard struct {
 	Name                   string             `json:"name"`
 	Description            *string            `json:"description"`
 	StampsRequired         int32              `json:"stamps_required"`
-	RewardCouponTemplateID uuid.UUID          `json:"reward_coupon_template_id"`
+	RewardCouponTemplateID uuid.NullUUID      `json:"reward_coupon_template_id"`
 	MaxStampsPerVisit      int32              `json:"max_stamps_per_visit"`
 	Status                 string             `json:"status"`
 	CreatedAt              pgtype.Timestamptz `json:"created_at"`
@@ -333,6 +333,7 @@ type StampEvent struct {
 	CompletionsAfter int32              `json:"completions_after"`
 	Reason           string             `json:"reason"`
 	CouponInstanceID uuid.NullUUID      `json:"coupon_instance_id"`
+	ScanID           *string            `json:"scan_id"`
 	Note             *string            `json:"note"`
 	StaffID          uuid.NullUUID      `json:"staff_id"`
 	StoreID          uuid.NullUUID      `json:"store_id"`
