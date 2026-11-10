@@ -52,6 +52,14 @@ export type InvitationCreated = Schemas['InvitationCreated'];
 export type AcceptInvitationRequest = Schemas['AcceptInvitationRequest'];
 export type SecurityEvent = Schemas['SecurityEvent'];
 export type SecurityEventPage = Schemas['SecurityEventPage'];
+export type PointsRules = Schemas['PointsRules'];
+export type PointsRulesPut = Schemas['PointsRulesPut'];
+export type PointsSummary = Schemas['PointsSummary'];
+export type PointsTransaction = Schemas['PointsTransaction'];
+export type PointsHistoryPage = Schemas['PointsHistoryPage'];
+export type PointsAdjustment = Schemas['PointsAdjustment'];
+export type PointsKind = Schemas['PointsKind'];
+export type MemberCardRotated = Schemas['MemberCardRotated'];
 
 export const CHANNEL_ENVIRONMENTS: ChannelEnvironment[] = ['developing', 'review', 'published'];
 export const API_KEY_SCOPES: ApiKeyScope[] = [

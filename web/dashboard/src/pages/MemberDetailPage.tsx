@@ -12,6 +12,7 @@ import { Alert, Badge, Button, Card, Dialog, Field, Status } from '../components
 import { downloadJson } from '../lib/download';
 import { formatDateTime } from '../lib/format';
 import { canManage } from '../lib/roles';
+import { MemberCardCard, MemberPointsPanel } from './MemberPoints';
 import { Avatar, FriendBadge } from './MembersPage';
 
 /** The word the operator types to confirm an erasure; the same in every language. */
@@ -23,6 +24,19 @@ export function MemberDetailPage() {
     <AppHeader appId={appId}>
       {(_app, role) => <MemberDetailView appId={appId} memberId={memberId} role={role} />}
     </AppHeader>
+  );
+}
+
+/** Shown instead of a field the staff role may not see. */
+export function Restricted() {
+  const { t } = useTranslation();
+  return (
+    <span className="inline-flex items-center gap-1 text-zinc-500" data-testid="restricted">
+      <svg aria-hidden="true" viewBox="0 0 20 20" className="h-3.5 w-3.5 fill-current">
+        <path d="M10 2a4 4 0 0 0-4 4v2H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1V6a4 4 0 0 0-4-4Zm-2 6V6a2 2 0 1 1 4 0v2H8Z" />
+      </svg>
+      {t('members.detail.restricted')}
+    </span>
   );
 }
 
@@ -52,6 +66,8 @@ export function MemberDetailView({
   const [phrase, setPhrase] = useState('');
   const editable = canManage(role);
   const dash = t('members.detail.notAvailable');
+  // The API omits personal fields for the staff role; say so instead of a dash.
+  const missing = role === 'staff' ? <Restricted /> : dash;
 
   const exportData = useMutation({
     mutationFn: async () =>
@@ -108,12 +124,12 @@ export function MemberDetailView({
                 <CopyButton text={m.line_user_id} />
               </span>
             ) : (
-              dash
+              missing
             )}
           </Row>
           <Row label={t('members.detail.language')}>{m.language ?? dash}</Row>
-          <Row label={t('members.detail.phone')}>{m.phone ?? dash}</Row>
-          <Row label={t('members.detail.birthday')}>{m.birthday ?? dash}</Row>
+          <Row label={t('members.detail.phone')}>{m.phone ?? missing}</Row>
+          <Row label={t('members.detail.birthday')}>{m.birthday ?? missing}</Row>
           <Row label={t('members.detail.gender')}>
             {m.gender ? t(`members.detail.genders.${m.gender}`) : dash}
           </Row>
@@ -142,13 +158,17 @@ export function MemberDetailView({
 
       <Card title={t('members.detail.customFields')}>
         {customFields.length === 0 ? (
-          <p className="text-sm text-zinc-500">{dash}</p>
+          <p className="text-sm text-zinc-500">{missing}</p>
         ) : (
           <pre className="overflow-x-auto rounded-md bg-zinc-100 p-3 text-xs dark:bg-zinc-800">
             {JSON.stringify(m.custom_fields, null, 2)}
           </pre>
         )}
       </Card>
+
+      <MemberPointsPanel appId={appId} memberId={memberId} editable={editable} />
+
+      {editable && <MemberCardCard memberId={memberId} />}
 
       {editable && (
         <Card

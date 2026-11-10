@@ -152,7 +152,8 @@
       "stores": "門市",
       "staff": "門市人員",
       "apiKeys": "API 金鑰",
-      "members": "會員"
+      "members": "會員",
+      "points": "點數"
     },
     "settings": {
       "title": "應用程式設定",
@@ -176,6 +177,20 @@
       "webhookStep1": "在 LINE Developers Console 開啟 Messaging API 頻道。",
       "webhookStep2": "在 Messaging API 設定的 Webhook URL 貼上這個網址並按下驗證。",
       "webhookStep3": "開啟「Use webhook」。"
+    },
+    "security": {
+      "title": "安全性",
+      "hs256Label": "接受 HS256 ID token",
+      "hs256Help": "只有 LINE 網頁登入需要。LINE MINI App 與 LIFF 使用 ES256 token，除非有網頁登入流程，請保持關閉。",
+      "hs256On": "目前接受 HS256 token。",
+      "hs256Off": "目前只接受 ES256 token。",
+      "signOutTitle": "登出所有會員",
+      "signOutHelp": "現在之前發出的會員登入狀態全部失效。會員下次開啟 MINI App 時會自動透過 LINE 重新登入。",
+      "signOutButton": "登出所有會員",
+      "signOutBody": "此 App 的所有會員都會被登出。請輸入 {{phrase}} 確認。",
+      "phraseLabel": "確認文字",
+      "signedOutAt": "上次全體登出：{{date}}",
+      "neverSignedOut": "尚未執行過全體登出。"
     }
   },
   "channels": {
@@ -228,7 +243,13 @@
     "inviteTitle": "人員邀請碼",
     "inviteHelp": "請將此邀請碼交給人員，在門市 App 首次登入時輸入。",
     "empty": "尚未新增人員。",
-    "deleteConfirm": "確定要移除人員「{{name}}」嗎？"
+    "deleteConfirm": "確定要移除人員「{{name}}」嗎？",
+    "lastLogin": "上次登入",
+    "neverLoggedIn": "從未登入",
+    "newInvite": "新的邀請碼",
+    "resetConfirmTitle": "發出新的邀請碼",
+    "resetConfirmBody": "「{{name}}」會從門市 App 登出，並解除 LINE 帳號綁定。請用新的邀請碼重新登入。",
+    "resetInviteHelp": "請把這組 12 碼邀請碼交給門市人員。在門市 App 用 LINE 登入後輸入一次即可；7 天後失效。"
   },
   "apiKeys": {
     "title": "API 金鑰",
@@ -352,7 +373,91 @@
       "eraseTitle": "刪除個人資料",
       "eraseBody": "會清除個人檔案、聯絡方式與同意紀錄並登出該會員；點數與優惠券歷史會保留。請輸入 {{phrase}} 以確認。",
       "erasePhraseLabel": "確認文字",
-      "notAvailable": "—"
+      "notAvailable": "—",
+      "restricted": "僅擁有者與管理員可見"
+    },
+    "card": {
+      "title": "會員卡",
+      "help": "會員遺失手機或分享了會員卡時，請重設會員卡。此會員手機曾顯示的所有 QR code 都會失效，手機下次更新時會顯示新的 QR code。",
+      "reset": "重設會員卡",
+      "confirmTitle": "重設會員卡",
+      "confirmBody": "此會員卡曾顯示的所有 QR code 會立即失效。要繼續嗎？",
+      "done": "會員卡已重設，舊的 QR code 已失效（金鑰版本 {{version}}）。"
+    }
+  },
+  "points": {
+    "title": "點數",
+    "help": "會員消費時如何累積點數。變更只套用在之後累積的點數。",
+    "currency": "幣別",
+    "spendPerPoint": "消費金額（NT$）",
+    "spendPerPointHint": "會員消費此金額可獲得下方的點數。",
+    "pointsPerUnit": "獲得點數",
+    "minSpend": "最低消費（NT$）",
+    "minSpendHint": "低於此金額的消費不累積點數。0 表示不限。",
+    "maxPerTxn": "每筆消費最多點數",
+    "maxPerTxnHint": "留空表示不限。",
+    "expiryDays": "點數到期天數",
+    "expiryDaysHint": "留空表示點數永久有效。",
+    "enabled": "會員可以累積點數",
+    "previewTitle": "會員看到的說明",
+    "preview": {
+      "earn_one": "消費 NT${{spend}}，累積 {{count}} 點",
+      "earn_other": "消費 NT${{spend}}，累積 {{count}} 點",
+      "expires_one": "點數於 {{count}} 天後到期",
+      "expires_other": "點數於 {{count}} 天後到期",
+      "never": "點數永久有效",
+      "minSpend": "單筆消費未滿 NT${{amount}} 不累積點數。",
+      "cap_one": "每筆消費最多累積 {{count}} 點。",
+      "cap_other": "每筆消費最多累積 {{count}} 點。",
+      "disabled": "目前不累積點數。"
+    },
+    "summary": {
+      "title": "點數",
+      "balance": "目前點數",
+      "lifetimeEarned": "累計獲得",
+      "expiring": "即將到期",
+      "expiringItem": "{{date}} 到期 {{points}} 點",
+      "noExpiring": "近期沒有到期的點數。"
+    },
+    "history": {
+      "title": "點數紀錄",
+      "empty": "尚無點數紀錄。",
+      "loadMore": "載入更多",
+      "kind": "類型",
+      "points": "點數",
+      "balanceAfter": "異動後點數",
+      "spend": "消費金額",
+      "reference": "參考編號",
+      "note": "備註",
+      "store": "門市",
+      "actor": "操作者",
+      "time": "時間"
+    },
+    "kinds": {
+      "earn": "累積",
+      "redeem": "兌換",
+      "adjust": "調整",
+      "expire": "到期"
+    },
+    "actors": {
+      "member": "會員",
+      "staff": "門市人員",
+      "user": "後台使用者",
+      "api_key": "API 金鑰",
+      "system": "系統"
+    },
+    "adjust": {
+      "open": "調整點數",
+      "title": "調整點數",
+      "help": "輸入正數增加點數，負數扣除點數。調整會記錄在點數紀錄與稽核紀錄中。",
+      "delta": "變動點數",
+      "deltaHint": "例如 50 或 -20。",
+      "note": "原因",
+      "resulting": "調整後點數：{{balance}}",
+      "negativeWarning": "調整後點數會低於零。",
+      "submit": "套用",
+      "insufficient": "會員點數不足，無法進行此調整。",
+      "invalidDelta": "請輸入不為零的整數。"
     }
   }
 }

@@ -18,6 +18,7 @@ import { LoginPage, RegisterPage } from './pages/AuthPages';
 import { MePage } from './pages/MePage';
 import { MemberDetailPage } from './pages/MemberDetailPage';
 import { MembersPage } from './pages/MembersPage';
+import { PointsRulesPage } from './pages/PointsRulesPage';
 import { StaffPage } from './pages/StaffPage';
 import { StoresPage } from './pages/StoresPage';
 import { TeamPage } from './pages/TeamPage';
@@ -131,6 +132,12 @@ const memberDetailRoute = createRoute({
   component: MemberDetailPage,
 });
 
+const pointsRoute = createRoute({
+  getParentRoute: () => authRoute,
+  path: '/apps/$appId/points',
+  component: PointsRulesPage,
+});
+
 const channelsRoute = createRoute({
   getParentRoute: () => authRoute,
   path: '/apps/$appId/channels',
@@ -173,6 +180,7 @@ const routeTree = rootRoute.addChildren([
     appRoute,
     membersRoute,
     memberDetailRoute,
+    pointsRoute,
     channelsRoute,
     storesRoute,
     staffRoute,
