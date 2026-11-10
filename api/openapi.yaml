@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MiniLoyal API
-  version: 0.4.0
+  version: 0.5.0
   description: |
     Membership and loyalty backend for LINE MINI Apps: LINE login, member
     cards, points, coupons, stamp cards, messaging and webhooks.
@@ -55,6 +55,10 @@ tags:
     description: Points rules, balances, history and adjustments
   - name: staff-app
     description: The cashier app (LIFF) used in stores
+  - name: coupons
+    description: Coupon templates, claims, issues, redemption and voids
+  - name: stamps
+    description: Stamp cards, progress, stamps and adjustments
 paths:
   /healthz:
     get:
@@ -1580,10 +1584,11 @@ paths:
       operationId: staffScan
       summary: Read a member card QR code
       description: |
-        Verifies the rotating code and returns the member with a scan token.
-        Points (and later coupon and stamp) actions require the scan token, so
-        staff can only act on a member whose card they scanned in the last
-        five minutes. Reading a code changes nothing, so no Idempotency-Key.
+        Verifies the rotating code and returns the member with a scan token,
+        the coupons staff can redeem and the stamp card progress. Points,
+        coupon and stamp actions require the scan token, so staff can only
+        act on a member whose card they scanned in the last five minutes.
+        Reading a code changes nothing, so no Idempotency-Key.
       security:
         - staffSession: []
       requestBody:
@@ -2046,6 +2051,771 @@ paths:
         '422':
           $ref: '#/components/responses/IdempotencyMismatch'
 
+  # ------------------------------------------------------------------ member coupons and stamps
+  /v1/me/coupons:
+    get:
+      tags: [member, coupons]
+      operationId: listMyCoupons
+      summary: My coupons, newest first
+      description: |
+        Without state, every coupon the member holds except voided ones.
+        available is issued and not expired, used is redeemed, expired is
+        issued but past expires_at. Voided coupons are never listed to the
+        member. Store names appear on redeemed coupons; staff identities do not.
+      security:
+        - memberSession: []
+      parameters:
+        - $ref: '#/components/parameters/MemberCouponFilter'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of coupons
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponInstancePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/coupons/offers:
+    get:
+      tags: [member, coupons]
+      operationId: listCouponOffers
+      summary: Coupons the member can claim now
+      description: |
+        Active templates of the member's app with claimable set, inside their
+        validity window (valid_from to valid_to) and not sold out. Each offer
+        says how many the member already holds and whether the per-member
+        limit still allows a claim. Issue-only and stamp reward templates are
+        never listed.
+      security:
+        - memberSession: []
+      responses:
+        '200':
+          description: Offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CouponOffer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/coupons/{templateId}/claim:
+    parameters:
+      - $ref: '#/components/parameters/CouponTemplateId'
+    post:
+      tags: [member, coupons]
+      operationId: claimCoupon
+      summary: Claim a coupon from an offer
+      description: |
+        Issues one coupon from the template to the signed-in member, with
+        source claim. The claim runs under a lock on the template, so
+        total_limit and per_member_limit hold under concurrent claims.
+        expires_at is fixed now: the earlier of valid_to and now plus
+        validity_days, or null when the template sets neither.
+
+        Errors: 404 when the template does not exist in the member's app;
+        409 coupon_not_claimable when it is archived, issue-only (claimable
+        false) or outside its validity window; 409 coupon_sold_out when
+        total_limit is reached; 409 coupon_limit_reached when the member
+        already holds per_member_limit coupons from it (voided ones excluded).
+      security:
+        - memberSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Claimed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponInstance'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: coupon_not_claimable, coupon_sold_out or coupon_limit_reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+  /v1/me/stamps:
+    get:
+      tags: [member, stamps]
+      operationId: listMyStamps
+      summary: My stamp card progress
+      description: |
+        One entry per active stamp card of the app, with zero progress for
+        cards the member has not started.
+      security:
+        - memberSession: []
+      responses:
+        '200':
+          description: Progress per card
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StampProgress'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ------------------------------------------------------------------ staff coupons and stamps
+  /v1/staff/coupons/{instanceId}/redeem:
+    parameters:
+      - $ref: '#/components/parameters/CouponInstanceId'
+    post:
+      tags: [staff-app, coupons]
+      operationId: staffRedeemCoupon
+      summary: Redeem a member's coupon at the counter
+      description: |
+        The cashier scans the member card, then picks one of the coupons in
+        the scan result. The coupon must belong to the scanned member. One
+        atomic update marks it redeemed only while it is issued and not
+        expired, so of many concurrent attempts exactly one succeeds; the
+        others get 409 coupon_unavailable. The staff member's store is
+        recorded. Audited.
+
+        Errors: 403 scan_invalid (no scan in the last five minutes),
+        scan_mismatch (the scan belongs to another staff member or app) or
+        self_service (the staff member's own card); 409 coupon_unavailable
+        when the coupon is already redeemed, voided, expired, belongs to
+        another member or app, or does not exist (one answer, so the code
+        reveals nothing). A retry with the same Idempotency-Key replays the
+        stored result even after the scan expired. Coupon redemption does not
+        use up the scan: one scan can redeem several coupons within its five
+        minutes. Shares the per-staff limit of 30 writes a minute.
+      security:
+        - staffSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffCouponRedeemRequest'
+      responses:
+        '200':
+          description: Redeemed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponInstance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: scan_invalid, scan_mismatch or self_service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: coupon_unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /v1/staff/stamps:
+    post:
+      tags: [staff-app, stamps]
+      operationId: staffAddStamps
+      summary: Add stamps to the scanned member's card
+      description: |
+        Adds count stamps to one stamp card under a lock on the member's
+        progress row. A visit is one scan: all stamps given on one scan token
+        to one card together may not exceed the card's max_stamps_per_visit
+        (409 stamp_visit_limit). Reaching stamps_required completes the card:
+        the count starts again from the overflow, completions goes up, and
+        the reward coupon (when the card has one) is issued in the same
+        transaction with source stamp_reward. Rewards ignore the template's
+        claimable flag and per_member_limit but respect total_limit: when the
+        reward template is sold out the whole request fails with 409
+        coupon_sold_out and nothing is written.
+
+        Errors: 403 scan_invalid, scan_mismatch or self_service as for
+        points; 404 when the card is not in the staff member's app; 409
+        stamp_card_inactive when the card is archived. Retries and the
+        per-staff limit work as for points.
+      security:
+        - staffSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffStampRequest'
+      responses:
+        '200':
+          description: Stamps added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StampResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: scan_invalid, scan_mismatch or self_service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: stamp_card_inactive, stamp_visit_limit or coupon_sold_out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  # ------------------------------------------------------------------ dashboard coupon templates
+  /v1/dashboard/apps/{appId}/coupon-templates:
+    parameters:
+      - $ref: '#/components/parameters/AppId'
+    get:
+      tags: [coupons]
+      operationId: listCouponTemplates
+      summary: Coupon templates of the app, newest first
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/TemplateStatusFilter'
+      responses:
+        '200':
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CouponTemplate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [coupons]
+      operationId: createCouponTemplate
+      summary: Create a coupon template
+      description: |
+        Owners and admins only; audited. value is checked against type:
+        amount_off takes 1 or more currency units, percent_off 1 to 100,
+        free_item 0 (name the item in name or description). valid_to must be
+        after valid_from when both are set.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CouponTemplateCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponTemplate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+  /v1/dashboard/coupon-templates/{templateId}:
+    parameters:
+      - $ref: '#/components/parameters/CouponTemplateId'
+    get:
+      tags: [coupons]
+      operationId: getCouponTemplate
+      summary: A coupon template
+      security:
+        - dashboardSession: []
+      responses:
+        '200':
+          description: Template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponTemplate'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [coupons]
+      operationId: updateCouponTemplate
+      summary: Change or archive a coupon template
+      description: |
+        Owners and admins only; audited. Templates are never deleted, since
+        coupons refer to them: set status archived to stop new claims and
+        issues. Coupons already issued stay redeemable until they expire.
+        An archived template can be made active again.
+
+        Once a coupon has been issued from the template (claimed_count above
+        zero), type and value are fixed (409 coupon_template_in_use), so a
+        coupon never changes what it is worth after the member got it.
+        total_limit cannot go below claimed_count (409
+        coupon_template_in_use). Changes to the validity window, validity_days
+        and per_member_limit apply to coupons issued from then on; expires_at
+        of issued coupons does not move.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CouponTemplateUpdate'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponTemplate'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: coupon_template_in_use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+
+  # ------------------------------------------------------------------ dashboard stamp cards
+  /v1/dashboard/apps/{appId}/stamp-cards:
+    parameters:
+      - $ref: '#/components/parameters/AppId'
+    get:
+      tags: [stamps]
+      operationId: listStampCards
+      summary: Stamp cards of the app, newest first
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/TemplateStatusFilter'
+      responses:
+        '200':
+          description: Stamp cards
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StampCard'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [stamps]
+      operationId: createStampCard
+      summary: Create a stamp card
+      description: |
+        Owners and admins only; audited. The reward template, when set, must
+        belong to the same app (404 otherwise). It is usually an issue-only
+        template (claimable false), so members cannot claim the reward
+        without stamps.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StampCardCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StampCard'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+  /v1/dashboard/stamp-cards/{stampCardId}:
+    parameters:
+      - $ref: '#/components/parameters/StampCardId'
+    get:
+      tags: [stamps]
+      operationId: getStampCard
+      summary: A stamp card
+      security:
+        - dashboardSession: []
+      responses:
+        '200':
+          description: Stamp card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StampCard'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [stamps]
+      operationId: updateStampCard
+      summary: Change or archive a stamp card
+      description: |
+        Owners and admins only; audited. Stamp cards are never deleted: set
+        status archived to stop new stamps (staff get 409
+        stamp_card_inactive); progress is kept and the card can be made
+        active again. Once any member has a stamp on the card,
+        stamps_required is fixed (409 stamp_card_in_use). A new reward
+        template applies to completions from then on and must belong to the
+        same app (404 otherwise).
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StampCardUpdate'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StampCard'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: stamp_card_in_use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+
+  # ------------------------------------------------------------------ dashboard member coupons and stamps
+  /v1/dashboard/members/{memberId}/coupons:
+    parameters:
+      - $ref: '#/components/parameters/MemberId'
+    get:
+      tags: [coupons]
+      operationId: listMemberCoupons
+      summary: A member's coupons, newest first
+      description: Every coupon including voided ones; filter with state.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/CouponStateFilter'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of coupons
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponInstancePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [coupons]
+      operationId: issueMemberCoupon
+      summary: Give a member a coupon from a template
+      description: |
+        Owners and admins only; audited. Issues with source issue, whatever
+        the template's claimable flag and per_member_limit; total_limit still
+        applies (409 coupon_sold_out). The template must be in the member's
+        app (404 otherwise), active and inside its validity window (409
+        coupon_not_claimable otherwise).
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CouponIssueRequest'
+      responses:
+        '201':
+          description: Issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponInstance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: coupon_not_claimable or coupon_sold_out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+  /v1/dashboard/coupons/{instanceId}/void:
+    parameters:
+      - $ref: '#/components/parameters/CouponInstanceId'
+    post:
+      tags: [coupons]
+      operationId: voidCoupon
+      summary: Void a member's coupon
+      description: |
+        Owners and admins only; audited with the reason. Only an issued
+        coupon can be voided, expired or not; a redeemed or already voided
+        coupon answers 409 coupon_unavailable. Voiding does not give the
+        template's total_limit back.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CouponVoidRequest'
+      responses:
+        '200':
+          description: Voided
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponInstance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: coupon_unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+  /v1/dashboard/members/{memberId}/stamps:
+    parameters:
+      - $ref: '#/components/parameters/MemberId'
+    get:
+      tags: [stamps]
+      operationId: listMemberStamps
+      summary: A member's stamp card progress
+      description: |
+        One entry per stamp card of the app that is active or that the member
+        has progress on, archived cards included.
+      security:
+        - dashboardSession: []
+      responses:
+        '200':
+          description: Progress per card
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StampProgress'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/dashboard/members/{memberId}/stamps/adjustments:
+    parameters:
+      - $ref: '#/components/parameters/MemberId'
+    post:
+      tags: [stamps]
+      operationId: adjustMemberStamps
+      summary: Correct a member's stamps
+      description: |
+        Owners and admins only; audited. Writes a new stamp event; earlier
+        events are never changed. A positive delta that reaches
+        stamps_required completes the card and issues the reward, as a staff
+        stamp would. A negative delta cannot take the count below zero (409
+        insufficient_stamps) and does not undo past completions or their
+        rewards (void the reward coupon instead). The per-visit cap does not
+        apply; archived cards can be corrected.
+      security:
+        - dashboardSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StampAdjustment'
+      responses:
+        '200':
+          description: Adjusted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StampResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: insufficient_stamps or coupon_sold_out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+
+  # ------------------------------------------------------------------ server coupons
+  /v1/members/{memberId}/coupons:
+    parameters:
+      - $ref: '#/components/parameters/MemberId'
+    get:
+      tags: [server, coupons]
+      operationId: serverListMemberCoupons
+      summary: A member's coupons (API key, members:read)
+      description: Every coupon including voided ones, newest first; filter with state.
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: '#/components/parameters/CouponStateFilter'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of coupons
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponInstancePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [server, coupons]
+      operationId: serverIssueCoupon
+      summary: Give a member a coupon from a POS or brand backend (API key, coupons:write)
+      description: |
+        Same rules as the dashboard issue: source issue, claimable and
+        per_member_limit ignored, total_limit applies (409 coupon_sold_out),
+        template active and inside its validity window (409
+        coupon_not_claimable).
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CouponIssueRequest'
+      responses:
+        '201':
+          description: Issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CouponInstance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: coupon_not_claimable or coupon_sold_out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/IdempotencyMismatch'
+
 components:
   parameters:
     MemberId:
@@ -2108,6 +2878,49 @@ components:
       description: Opaque cursor from a previous page's next_cursor.
       schema:
         type: string
+    CouponTemplateId:
+      name: templateId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CouponInstanceId:
+      name: instanceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    StampCardId:
+      name: stampCardId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MemberCouponFilter:
+      name: state
+      in: query
+      required: false
+      description: available (issued, not expired), used (redeemed) or expired. Omitted, every coupon except voided ones.
+      schema:
+        type: string
+        enum: [available, used, expired]
+    CouponStateFilter:
+      name: state
+      in: query
+      required: false
+      description: Only coupons in this effective state. Omitted, every coupon.
+      schema:
+        $ref: '#/components/schemas/CouponState'
+    TemplateStatusFilter:
+      name: status
+      in: query
+      required: false
+      description: Only active or only archived entries. Omitted, both.
+      schema:
+        $ref: '#/components/schemas/ArchiveStatus'
   responses:
     BadRequest:
       description: Malformed request or validation failure
@@ -3375,11 +4188,12 @@ components:
           type: boolean
     ScanResult:
       type: object
-      required: [scan_token, expires_at, member, balance]
+      required: [scan_token, expires_at, member, balance, coupons, stamps]
+      description: Carries no personal data beyond ScannedMember, whatever the staff role.
       properties:
         scan_token:
           type: string
-          description: Authorizes points actions on this member for five minutes; it pays for at most one redemption.
+          description: Authorizes points, coupon and stamp actions on this member for five minutes; it pays for at most one points redemption.
         expires_at:
           type: string
           format: date-time
@@ -3388,6 +4202,17 @@ components:
         balance:
           type: integer
           format: int64
+        coupons:
+          type: array
+          description: The member's coupons staff can redeem now (state available), soonest expiry first, at most 50.
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/CouponInstance'
+        stamps:
+          type: array
+          description: The member's progress on every active stamp card of the app, zero for cards not started.
+          items:
+            $ref: '#/components/schemas/StampProgress'
     StaffEarnRequest:
       type: object
       required: [scan_token]
@@ -3421,3 +4246,509 @@ components:
         note:
           type: string
           maxLength: 200
+
+    # ---- coupons
+    ArchiveStatus:
+      type: string
+      enum: [active, archived]
+      description: Archived coupon templates and stamp cards stop new claims, issues and stamps; nothing is deleted.
+    CouponType:
+      type: string
+      enum: [amount_off, percent_off, free_item]
+      description: amount_off takes value currency units off, percent_off takes value percent off, free_item gives the item named in the template.
+    CouponInstanceStatus:
+      type: string
+      enum: [issued, redeemed, voided]
+      description: Stored status. Expiry is not a stored status; see CouponState.
+    CouponState:
+      type: string
+      enum: [available, redeemed, expired, voided]
+      description: Effective state. available is issued and not past expires_at; expired is issued and past it.
+    CouponSource:
+      type: string
+      enum: [claim, issue, stamp_reward]
+      description: claim by the member, issue from the dashboard or server API, stamp_reward on completing a stamp card.
+    CouponTemplateClearable:
+      type: string
+      enum: [description, total_limit, valid_from, valid_to, validity_days]
+    CouponTemplate:
+      type: object
+      required:
+        [
+          id,
+          app_id,
+          name,
+          type,
+          value,
+          per_member_limit,
+          claimable,
+          claimed_count,
+          status,
+          created_at,
+          updated_at,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Template ID; members claim with it.
+        app_id:
+          type: string
+          format: uuid
+          description: The app the template belongs to.
+        name:
+          type: string
+          description: Shown to members and staff, for example "NT$50 off".
+        description:
+          type: string
+          nullable: true
+          description: Terms shown to members.
+        type:
+          $ref: '#/components/schemas/CouponType'
+        value:
+          type: integer
+          description: Currency units for amount_off, percent for percent_off, 0 for free_item.
+        total_limit:
+          type: integer
+          nullable: true
+          description: Most coupons ever issued from the template, from every source; null for no limit.
+        per_member_limit:
+          type: integer
+          description: Most coupons one member may hold from member claims (voided ones excluded). Dashboard, API and stamp reward issues ignore it.
+        valid_from:
+          type: string
+          format: date-time
+          nullable: true
+          description: Claims and issues are refused before this time; null for no start.
+        valid_to:
+          type: string
+          format: date-time
+          nullable: true
+          description: Claims and issues are refused from this time, and coupons expire at it at the latest; null for no end.
+        validity_days:
+          type: integer
+          nullable: true
+          description: A coupon expires this many days after it was issued, or at valid_to if that is earlier; null for no relative expiry.
+        claimable:
+          type: boolean
+          description: Whether members may claim it themselves. False for issue-only and stamp reward templates.
+        claimed_count:
+          type: integer
+          description: Coupons issued so far from every source (claim, issue, stamp_reward); counts toward total_limit. Voids do not lower it.
+        status:
+          $ref: '#/components/schemas/ArchiveStatus'
+        created_at:
+          type: string
+          format: date-time
+          description: When the template was created.
+        updated_at:
+          type: string
+          format: date-time
+          description: When the template last changed.
+    CouponTemplateCreate:
+      type: object
+      required: [name, type, value]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Shown to members and staff.
+        description:
+          type: string
+          maxLength: 500
+          description: Terms shown to members.
+        type:
+          $ref: '#/components/schemas/CouponType'
+        value:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+          description: amount_off 1 or more currency units, percent_off 1 to 100, free_item 0.
+        total_limit:
+          type: integer
+          minimum: 1
+          maximum: 10000000
+          description: Most coupons ever issued; omit for no limit.
+        per_member_limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 1
+          description: Most coupons one member may hold from claims.
+        valid_from:
+          type: string
+          format: date-time
+          description: No claims or issues before this time.
+        valid_to:
+          type: string
+          format: date-time
+          description: No claims or issues from this time; coupons expire at it at the latest. Must be after valid_from.
+        validity_days:
+          type: integer
+          minimum: 1
+          maximum: 3650
+          description: Coupons expire this many days after issue (or at valid_to if earlier).
+        claimable:
+          type: boolean
+          default: false
+          description: Let members claim it from the offers list. Leave false for reward and issue-only templates.
+    CouponTemplateUpdate:
+      type: object
+      description: Only the fields sent change. Fields listed in clear are set to null; a field may not be both sent and cleared.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Shown to members and staff.
+        description:
+          type: string
+          maxLength: 500
+          description: Terms shown to members.
+        type:
+          $ref: '#/components/schemas/CouponType'
+        value:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+          description: Fixed once claimed_count is above zero.
+        total_limit:
+          type: integer
+          minimum: 1
+          maximum: 10000000
+          description: Cannot go below claimed_count.
+        per_member_limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Applies to claims from now on.
+        valid_from:
+          type: string
+          format: date-time
+          description: Applies to claims and issues from now on.
+        valid_to:
+          type: string
+          format: date-time
+          description: Applies to claims and issues from now on; issued coupons keep their expires_at.
+        validity_days:
+          type: integer
+          minimum: 1
+          maximum: 3650
+          description: Applies to coupons issued from now on.
+        claimable:
+          type: boolean
+          description: Let members claim it from the offers list.
+        status:
+          $ref: '#/components/schemas/ArchiveStatus'
+        clear:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          description: Fields to reset to null (no limit, no window, no description).
+          items:
+            $ref: '#/components/schemas/CouponTemplateClearable'
+    CouponTemplateSummary:
+      type: object
+      required: [id, name, type, value]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Template ID.
+        name:
+          type: string
+          description: Template name.
+        description:
+          type: string
+          nullable: true
+          description: Terms shown to members.
+        type:
+          $ref: '#/components/schemas/CouponType'
+        value:
+          type: integer
+          description: Currency units for amount_off, percent for percent_off, 0 for free_item.
+    CouponOffer:
+      type: object
+      required: [template, per_member_limit, held, can_claim]
+      properties:
+        template:
+          $ref: '#/components/schemas/CouponTemplateSummary'
+        valid_to:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last moment to claim; also the latest expiry of a claimed coupon.
+        validity_days:
+          type: integer
+          nullable: true
+          description: A claimed coupon expires this many days after the claim, or at valid_to if earlier.
+        per_member_limit:
+          type: integer
+          description: Most coupons the member may hold from this offer.
+        held:
+          type: integer
+          description: Coupons the member already holds from this template, voided ones excluded.
+        can_claim:
+          type: boolean
+          description: False when held has reached per_member_limit.
+    CouponInstance:
+      type: object
+      required: [id, code, template, member_id, status, state, source, issued_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Coupon ID; staff redeem with it.
+        code:
+          type: string
+          description: Short code unique within the app, for receipts and support. Not a credential; redeeming needs a scan of the member card.
+        template:
+          $ref: '#/components/schemas/CouponTemplateSummary'
+        member_id:
+          type: string
+          format: uuid
+          description: The member holding the coupon.
+        status:
+          $ref: '#/components/schemas/CouponInstanceStatus'
+        state:
+          $ref: '#/components/schemas/CouponState'
+        source:
+          $ref: '#/components/schemas/CouponSource'
+        issued_at:
+          type: string
+          format: date-time
+          description: When the member got the coupon.
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fixed at issue; null when the coupon never expires. Redeeming at or after this time fails.
+        redeemed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When staff redeemed it.
+        store:
+          $ref: '#/components/schemas/StoreRef'
+    CouponInstancePage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: Coupons, newest first.
+          items:
+            $ref: '#/components/schemas/CouponInstance'
+        next_cursor:
+          type: string
+          nullable: true
+          description: Pass as cursor for the next page; null on the last page.
+    CouponIssueRequest:
+      type: object
+      required: [template_id]
+      properties:
+        template_id:
+          type: string
+          format: uuid
+          description: Template of the member's app to issue from.
+    CouponVoidRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Why the coupon is voided; kept in the audit log.
+    StaffCouponRedeemRequest:
+      type: object
+      required: [scan_token]
+      properties:
+        scan_token:
+          type: string
+          maxLength: 1024
+          description: From a scan of the coupon holder's card in the last five minutes.
+
+    # ---- stamps
+    StampCardClearable:
+      type: string
+      enum: [reward_coupon_template_id]
+    StampCard:
+      type: object
+      required:
+        [id, app_id, name, stamps_required, max_stamps_per_visit, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Stamp card ID.
+        app_id:
+          type: string
+          format: uuid
+          description: The app the card belongs to.
+        name:
+          type: string
+          description: Shown to members and staff.
+        stamps_required:
+          type: integer
+          description: Stamps that complete the card.
+        reward_coupon_template_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Template issued on each completion; null for no reward coupon.
+        max_stamps_per_visit:
+          type: integer
+          description: Most stamps staff may give on one scan.
+        status:
+          $ref: '#/components/schemas/ArchiveStatus'
+        created_at:
+          type: string
+          format: date-time
+          description: When the card was created.
+        updated_at:
+          type: string
+          format: date-time
+          description: When the card last changed.
+    StampCardCreate:
+      type: object
+      required: [name, stamps_required]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Shown to members and staff.
+        stamps_required:
+          type: integer
+          minimum: 2
+          maximum: 100
+          description: Stamps that complete the card.
+        reward_coupon_template_id:
+          type: string
+          format: uuid
+          description: Template of the same app issued on each completion.
+        max_stamps_per_visit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 1
+          description: Most stamps staff may give on one scan.
+    StampCardUpdate:
+      type: object
+      description: Only the fields sent change. Fields listed in clear are set to null; a field may not be both sent and cleared.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Shown to members and staff.
+        stamps_required:
+          type: integer
+          minimum: 2
+          maximum: 100
+          description: Fixed once any member has a stamp on the card.
+        reward_coupon_template_id:
+          type: string
+          format: uuid
+          description: Applies to completions from now on.
+        max_stamps_per_visit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Most stamps staff may give on one scan.
+        status:
+          $ref: '#/components/schemas/ArchiveStatus'
+        clear:
+          type: array
+          maxItems: 1
+          uniqueItems: true
+          description: Fields to reset to null (no reward coupon).
+          items:
+            $ref: '#/components/schemas/StampCardClearable'
+    StampProgress:
+      type: object
+      required:
+        [stamp_card_id, name, stamps_required, max_stamps_per_visit, status, count, completions]
+      properties:
+        stamp_card_id:
+          type: string
+          format: uuid
+          description: The stamp card.
+        name:
+          type: string
+          description: Card name.
+        stamps_required:
+          type: integer
+          description: Stamps that complete the card.
+        max_stamps_per_visit:
+          type: integer
+          description: Most stamps staff may give on one scan.
+        status:
+          $ref: '#/components/schemas/ArchiveStatus'
+        count:
+          type: integer
+          description: Stamps toward the next completion, from 0 to stamps_required minus 1.
+        completions:
+          type: integer
+          description: Times the member completed the card.
+        reward:
+          $ref: '#/components/schemas/CouponTemplateSummary'
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last stamp or adjustment; null when the member has no stamps on the card yet.
+    StampResult:
+      type: object
+      required: [progress, added, completed, rewards]
+      properties:
+        progress:
+          $ref: '#/components/schemas/StampProgress'
+        added:
+          type: integer
+          description: Signed change applied by this request.
+        completed:
+          type: integer
+          description: Completions this request caused.
+        rewards:
+          type: array
+          description: Reward coupons issued by those completions; empty when there were none or the card has no reward.
+          items:
+            $ref: '#/components/schemas/CouponInstance'
+    StaffStampRequest:
+      type: object
+      required: [scan_token, stamp_card_id, count]
+      properties:
+        scan_token:
+          type: string
+          maxLength: 1024
+          description: From a scan of the member card in the last five minutes.
+        stamp_card_id:
+          type: string
+          format: uuid
+          description: Card of the staff member's app.
+        count:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Stamps to add; at most the card's max_stamps_per_visit, counting stamps already given on this scan.
+    StampAdjustment:
+      type: object
+      required: [stamp_card_id, delta, note]
+      properties:
+        stamp_card_id:
+          type: string
+          format: uuid
+          description: Card of the member's app.
+        delta:
+          type: integer
+          minimum: -100
+          maximum: 100
+          description: Non-zero.
+        note:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Why; kept in the audit log.

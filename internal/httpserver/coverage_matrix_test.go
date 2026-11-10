@@ -25,7 +25,8 @@ import (
 // (coverage_staff_matrix_test.go). TestEveryOperationIsInTheCoverageTable
 // fails when the spec gains an operation that is in none of the tables nor
 // otherCoveredOps, so new endpoints cannot ship without a cross-tenant,
-// role, idempotency and credential-kind test.
+// role, idempotency and credential-kind test. Stubbed operations wait in
+// pendingOps (coverage_pending_test.go) until their feature lands.
 
 // matrixFixtures are tenant A's resources the table operates on.
 type matrixFixtures struct {
@@ -287,13 +288,18 @@ func TestEveryOperationIsInTheCoverageTable(t *testing.T) {
 			t.Errorf("%s is in a matrix table and in otherCoveredOps", id)
 		}
 	}
+	for _, id := range pendingOps {
+		if _, dup := byID[id]; dup || slices.Contains(otherCoveredOps, id) {
+			t.Errorf("%s is in pendingOps and covered elsewhere: remove it from pendingOps", id)
+		}
+	}
 	inSpec := map[string]bool{}
 	for path, item := range spec.Paths.Map() {
 		for method, op := range item.Operations() {
 			id := opKey(op.OperationID)
 			inSpec[id] = true
 			tc, tabled := byID[id]
-			if !tabled && !slices.Contains(otherCoveredOps, id) {
+			if !tabled && !slices.Contains(otherCoveredOps, id) && !slices.Contains(pendingOps, id) {
 				t.Errorf("%s %s (%s) is not in tenantOps, memberOps, serverOps, staffOps or otherCoveredOps: add cross-tenant, role, idempotency and credential tests", method, path, id)
 				continue
 			}
@@ -337,6 +343,11 @@ func TestEveryOperationIsInTheCoverageTable(t *testing.T) {
 	for _, id := range otherCoveredOps {
 		if !inSpec[id] {
 			t.Errorf("otherCoveredOps entry %s is not in api/openapi.yaml", id)
+		}
+	}
+	for _, id := range pendingOps {
+		if !inSpec[id] {
+			t.Errorf("pendingOps entry %s is not in api/openapi.yaml", id)
 		}
 	}
 }

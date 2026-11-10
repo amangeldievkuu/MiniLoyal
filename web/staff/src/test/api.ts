@@ -92,6 +92,8 @@ export function scanResult(secondsLeft = 300, balance = 120): ScanResult {
       is_friend: true,
     },
     balance,
+    coupons: [],
+    stamps: [],
   };
 }
 
