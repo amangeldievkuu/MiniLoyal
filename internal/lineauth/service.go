@@ -159,64 +159,9 @@ func (s *Service) LoginWithLine(ctx context.Context, in LoginInput, c Client) (*
 	if fields := validateLogin(&in); len(fields) > 0 {
 		return nil, apierr.Validation(fields)
 	}
-	if s.verifier == nil {
-		return nil, errNoVerifier
-	}
-
-	// The app and its channels are looked up before any tenant is known.
-	var app sqlc.App
-	var channels []sqlc.ListAppChannelsForLoginRow
-	err := db.WithSystem(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
-		q := sqlc.New(tx)
-		var err error
-		app, err = q.GetApp(ctx, in.AppID)
-		if err != nil {
-			if db.IsNotFound(err) {
-				return errAppNotFound
-			}
-			return fmt.Errorf("lineauth: load app: %w", err)
-		}
-		if app.Status != "active" {
-			return errAppNotFound
-		}
-		channels, err = q.ListAppChannelsForLogin(ctx, app.ID)
-		if err != nil {
-			return fmt.Errorf("lineauth: load channels: %w", err)
-		}
-		return nil
-	})
+	app, claims, err := s.VerifyIDTokenForApp(ctx, in.AppID, in.IDToken, in.Nonce)
 	if err != nil {
 		return nil, err
-	}
-	if len(channels) == 0 {
-		return nil, errNoChannels
-	}
-
-	vin := VerifyInput{ChannelSecrets: map[string]string{}, Nonce: in.Nonce}
-	for _, ch := range channels {
-		if s.requireVerified && !ch.VerifiedAt.Valid {
-			continue
-		}
-		vin.ChannelIDs = append(vin.ChannelIDs, ch.ChannelID)
-		if len(ch.ChannelSecretEnc) == 0 {
-			continue
-		}
-		secret, err := s.keyring.Decrypt(ctx, ch.ChannelSecretEnc, channelSecretAAD(app.ID, ch.Environment))
-		if err != nil {
-			return nil, fmt.Errorf("lineauth: decrypt channel secret: %w", err)
-		}
-		vin.ChannelSecrets[ch.ChannelID] = string(secret)
-	}
-	if len(vin.ChannelIDs) == 0 {
-		return nil, errNoChannels
-	}
-	claims, err := s.verifier.Verify(ctx, in.IDToken, vin)
-	if err != nil {
-		s.log.InfoContext(ctx, "line id token rejected", "app_id", app.ID)
-		return nil, errBadIDToken
-	}
-	if claims.Sub == "" {
-		return nil, errBadIDToken
 	}
 
 	var row sqlc.UpsertMemberFromLoginRow
@@ -254,6 +199,68 @@ func (s *Service) LoginWithLine(ctx context.Context, in LoginInput, c Client) (*
 	}, nil
 }
 
+// VerifyIDTokenForApp resolves an active app and verifies a LIFF ID token
+// against its configured channels: every channel ID is an acceptable
+// audience, and channel secrets (for HS256 tokens) are passed only when the
+// app opted in with allow_hs256_id_tokens. Staff sign-in uses it too.
+func (s *Service) VerifyIDTokenForApp(ctx context.Context, appID uuid.UUID, idToken, nonce string) (sqlc.App, Claims, error) {
+	if s.verifier == nil {
+		return sqlc.App{}, Claims{}, errNoVerifier
+	}
+	// The app and its channels are looked up before any tenant is known.
+	var app sqlc.App
+	var channels []sqlc.ListAppChannelsForLoginRow
+	err := db.WithSystem(ctx, s.pool, func(ctx context.Context, tx pgx.Tx) error {
+		q := sqlc.New(tx)
+		var err error
+		app, err = q.GetApp(ctx, appID)
+		if err != nil {
+			if db.IsNotFound(err) {
+				return errAppNotFound
+			}
+			return fmt.Errorf("lineauth: load app: %w", err)
+		}
+		if app.Status != "active" {
+			return errAppNotFound
+		}
+		channels, err = q.ListAppChannelsForLogin(ctx, app.ID)
+		if err != nil {
+			return fmt.Errorf("lineauth: load channels: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return sqlc.App{}, Claims{}, err
+	}
+	vin := VerifyInput{ChannelSecrets: map[string]string{}, Nonce: nonce}
+	for _, ch := range channels {
+		if s.requireVerified && !ch.VerifiedAt.Valid {
+			continue
+		}
+		vin.ChannelIDs = append(vin.ChannelIDs, ch.ChannelID)
+		if !app.AllowHs256IDTokens || len(ch.ChannelSecretEnc) == 0 {
+			continue
+		}
+		secret, err := s.keyring.Decrypt(ctx, ch.ChannelSecretEnc, channelSecretAAD(app.ID, ch.Environment))
+		if err != nil {
+			return sqlc.App{}, Claims{}, fmt.Errorf("lineauth: decrypt channel secret: %w", err)
+		}
+		vin.ChannelSecrets[ch.ChannelID] = string(secret)
+	}
+	if len(vin.ChannelIDs) == 0 {
+		return sqlc.App{}, Claims{}, errNoChannels
+	}
+	claims, err := s.verifier.Verify(ctx, idToken, vin)
+	if err != nil {
+		s.log.InfoContext(ctx, "line id token rejected", "app_id", app.ID)
+		return sqlc.App{}, Claims{}, errBadIDToken
+	}
+	if claims.Sub == "" {
+		return sqlc.App{}, Claims{}, errBadIDToken
+	}
+	return app, claims, nil
+}
+
 // AuthenticateMember verifies a member session token and returns its
 // principal. It implements httpserver.MemberAuthenticator.
 func (s *Service) AuthenticateMember(ctx context.Context, token string) (principal.Principal, error) {
@@ -283,6 +290,10 @@ func (s *Service) AuthenticateMember(ctx context.Context, token string) (princip
 	}
 	// A disabled or suspended app ends its members' sessions at once.
 	if app.Status != "active" {
+		return principal.Principal{}, errBadSession
+	}
+	// The dashboard can sign every member out (EndMemberSessions).
+	if app.MemberSessionsValidFrom.Valid && cl.IssuedAt.Before(app.MemberSessionsValidFrom.Time) {
 		return principal.Principal{}, errBadSession
 	}
 	if member.TenantID != cl.TenantID || member.AppID != cl.AppID {

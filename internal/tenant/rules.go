@@ -106,8 +106,12 @@ func randomHex(n int) string {
 // inviteAlphabet avoids characters that are easy to confuse when typed.
 const inviteAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
+// InviteCodeLen is the length of a staff invite code: 12 characters from a
+// 32-letter alphabet is 60 bits, matched within one app and rate limited.
+const InviteCodeLen = 12
+
 func randomInviteCode() string {
-	b := make([]byte, 8)
+	b := make([]byte, InviteCodeLen)
 	if _, err := rand.Read(b); err != nil {
 		panic("tenant: random: " + err.Error())
 	}

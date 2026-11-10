@@ -103,9 +103,10 @@ func TestLoginCreatesThenRefreshesTheMember(t *testing.T) {
 		t.Error("a login without language must keep the stored one")
 	}
 
-	// The verifier saw every configured channel and the decrypted secret.
+	// The verifier saw every configured channel and, since HS256 is opt-in
+	// per app and off by default, no channel secret.
 	call := w.verifier.Calls[len(w.verifier.Calls)-1]
-	if len(call.ChannelIDs) != 1 || call.ChannelIDs[0] != channelID || call.ChannelSecrets[channelID] != "channel-secret" {
+	if len(call.ChannelIDs) != 1 || call.ChannelIDs[0] != channelID || len(call.ChannelSecrets) != 0 {
 		t.Errorf("verifier input: %+v", call)
 	}
 

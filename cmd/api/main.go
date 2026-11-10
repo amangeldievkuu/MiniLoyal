@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
 	"github.com/amangeldievkuu/miniloyal/internal/points"
+	"github.com/amangeldievkuu/miniloyal/internal/staffauth"
 	"net"
 	"net/http"
 	"os"
@@ -131,6 +132,14 @@ func run() int {
 		return 1
 	}
 	pointsSvc := points.New(points.Deps{Pool: pool, Tenants: tenants, Keyring: keyring, Card: cards, Clock: clock.Real{}, Log: logger})
+	staffAuth, err := staffauth.New(staffauth.Deps{
+		Pool: pool, LineAuth: lineAuth, Card: cards, Clock: clock.Real{}, Log: logger,
+		Config: staffauth.Config{SigningKey: cfg.SessionSigningKey},
+	})
+	if err != nil {
+		logger.Error("staff app setup failed", "err", err)
+		return 1
+	}
 	members := member.New(member.Deps{Pool: pool, Tenants: tenants, Keyring: keyring, Clock: clock.Real{}, Log: logger})
 
 	srv := &http.Server{
@@ -146,6 +155,8 @@ func run() int {
 			Webhooks:  webhooks,
 			Card:      cards,
 			Points:    pointsSvc,
+			StaffAuth: staffAuth,
+			Staff:     staffAuth,
 		}).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,

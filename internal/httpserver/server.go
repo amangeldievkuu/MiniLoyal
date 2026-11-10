@@ -6,6 +6,7 @@ import (
 	"context"
 	"github.com/amangeldievkuu/miniloyal/internal/card"
 	"github.com/amangeldievkuu/miniloyal/internal/points"
+	"github.com/amangeldievkuu/miniloyal/internal/staffauth"
 	"log/slog"
 	"net/http"
 	"time"
@@ -48,6 +49,10 @@ type Deps struct {
 	// Points serves earn rules, balances, history, adjustments and staff
 	// earn and redeem (internal/points). Nil answers those routes 503.
 	Points *points.Service
+	// StaffAuth serves the staff app (sign-in, profile, card scans) and the
+	// member's own card. It also verifies staff sessions, so Staff defaults
+	// to it.
+	StaffAuth *staffauth.Service
 	// Tenants serves tenants, team, apps, channels, stores, staff, API keys
 	// and the audit log.
 	Tenants *tenant.Service
@@ -74,6 +79,7 @@ type Server struct {
 	staff     StaffAuthenticator
 	card      *card.Codec
 	points    *points.Service
+	staffAuth *staffauth.Service
 	tenants   *tenant.Service
 	lineauth  *lineauth.Service
 	memberSvc *member.Service
@@ -97,6 +103,9 @@ func New(d Deps) *Server {
 	if d.Members == nil && d.LineAuth != nil {
 		d.Members = d.LineAuth
 	}
+	if d.Staff == nil && d.StaffAuth != nil {
+		d.Staff = d.StaffAuth
+	}
 	return &Server{
 		cfg:       d.Config,
 		log:       d.Log,
@@ -109,6 +118,7 @@ func New(d Deps) *Server {
 		staff:     d.Staff,
 		card:      d.Card,
 		points:    d.Points,
+		staffAuth: d.StaffAuth,
 		tenants:   d.Tenants,
 		lineauth:  d.LineAuth,
 		memberSvc: d.MemberSvc,

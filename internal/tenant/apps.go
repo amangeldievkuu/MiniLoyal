@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -32,6 +33,8 @@ type AppUpdate struct {
 	OAChannelID     *string
 	OABasicID       *string
 	OAChannelSecret *string
+	// AllowHS256 accepts HS256 ID tokens (LINE web login) for the app.
+	AllowHS256 *bool
 }
 
 // ChannelPut is the input for PutChannel. The secret is required: it proves
@@ -211,6 +214,13 @@ func (s *Service) UpdateApp(ctx context.Context, p principal.Principal, appID uu
 				}
 			}
 		}
+		if in.AllowHS256 != nil && *in.AllowHS256 != app.AllowHs256IDTokens {
+			app, err = q.SetAppHS256(ctx, sqlc.SetAppHS256Params{ID: appID, AllowHs256IDTokens: *in.AllowHS256})
+			if err != nil {
+				return sqlc.App{}, fmt.Errorf("tenant: set HS256: %w", err)
+			}
+			changed = append(changed, "allow_hs256_id_tokens")
+		}
 		if in.OAChannelID != nil || in.OABasicID != nil || in.OAChannelSecret != nil {
 			params := sqlc.UpdateAppOAParams{
 				ID:                 appID,
@@ -289,10 +299,14 @@ func (s *Service) UpdateApp(ctx context.Context, p principal.Principal, appID uu
 		if len(changed) == 0 {
 			return app, nil
 		}
+		meta := map[string]any{"fields": changed}
+		if in.AllowHS256 != nil {
+			meta["allow_hs256_id_tokens"] = app.AllowHs256IDTokens
+		}
 		return app, audit.Record(ctx, tx, audit.Entry{
 			TenantID: tenantID, AppID: &appID, Actor: p, Action: audit.AppUpdate,
 			TargetType: "app", TargetID: appID.String(),
-			Metadata: map[string]any{"fields": changed},
+			Metadata: meta,
 		})
 	})
 }
@@ -434,4 +448,27 @@ func nullIfEmpty(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// EndMemberSessions signs every member of the app out: member tokens issued
+// before now are refused. Owners and admins; audited.
+func (s *Service) EndMemberSessions(ctx context.Context, p principal.Principal, appID uuid.UUID, idem Idem) (sqlc.App, error) {
+	tenantID, err := s.appTenant(ctx, appID)
+	if err != nil {
+		return sqlc.App{}, err
+	}
+	return write(ctx, s, p, tenantID, principal.RoleAdmin, idem, func(ctx context.Context, tx pgx.Tx, _ principal.Role) (sqlc.App, error) {
+		q := sqlc.New(tx)
+		// Millisecond precision matches the iat_ms member tokens carry, so a
+		// token issued in this very instant is not refused by rounding.
+		now := s.clock.Now().Truncate(time.Millisecond)
+		app, err := q.EndMemberSessions(ctx, sqlc.EndMemberSessionsParams{ID: appID, MemberSessionsValidFrom: pgtype.Timestamptz{Time: now, Valid: true}})
+		if err != nil {
+			return sqlc.App{}, notFound(err, "app")
+		}
+		return app, audit.Record(ctx, tx, audit.Entry{
+			TenantID: tenantID, AppID: &appID, Actor: p, Action: audit.MemberSessionsEnd,
+			TargetType: "app", TargetID: appID.String(),
+		})
+	})
 }

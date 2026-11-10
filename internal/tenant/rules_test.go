@@ -93,7 +93,7 @@ func TestValidateScopes(t *testing.T) {
 
 func TestInviteCode(t *testing.T) {
 	code := randomInviteCode()
-	if len(code) != 8 {
+	if len(code) != InviteCodeLen || InviteCodeLen != 12 {
 		t.Fatalf("len = %d", len(code))
 	}
 	for _, r := range code {

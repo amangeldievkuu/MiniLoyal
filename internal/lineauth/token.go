@@ -1,6 +1,7 @@
 package lineauth
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -20,6 +21,7 @@ const (
 	claimTyp      = "typ"
 	claimTenantID = "tenant_id"
 	claimAppID    = "app_id"
+	claimIatMs    = "iat_ms"
 
 	acceptableSkew = 30 * time.Second
 )
@@ -50,6 +52,7 @@ func (s *signer) issue(c sessionClaims, ttl time.Duration) (string, error) {
 		Claim(claimTyp, typMember).
 		Claim(claimTenantID, c.TenantID.String()).
 		Claim(claimAppID, c.AppID.String()).
+		Claim(claimIatMs, now.UnixMilli()).
 		Build()
 	if err != nil {
 		return "", fmt.Errorf("lineauth: build token: %w", err)
@@ -92,9 +95,13 @@ func (s *signer) verify(raw string) (sessionClaims, error) {
 	if err != nil {
 		return sessionClaims{}, errInvalidToken
 	}
-	issued, ok := tok.IssuedAt()
+	// iat_ms carries millisecond precision so app.member_sessions_valid_from
+	// comparisons are exact; iat is the fallback for older tokens.
+	issued, ok := issuedAtMs(tok)
 	if !ok {
-		return sessionClaims{}, errInvalidToken
+		if issued, ok = tok.IssuedAt(); !ok {
+			return sessionClaims{}, errInvalidToken
+		}
 	}
 	return sessionClaims{MemberID: memberID, TenantID: tenantID, AppID: appID, IssuedAt: issued}, nil
 }
@@ -105,4 +112,27 @@ func uuidClaim(tok jwt.Token, name string) (uuid.UUID, error) {
 		return uuid.Nil, err
 	}
 	return uuid.Parse(v)
+}
+
+// issuedAtMs reads iat_ms whatever numeric type the JSON decoder produced.
+func issuedAtMs(tok jwt.Token) (time.Time, bool) {
+	var v any
+	if err := tok.Get(claimIatMs, &v); err != nil {
+		return time.Time{}, false
+	}
+	switch n := v.(type) {
+	case int64:
+		return time.UnixMilli(n), true
+	case int:
+		return time.UnixMilli(int64(n)), true
+	case float64:
+		return time.UnixMilli(int64(n)), true
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return time.Time{}, false
+		}
+		return time.UnixMilli(i), true
+	}
+	return time.Time{}, false
 }
