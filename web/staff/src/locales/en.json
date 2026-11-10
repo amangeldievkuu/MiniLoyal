@@ -24,7 +24,8 @@
     "rateLimited": "Too many attempts. Try again in {{seconds}} s.",
     "signedOut": "You are signed out.",
     "expired": "Your session ended. Sign in again.",
-    "signInAgain": "Sign in again"
+    "signInAgain": "Sign in again",
+    "staffChannelRequired": "The staff app's LINE Login channel is not set up for this shop. Ask the owner to add it under Channels in the dashboard."
   },
   "invite": {
     "title": "First sign-in",
@@ -93,10 +94,27 @@
     "scanAgain": "This scan is no longer valid. Scan the member card again.",
     "network": "Could not reach the server. Try again; points will not be counted twice.",
     "notAllowed": "Your role does not allow this.",
-    "generic": "Something went wrong. Try again."
+    "generic": "Something went wrong. Try again.",
+    "selfService": "You cannot add or redeem points on your own member card. Ask a colleague.",
+    "rateLimited": "Too many actions in a short time. Wait {{seconds}} s and try again.",
+    "scanUsed": "This scan was already used for a redemption. Scan the member card again."
   },
   "keypad": {
     "clear": "Clear",
     "backspace": "Delete one digit"
+  },
+  "pending": {
+    "title": "Last action not confirmed",
+    "earnSpend": "Add points to {{name}} for NT${{amount}}",
+    "earnPoints": "Add {{points}} points to {{name}}",
+    "redeem": "Redeem {{points}} points from {{name}}",
+    "help": "Retry it before doing anything else for this member. A retry sends the same request, so it is applied at most once.",
+    "blocked": "This member has an unconfirmed action. Retry or discard it above first.",
+    "discard": "Discard",
+    "discardConfirm": "Discard only after checking the member's points history. If the action went through, it stays applied.",
+    "discardYes": "Discard it",
+    "keep": "Keep it",
+    "discarded": "The unconfirmed action was discarded.",
+    "notApplied": "The last action was not applied: {{reason}}"
   }
 }

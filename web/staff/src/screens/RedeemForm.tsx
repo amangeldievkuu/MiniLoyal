@@ -1,52 +1,53 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { api, unwrap } from '../api/client';
+import type { ApiError } from '../api/client';
 import type { PointsTransaction, ScanResult } from '../api/types';
 import { Keypad } from '../components/Keypad';
 import { Alert, Button, Card } from '../components/ui';
-import { useIdempotentSubmit } from '../lib/idempotency';
+import type { Outcome, RedeemBody } from '../lib/pending';
 import { describeActionError } from './actionError';
 
 /** Spends points: the amount is capped at the balance and confirmed before sending. */
 export function RedeemForm({
   scan,
+  blocked,
+  onSubmit,
   onDone,
   onScanAgain,
 }: {
   scan: ScanResult;
+  /** A write for this member is still pending: no new one until it is settled. */
+  blocked: boolean;
+  onSubmit: (body: RedeemBody) => Promise<Outcome>;
   onDone: (txn: PointsTransaction) => void;
   onScanAgain: () => void;
 }) {
   const { t } = useTranslation();
   const [points, setPoints] = useState('');
   const [reviewing, setReviewing] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
   const n = Number(points || '0');
   const over = n > scan.balance;
-
-  const run = useCallback(
-    async (key: string) =>
-      unwrap(
-        await api.POST('/v1/staff/points/redeem', {
-          params: { header: { 'Idempotency-Key': key } },
-          body: { scan_token: scan.scan_token, points: n },
-        }),
-      ),
-    [n, scan.scan_token],
-  );
-  const { submit, pending, error, invalidateKey } = useIdempotentSubmit(run);
   const failure = error ? describeActionError(error, t, scan.balance) : null;
 
   function change(next: string) {
     setPoints(next);
     setReviewing(false);
-    invalidateKey();
+    setError(null);
   }
 
   function confirm() {
-    void submit().then((txn) => {
-      if (txn) onDone(txn);
-    });
+    if (pending || blocked) return;
+    setPending(true);
+    setError(null);
+    void onSubmit({ scan_token: scan.scan_token, points: n })
+      .then((out) => {
+        if (out.ok) onDone(out.txn);
+        else if (!out.ambiguous) setError(out.error);
+      })
+      .finally(() => setPending(false));
   }
 
   return (
@@ -57,6 +58,7 @@ export function RedeemForm({
           {t('redeem.overBalance', { balance: scan.balance.toLocaleString() })}
         </Alert>
       )}
+      {blocked && <Alert tone="warning">{t('pending.blocked')}</Alert>}
       {failure && (
         <Alert tone="danger">
           <p>{failure.message}</p>
@@ -80,17 +82,13 @@ export function RedeemForm({
             <Button variant="secondary" onClick={() => setReviewing(false)} disabled={pending}>
               {t('common.back')}
             </Button>
-            <Button onClick={confirm} disabled={pending || failure?.scanAgain}>
-              {pending
-                ? t('common.working')
-                : failure?.retryable
-                  ? t('common.retry')
-                  : t('redeem.confirm')}
+            <Button onClick={confirm} disabled={pending || blocked || failure?.scanAgain}>
+              {pending ? t('common.working') : t('redeem.confirm')}
             </Button>
           </div>
         </Card>
       ) : (
-        <Button size="lg" disabled={n <= 0 || over} onClick={() => setReviewing(true)}>
+        <Button size="lg" disabled={n <= 0 || over || blocked} onClick={() => setReviewing(true)}>
           {t('redeem.review')}
         </Button>
       )}

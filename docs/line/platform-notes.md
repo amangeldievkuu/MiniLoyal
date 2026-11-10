@@ -50,6 +50,18 @@ Facts the design depends on, with their sources. Anything we could not confirm i
   Source: https://developers.line.biz/en/docs/line-login/verify-id-token/ (sub semantics) and
   https://developers.line.biz/en/faq
 
+### Setup step: a separate LINE Login channel for the staff app
+
+- The staff LIFF app runs on its **own LINE Login channel**, created under the **same provider**
+  as the MINI App (so a cashier's `sub` stays stable) but with a **different channel ID**.
+- Add its LIFF app in the LINE Developers Console with the **Scan QR** toggle on, then enter
+  the channel ID, secret and LIFF ID in the dashboard under Channels, row **Staff app**
+  (`environment: staff`). The staff app's `VITE_LIFF_ID` is this LIFF ID.
+- Why: staff sign-in accepts only the `staff` channel as `aud`, and member sign-in never accepts
+  it. Without the split, any member ID token from the MINI App could be presented to staff
+  sign-in. The API refuses a staff channel ID equal to a MINI App channel ID, and staff sign-in
+  answers `409 staff_channel_required` until the row exists.
+
 ## 4. ID token algorithms and verification
 
 - ID tokens from **native apps, the LINE SDK and LIFF apps are ES256** (ECDSA P-256) and carry a

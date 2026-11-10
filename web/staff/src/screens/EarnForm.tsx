@@ -1,62 +1,65 @@
-import { useCallback, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { api, unwrap } from '../api/client';
+import type { ApiError } from '../api/client';
 import type { PointsTransaction, ScanResult } from '../api/types';
 import { Keypad } from '../components/Keypad';
 import { Alert, Button } from '../components/ui';
-import { useIdempotentSubmit } from '../lib/idempotency';
+import type { EarnBody, Outcome } from '../lib/pending';
 import { describeActionError } from './actionError';
 
 /**
  * Points for a purchase. The server applies the app's rule to the amount;
- * managers may give a fixed number of points instead.
+ * managers may give a fixed number of points instead. The counter owns the
+ * request (its Idempotency-Key and body live there until the outcome is
+ * known), so this form only builds the body and shows definite failures.
  */
 export function EarnForm({
   scan,
   isManager,
+  blocked,
+  onSubmit,
   onDone,
   onScanAgain,
 }: {
   scan: ScanResult;
   isManager: boolean;
+  /** A write for this member is still pending: no new one until it is settled. */
+  blocked: boolean;
+  onSubmit: (body: EarnBody) => Promise<Outcome>;
   onDone: (txn: PointsTransaction) => void;
   onScanAgain: () => void;
 }) {
   const { t } = useTranslation();
   const [amount, setAmount] = useState('');
   const [fixed, setFixed] = useState(false);
-
-  const run = useCallback(
-    async (key: string) =>
-      unwrap(
-        await api.POST('/v1/staff/points/earn', {
-          params: { header: { 'Idempotency-Key': key } },
-          body: fixed
-            ? { scan_token: scan.scan_token, points: Number(amount) }
-            : { scan_token: scan.scan_token, spend_amount: Number(amount) },
-        }),
-      ),
-    [amount, fixed, scan.scan_token],
-  );
-  const { submit, pending, error, invalidateKey } = useIdempotentSubmit(run);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
   const failure = error ? describeActionError(error, t, scan.balance) : null;
 
   function change(next: string) {
     setAmount(next);
-    invalidateKey();
+    setError(null);
   }
 
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
+  function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!amount || Number(amount) <= 0) return;
-    void submit().then((txn) => {
-      if (txn) onDone(txn);
-    });
+    if (pending || blocked || !amount || Number(amount) <= 0) return;
+    const body: EarnBody = fixed
+      ? { scan_token: scan.scan_token, points: Number(amount) }
+      : { scan_token: scan.scan_token, spend_amount: Number(amount) };
+    setPending(true);
+    setError(null);
+    void onSubmit(body)
+      .then((out) => {
+        if (out.ok) onDone(out.txn);
+        else if (!out.ambiguous) setError(out.error);
+      })
+      .finally(() => setPending(false));
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4" aria-busy={pending}>
+    <form onSubmit={submit} className="flex flex-col gap-4" aria-busy={pending}>
       {isManager && (
         <label className="flex min-h-12 items-center gap-3 text-base">
           <input
@@ -78,6 +81,7 @@ export function EarnForm({
         value={amount}
         onChange={change}
       />
+      {blocked && <Alert tone="warning">{t('pending.blocked')}</Alert>}
       {failure && (
         <Alert tone="danger">
           <p>{failure.message}</p>
@@ -91,9 +95,9 @@ export function EarnForm({
       <Button
         type="submit"
         size="lg"
-        disabled={pending || !amount || Number(amount) <= 0 || failure?.scanAgain}
+        disabled={pending || blocked || !amount || Number(amount) <= 0 || failure?.scanAgain}
       >
-        {pending ? t('common.working') : failure?.retryable ? t('common.retry') : t('earn.submit')}
+        {pending ? t('common.working') : t('earn.submit')}
       </Button>
     </form>
   );

@@ -10,10 +10,26 @@ export interface ActionError {
   retryable: boolean;
 }
 
-const SCAN_CODES = new Set(['scan_mismatch', 'scan_expired', 'invalid_scan_token']);
+const SCAN_CODES = new Set(['scan_mismatch', 'scan_expired', 'invalid_scan_token', 'scan_used']);
 
 /** Maps an earn or redeem failure to what the cashier sees and can do. */
 export function describeActionError(err: ApiError, t: TFunction, balance: number): ActionError {
+  if (err.code === 'scan_used') {
+    return { message: t('errors.scanUsed'), scanAgain: true, retryable: false };
+  }
+  if (err.code === 'self_service') {
+    return { message: t('errors.selfService'), scanAgain: false, retryable: false };
+  }
+  if (err.status === 429) {
+    return {
+      message: t('errors.rateLimited', { seconds: err.retryAfterSeconds ?? 60 }),
+      scanAgain: false,
+      retryable: true,
+    };
+  }
+  if (err.code === 'conflict') {
+    return { message: t('errors.network'), scanAgain: false, retryable: true };
+  }
   if (err.status === 409 || err.code === 'insufficient_points') {
     return {
       message: t('errors.insufficient', {

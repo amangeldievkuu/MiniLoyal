@@ -18,7 +18,13 @@ export type SessionState =
   | { status: 'rate_limited'; retryAfterSeconds: number }
   | {
       status: 'error';
-      reason: 'not_configured' | 'liff_init' | 'no_id_token' | 'app_not_found' | 'server';
+      reason:
+        | 'not_configured'
+        | 'liff_init'
+        | 'no_id_token'
+        | 'app_not_found'
+        | 'staff_channel_required'
+        | 'server';
     }
   | { status: 'signed_in'; session: StaffSession }
   | { status: 'signed_out'; reason: 'signed_out' | 'expired' };
@@ -88,6 +94,9 @@ function handleStartFailure(result: Extract<ExchangeResult, { ok: false }>) {
       return set({ status: 'needs_invite' });
     case 404:
       return set({ status: 'error', reason: 'app_not_found' });
+    case 409:
+      // The app has no staff LINE Login channel: staff sign-in refuses member tokens.
+      return set({ status: 'error', reason: 'staff_channel_required' });
     case 429:
       return set({ status: 'rate_limited', retryAfterSeconds: result.retryAfterSeconds ?? 60 });
     default:

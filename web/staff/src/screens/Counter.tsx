@@ -6,9 +6,53 @@ import type { PointsTransaction, ScannedMember, ScanResult, StaffSession } from 
 import { CameraScanner } from '../components/CameraScanner';
 import { MemberPanel } from '../components/MemberPanel';
 import { Alert, Button, Card } from '../components/ui';
+import {
+  getPendingAction,
+  isDefinite,
+  setPendingAction,
+  usePendingAction,
+  type EarnBody,
+  type Outcome,
+  type PendingAction,
+  type RedeemBody,
+} from '../lib/pending';
 import { canScanNatively, liff } from '../liff';
+import { describeActionError } from './actionError';
 import { EarnForm } from './EarnForm';
 import { RedeemForm } from './RedeemForm';
+
+type Write = { kind: 'earn'; body: EarnBody } | { kind: 'redeem'; body: RedeemBody };
+
+async function post(w: Write & { key: string }): Promise<PointsTransaction> {
+  const params = { header: { 'Idempotency-Key': w.key } };
+  return w.kind === 'earn'
+    ? unwrap(await api.POST('/v1/staff/points/earn', { params, body: w.body }))
+    : unwrap(await api.POST('/v1/staff/points/redeem', { params, body: w.body }));
+}
+
+/**
+ * Sends a points write and settles it. A definite answer (2xx, or a 4xx that
+ * says nothing was written) clears the pending action; anything else keeps
+ * the key and body so the retry replays the same write.
+ */
+async function send(p: PendingAction): Promise<Outcome> {
+  const settle = () => {
+    if (getPendingAction()?.key === p.key) setPendingAction(null);
+  };
+  try {
+    const txn = await post(p);
+    settle();
+    return { ok: true, txn };
+  } catch (err) {
+    const error = toApiError(err);
+    if (isDefinite(error)) {
+      settle();
+      return { ok: false, error, ambiguous: false };
+    }
+    setPendingAction({ ...p, error });
+    return { ok: false, error, ambiguous: true };
+  }
+}
 
 type Stage =
   | { name: 'idle' }
@@ -28,7 +72,47 @@ export function Counter({ session }: { session: StaffSession }) {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [scanning, setScanning] = useState(false);
   const [manual, setManual] = useState('');
+  const [retrying, setRetrying] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const isManager = session.staff.role === 'manager';
+  const staffId = session.staff.id;
+  const pending = usePendingAction(staffId);
+
+  /** A new write from a form: a fresh key, held until the outcome is known. */
+  const submitWrite = useCallback(
+    (w: Write, member: ScannedMember): Promise<Outcome> => {
+      setConfirmDiscard(false);
+      return send({ ...w, key: crypto.randomUUID(), staffId, member });
+    },
+    [staffId],
+  );
+
+  /** Resends the pending write with the same key and body. */
+  async function retry() {
+    if (!pending || retrying) return;
+    setRetrying(true);
+    setConfirmDiscard(false);
+    try {
+      const out = await send(pending);
+      if (out.ok) {
+        setNotice(null);
+        setStage({ name: 'done', txn: out.txn, member: pending.member });
+      } else if (!out.ambiguous) {
+        const failure = describeActionError(out.error, t, 0);
+        setNotice({ tone: 'danger', text: t('pending.notApplied', { reason: failure.message }) });
+      }
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  function discard() {
+    setPendingAction(null);
+    setConfirmDiscard(false);
+    setNotice({ tone: 'warning', text: t('pending.discarded') });
+  }
+
+  const blockedFor = (memberId: string) => pending?.member.id === memberId;
 
   const lookUp = useCallback(
     async (qr: string) => {
@@ -86,6 +170,17 @@ export function Counter({ session }: { session: StaffSession }) {
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-4">
+      {pending && (
+        <PendingBanner
+          pending={pending}
+          retrying={retrying}
+          confirmDiscard={confirmDiscard}
+          onRetry={() => void retry()}
+          onAskDiscard={() => setConfirmDiscard(true)}
+          onDiscard={discard}
+          onKeep={() => setConfirmDiscard(false)}
+        />
+      )}
       {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
 
       {stage.name === 'idle' && (
@@ -153,6 +248,8 @@ export function Counter({ session }: { session: StaffSession }) {
                 key={stage.scan.scan_token}
                 scan={stage.scan}
                 isManager={isManager}
+                blocked={blockedFor(stage.scan.member.id)}
+                onSubmit={(body) => submitWrite({ kind: 'earn', body }, stage.scan.member)}
                 onDone={(txn) => setStage({ name: 'done', txn, member: stage.scan.member })}
                 onScanAgain={scanAgain}
               />
@@ -160,6 +257,8 @@ export function Counter({ session }: { session: StaffSession }) {
               <RedeemForm
                 key={stage.scan.scan_token}
                 scan={stage.scan}
+                blocked={blockedFor(stage.scan.member.id)}
+                onSubmit={(body) => submitWrite({ kind: 'redeem', body }, stage.scan.member)}
                 onDone={(txn) => setStage({ name: 'done', txn, member: stage.scan.member })}
                 onScanAgain={scanAgain}
               />
@@ -197,5 +296,72 @@ export function Counter({ session }: { session: StaffSession }) {
         </Card>
       )}
     </main>
+  );
+}
+
+/**
+ * The write whose answer was lost. It stays on screen through new scans and
+ * expired panels until a retry settles it or the cashier discards it.
+ */
+function PendingBanner({
+  pending,
+  retrying,
+  confirmDiscard,
+  onRetry,
+  onAskDiscard,
+  onDiscard,
+  onKeep,
+}: {
+  pending: PendingAction;
+  retrying: boolean;
+  confirmDiscard: boolean;
+  onRetry: () => void;
+  onAskDiscard: () => void;
+  onDiscard: () => void;
+  onKeep: () => void;
+}) {
+  const { t } = useTranslation();
+  const name = pending.member.display_name ?? t('member.anonymous');
+  const what =
+    pending.kind === 'redeem'
+      ? t('pending.redeem', { name, points: pending.body.points.toLocaleString() })
+      : 'spend_amount' in pending.body
+        ? t('pending.earnSpend', { name, amount: pending.body.spend_amount.toLocaleString() })
+        : t('pending.earnPoints', { name, points: pending.body.points.toLocaleString() });
+  const reason = pending.error ? describeActionError(pending.error, t, 0).message : null;
+
+  return (
+    <section aria-labelledby="pending-title" aria-busy={retrying}>
+      <Alert tone="danger">
+        <h2 id="pending-title" className="font-semibold">
+          {t('pending.title')}
+        </h2>
+        <p>{what}</p>
+        {reason && <p>{reason}</p>}
+        <p className="mt-1 text-sm">{t('pending.help')}</p>
+        {confirmDiscard ? (
+          <div className="mt-3 flex flex-col gap-2">
+            <p className="font-semibold">{t('pending.discardConfirm')}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={onKeep}>
+                {t('pending.keep')}
+              </Button>
+              <Button variant="secondary" onClick={onDiscard}>
+                {t('pending.discardYes')}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button onClick={onRetry} disabled={retrying}>
+              {retrying ? t('common.working') : t('common.retry')}
+            </Button>
+            <Button variant="secondary" onClick={onAskDiscard} disabled={retrying}>
+              {t('pending.discard')}
+            </Button>
+          </div>
+        )}
+      </Alert>
+    </section>
   );
 }
