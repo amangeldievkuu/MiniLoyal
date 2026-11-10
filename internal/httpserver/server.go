@@ -4,6 +4,7 @@ package httpserver
 
 import (
 	"context"
+	"github.com/amangeldievkuu/miniloyal/internal/card"
 	"log/slog"
 	"net/http"
 	"time"
@@ -41,6 +42,8 @@ type Deps struct {
 	// Staff verifies staff app session tokens (internal/staffauth). Nil means
 	// every bearer token on /v1/staff/* is rejected.
 	Staff StaffAuthenticator
+	// Card issues and verifies member card QR codes and scan tokens.
+	Card *card.Codec
 	// Tenants serves tenants, team, apps, channels, stores, staff, API keys
 	// and the audit log.
 	Tenants *tenant.Service
@@ -65,6 +68,7 @@ type Server struct {
 	apiKeys   APIKeyAuthenticator
 	members   MemberAuthenticator
 	staff     StaffAuthenticator
+	card      *card.Codec
 	tenants   *tenant.Service
 	lineauth  *lineauth.Service
 	memberSvc *member.Service
@@ -98,6 +102,7 @@ func New(d Deps) *Server {
 		apiKeys:   d.APIKeys,
 		members:   d.Members,
 		staff:     d.Staff,
+		card:      d.Card,
 		tenants:   d.Tenants,
 		lineauth:  d.LineAuth,
 		memberSvc: d.MemberSvc,
