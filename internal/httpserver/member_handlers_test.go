@@ -18,11 +18,13 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/api"
 	"github.com/amangeldievkuu/miniloyal/internal/auth"
 	"github.com/amangeldievkuu/miniloyal/internal/auth/authtest"
+	"github.com/amangeldievkuu/miniloyal/internal/card"
 	"github.com/amangeldievkuu/miniloyal/internal/lineauth"
 	"github.com/amangeldievkuu/miniloyal/internal/lineauth/lineauthtest"
 	"github.com/amangeldievkuu/miniloyal/internal/member"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
+	"github.com/amangeldievkuu/miniloyal/internal/staffauth"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 	"github.com/amangeldievkuu/miniloyal/internal/testutil"
 	"github.com/amangeldievkuu/miniloyal/internal/webhook"
@@ -40,11 +42,19 @@ type memberEnv struct {
 	seq      int
 	// channels maps an app ID to the channel ID registered for it.
 	channels map[string]string
+	// cards is the codec behind /v1/me/card and /v1/staff/scan.
+	cards *card.Codec
 }
 
 const memberChannelID = "2007009999"
 
 func newMemberEnv(t *testing.T) *memberEnv {
+	t.Helper()
+	return newMemberEnvWith(t, staffauth.Config{IPPerMinute: 10000, InvitePerMinute: 10000})
+}
+
+// newMemberEnvWith is newMemberEnv with explicit staff app limits.
+func newMemberEnvWith(t *testing.T, staffCfg staffauth.Config) *memberEnv {
 	t.Helper()
 	d := testutil.NewDB(t)
 	e := &memberEnv{t: t, db: d, verifier: lineauthtest.NewFakeVerifier(), logs: &bytes.Buffer{}, channels: map[string]string{}}
@@ -64,6 +74,15 @@ func newMemberEnv(t *testing.T) *memberEnv {
 		t.Fatal(err)
 	}
 	members := member.New(member.Deps{Pool: d.App, Tenants: tenants, Clock: e.clk, Log: logger})
+	e.cards, err = card.New(fullSigningKey, e.clk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staffCfg.SigningKey = fullSigningKey
+	staffSvc, err := staffauth.New(staffauth.Deps{Pool: d.App, LineAuth: lineAuth, Card: e.cards, Clock: e.clk, Log: logger, Config: staffCfg})
+	if err != nil {
+		t.Fatal(err)
+	}
 	e.handler = New(Deps{
 		Config:    &config.Config{Env: config.Development, PublicBaseURL: "http://localhost:8080"},
 		Log:       logger,
@@ -75,6 +94,8 @@ func newMemberEnv(t *testing.T) *memberEnv {
 		LineAuth:  lineAuth,
 		MemberSvc: members,
 		Webhooks:  webhook.New(d.App, tenants, logger),
+		Card:      e.cards,
+		StaffAuth: staffSvc,
 	}).Handler()
 	return e
 }
