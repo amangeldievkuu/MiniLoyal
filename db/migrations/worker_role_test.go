@@ -21,12 +21,15 @@ func TestWorkerRoleOwnsRiverOnly(t *testing.T) {
 	d := testutil.NewDB(t)
 	ctx := context.Background()
 
+	// Since 00011 the worker is not a member of the group role.
 	var login, super, bypass, inApp bool
-	if err := d.Admin.QueryRow(ctx, `SELECT rolcanlogin, rolsuper, rolbypassrls, pg_has_role(rolname, $2, 'USAGE')
-		FROM pg_roles WHERE rolname = $1`, migrate.WorkerRole, migrate.GroupRole).Scan(&login, &super, &bypass, &inApp); err != nil {
-		t.Fatal(err)
-	}
-	if !login || super || bypass || !inApp {
+	d.WithSteadyWorkerRole(t, func() {
+		if err := d.Admin.QueryRow(ctx, `SELECT rolcanlogin, rolsuper, rolbypassrls, pg_has_role(rolname, $2, 'MEMBER')
+			FROM pg_roles WHERE rolname = $1`, migrate.WorkerRole, migrate.GroupRole).Scan(&login, &super, &bypass, &inApp); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !login || super || bypass || inApp {
 		t.Fatalf("%s: login %v, superuser %v, bypassrls %v, member of %s %v", migrate.WorkerRole, login, super, bypass, migrate.GroupRole, inApp)
 	}
 

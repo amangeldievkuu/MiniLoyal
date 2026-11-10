@@ -62,7 +62,7 @@ func Emit(ctx context.Context, q *sqlc.Queries, e Event) error {
 	if err != nil {
 		return err
 	}
-	if _, err := q.InsertOutboundEvent(ctx, sqlc.InsertOutboundEventParams{
+	if err := q.InsertOutboundEvent(ctx, sqlc.InsertOutboundEventParams{
 		TenantID:   e.TenantID,
 		AppID:      e.AppID,
 		Type:       e.Type,

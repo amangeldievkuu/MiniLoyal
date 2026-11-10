@@ -21,10 +21,10 @@ import (
 )
 
 // Role names. GroupRole owns no tables and carries the grants on tenant
-// tables. LoginRole is what the API connects as and WorkerRole is what the
-// worker connects as; both are members of GroupRole and neither bypasses
-// row-level security. WorkerRole also owns River's job tables, of which
-// LoginRole may only insert (migration 00009).
+// tables. LoginRole is what the API connects as and is a member of
+// GroupRole. WorkerRole is what the worker connects as: it owns River's job
+// tables (migration 00009) and holds explicit grants for what its jobs touch
+// (migration 00011), not GroupRole's. Neither bypasses row-level security.
 const (
 	GroupRole  = "miniloyal_app"
 	LoginRole  = "miniloyal_api"
@@ -95,10 +95,14 @@ $$`); err != nil {
 		return fmt.Errorf("migrate: create %s: %w", GroupRole, err)
 	}
 
-	if err = loginRole(ctx, tx, LoginRole, pw.API); err != nil {
+	if err = loginRole(ctx, tx, LoginRole, pw.API, true); err != nil {
 		return err
 	}
-	if err = loginRole(ctx, tx, WorkerRole, pw.Worker); err != nil {
+	// Not a member of GroupRole: 00011 revokes the membership 00009 gave and
+	// grants the worker only what its jobs use. Roles does not revoke it
+	// itself, because roles are cluster-wide and a database still before
+	// 00011 relies on it.
+	if err = loginRole(ctx, tx, WorkerRole, pw.Worker, false); err != nil {
 		return err
 	}
 	// A schema owner that is not a superuser must be a member of WorkerRole to
@@ -118,9 +122,9 @@ $$`); err != nil {
 	return nil
 }
 
-// loginRole creates or updates a locked-down login role with password and
-// makes it a member of GroupRole.
-func loginRole(ctx context.Context, tx *sql.Tx, role, password string) error {
+// loginRole creates or updates a locked-down login role with password and,
+// when inGroup is set, makes it a member of GroupRole.
+func loginRole(ctx context.Context, tx *sql.Tx, role, password string, inGroup bool) error {
 	var exists bool
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $1)`, role).Scan(&exists); err != nil {
 		return fmt.Errorf("migrate: check %s: %w", role, err)
@@ -132,6 +136,9 @@ func loginRole(ctx context.Context, tx *sql.Tx, role, password string) error {
 	stmt := verb + " ROLE " + role + " WITH LOGIN NOBYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD " + quoteLiteral(password)
 	if _, err := tx.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("migrate: %s role: %w", role, err)
+	}
+	if !inGroup {
+		return nil
 	}
 	if _, err := tx.ExecContext(ctx, "GRANT "+GroupRole+" TO "+role); err != nil {
 		return fmt.Errorf("migrate: grant %s to %s: %w", GroupRole, role, err)

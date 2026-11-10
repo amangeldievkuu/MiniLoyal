@@ -60,6 +60,8 @@ type DB struct {
 	AppURL    string
 	WorkerURL string
 	Name      string
+	// rootURL is the shared admin database where cross-process locks live.
+	rootURL string
 }
 
 // NewDB creates a fresh database, applies roles and migrations and registers
@@ -115,7 +117,13 @@ func NewDB(t testing.TB) *DB {
 	if rolesErr != nil {
 		t.Fatalf("testutil: roles: %v", rolesErr)
 	}
-	if err := migrate.Up(ctx, owner); err != nil {
+	// Migration 00009 makes the worker a member of miniloyal_app and 00011
+	// takes that back. Membership is cluster-wide, so a fresh database
+	// briefly widens the worker's rights in every other test database.
+	release := clusterLock(t, ctx, adminURL, false)
+	err = migrate.Up(ctx, owner)
+	release()
+	if err != nil {
 		t.Fatalf("testutil: migrate: %v", err)
 	}
 	_ = owner.Close()
@@ -142,7 +150,63 @@ func NewDB(t testing.TB) *DB {
 		appPool.Close()
 		adminPool.Close()
 	})
-	return &DB{Admin: adminPool, App: appPool, Worker: workerPool, AdminURL: dbAdminURL, AppURL: appURL, WorkerURL: workerURL, Name: name}
+	return &DB{Admin: adminPool, App: appPool, Worker: workerPool, AdminURL: dbAdminURL, AppURL: appURL, WorkerURL: workerURL, Name: name, rootURL: adminURL}
+}
+
+// workerRoleLockID guards the worker role's cluster-wide membership in
+// miniloyal_app. Migrations that grant it for a moment (00009 before 00011
+// revokes it, or 00011 rolled back) hold the lock shared; tests that assert
+// what the worker may not do hold it exclusively, so they never observe
+// another database's migration in flight.
+const workerRoleLockID = 72300012
+
+// clusterLock takes the worker role lock on the shared admin database,
+// where every test process meets, and returns its release.
+func clusterLock(t testing.TB, ctx context.Context, rootURL string, exclusive bool) func() {
+	t.Helper()
+	root, err := sql.Open("pgx", rootURL)
+	if err != nil {
+		t.Fatalf("testutil: open admin: %v", err)
+	}
+	conn, err := root.Conn(ctx)
+	if err != nil {
+		_ = root.Close()
+		t.Fatalf("testutil: lock connection: %v", err)
+	}
+	lock, unlock := "pg_advisory_lock_shared", "pg_advisory_unlock_shared"
+	if exclusive {
+		lock, unlock = "pg_advisory_lock", "pg_advisory_unlock"
+	}
+	if _, err := conn.ExecContext(ctx, "SELECT "+lock+"($1)", workerRoleLockID); err != nil {
+		_ = conn.Close()
+		_ = root.Close()
+		t.Fatalf("testutil: worker role lock: %v", err)
+	}
+	return func() {
+		_, _ = conn.ExecContext(context.Background(), "SELECT "+unlock+"($1)", workerRoleLockID)
+		_ = conn.Close()
+		_ = root.Close()
+	}
+}
+
+// WithSteadyWorkerRole runs fn while no test database is between
+// migrations that change the worker role's cluster-wide membership. Use it
+// around assertions about what the worker may not do. fn must not call
+// NewDB.
+func (d *DB) WithSteadyWorkerRole(t testing.TB, fn func()) {
+	t.Helper()
+	release := clusterLock(t, context.Background(), d.rootURL, true)
+	defer release()
+	fn()
+}
+
+// WhileChangingWorkerRole runs fn, which migrates down past 00011 and back
+// up, so that WithSteadyWorkerRole waits for it.
+func (d *DB) WhileChangingWorkerRole(t testing.TB, fn func()) {
+	t.Helper()
+	release := clusterLock(t, context.Background(), d.rootURL, false)
+	defer release()
+	fn()
 }
 
 // WithTenant runs fn as the application role inside tenantID's RLS context.

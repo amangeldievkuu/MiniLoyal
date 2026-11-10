@@ -95,7 +95,7 @@ func (q *Queries) CountMemberCouponInstances(ctx context.Context, arg CountMembe
 const countScanCouponRedeem = `-- name: CountScanCouponRedeem :one
 INSERT INTO scan_coupon_redeems (jti, tenant_id, app_id, redeems, used_at)
 VALUES ($1, $2, $3, 1, $4)
-ON CONFLICT (jti) DO UPDATE SET
+ON CONFLICT (app_id, jti) DO UPDATE SET
   redeems = scan_coupon_redeems.redeems + 1,
   used_at = EXCLUDED.used_at
 WHERE scan_coupon_redeems.app_id = EXCLUDED.app_id

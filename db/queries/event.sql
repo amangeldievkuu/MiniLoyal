@@ -1,10 +1,10 @@
 -- Outbound events: the append-only outbox. Written in the same transaction
 -- as the change it describes; delivery is Phase 5.
 
--- name: InsertOutboundEvent :one
+-- name: InsertOutboundEvent :exec
+-- No RETURNING: the worker role may insert events but not read them.
 INSERT INTO outbound_events (tenant_id, app_id, type, member_id, payload, occurred_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING *;
+VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: ListOutboundEvents :many
 -- An app's events, newest first; type NULL lists every type. Keyset on the last id.

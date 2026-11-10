@@ -209,7 +209,7 @@ RETURNING *;
 -- max_redeems coupons.
 INSERT INTO scan_coupon_redeems (jti, tenant_id, app_id, redeems, used_at)
 VALUES (sqlc.arg('jti'), sqlc.arg('tenant_id'), sqlc.arg('app_id'), 1, sqlc.arg('used_at'))
-ON CONFLICT (jti) DO UPDATE SET
+ON CONFLICT (app_id, jti) DO UPDATE SET
   redeems = scan_coupon_redeems.redeems + 1,
   used_at = EXCLUDED.used_at
 WHERE scan_coupon_redeems.app_id = EXCLUDED.app_id

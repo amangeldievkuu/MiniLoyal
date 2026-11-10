@@ -95,10 +95,11 @@ func systemOnly(t *testing.T, table string) {
 	}
 }
 
-// Phase 4 (00010): stamp_events stays append-only for the application
-// except that a PDPA erasure may clear an adjustment's note. Writing a note,
-// clearing a completion's reward_unavailable marker or touching any other
-// column is refused.
+// Phase 4 (00010, tightened in 00011): stamp_events stays append-only for
+// the application except that a PDPA erasure may clear an adjustment's note
+// once the member is anonymized. Writing a note, clearing a live member's
+// note, clearing a completion's reward_unavailable marker or touching any
+// other column is refused.
 func TestStampEventsOnlyLetErasureClearAdjustmentNotes(t *testing.T) {
 	d := testutil.NewDB(t)
 	ctx := context.Background()
@@ -139,7 +140,23 @@ func TestStampEventsOnlyLetErasureClearAdjustmentNotes(t *testing.T) {
 			t.Errorf("%s: %v, want refused", c.stmt, err)
 		}
 	}
-	if err := update("UPDATE stamp_events SET note = NULL WHERE id = $1", adjustID); err != nil {
+	// Phase 4 re-review R4: while the member exists, the note cannot be
+	// cleared either; only an erasure, which anonymizes the member first in
+	// the same transaction, may clear it. The owner is refused too.
+	clear := "UPDATE stamp_events SET note = NULL WHERE id = $1"
+	if err := update(clear, adjustID); db.Code(err) != db.CodeInsufficientPrivilege {
+		t.Errorf("clearing a live member's adjustment note: %v, want refused", err)
+	}
+	if _, err := d.Admin.Exec(ctx, clear, adjustID); db.Code(err) != db.CodeInsufficientPrivilege {
+		t.Errorf("owner clearing a live member's adjustment note: %v, want refused", err)
+	}
+	// The erasure anonymizes the member, then blanks the notes. Even then a
+	// note can only be cleared, not rewritten.
+	d.Exec(t, "UPDATE members SET anonymized_at = now() WHERE id = $1", memberID)
+	if err := update("UPDATE stamp_events SET note = 'rewritten' WHERE id = $1", adjustID); db.Code(err) != db.CodeInsufficientPrivilege {
+		t.Errorf("rewriting an erased member's note: %v, want refused", err)
+	}
+	if err := update(clear, adjustID); err != nil {
 		t.Fatalf("clearing an adjustment note: %v", err)
 	}
 	var adjustNote, completionNote *string
@@ -148,5 +165,30 @@ func TestStampEventsOnlyLetErasureClearAdjustmentNotes(t *testing.T) {
 	}
 	if adjustNote != nil || completionNote == nil || *completionNote != "reward_unavailable" {
 		t.Errorf("after erasure: adjustment note %v, completion note %v", adjustNote, completionNote)
+	}
+}
+
+// Phase 4 re-review R7: a scan's coupon redeem count stays inside one app.
+// Its tenant and app must belong together, and a jti is unique per app, not
+// across the platform.
+func TestScanCouponRedeemsStayInsideOneApp(t *testing.T) {
+	d := testutil.NewDB(t)
+	ctx := context.Background()
+	a, b := phase4Fixture(t, d, "Alpha"), phase4Fixture(t, d, "Beta")
+	insert := func(tenant, app any) error {
+		_, err := d.Admin.Exec(ctx, "INSERT INTO scan_coupon_redeems (jti, tenant_id, app_id, redeems, used_at) VALUES ('scan-1', $1, $2, 1, now())", tenant, app)
+		return err
+	}
+	if err := insert(a.tenant, b.app); db.Code(err) != db.CodeForeignKeyViolation {
+		t.Errorf("tenant A with tenant B's app: %v, want a foreign key violation", err)
+	}
+	if err := insert(a.tenant, a.app); err != nil {
+		t.Fatalf("app A: %v", err)
+	}
+	if err := insert(b.tenant, b.app); err != nil {
+		t.Errorf("the same jti in another app: %v", err)
+	}
+	if err := insert(a.tenant, a.app); db.Code(err) != db.CodeUniqueViolation {
+		t.Errorf("the same jti twice in one app: %v, want a unique violation", err)
 	}
 }
