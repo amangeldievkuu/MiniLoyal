@@ -1,6 +1,44 @@
 import { vi } from 'vitest';
 
-import type { PointsTransaction, ScanResult, StaffSession } from '../api/types';
+import type {
+  CouponInstance,
+  PointsTransaction,
+  ScanResult,
+  StampProgress,
+  StaffSession,
+} from '../api/types';
+
+export function coupon(
+  id = 'c1',
+  name = 'Free latte',
+  expires: string | null = null,
+): CouponInstance {
+  return {
+    id: `0193a0b4-0000-7000-8000-0000000c${id.padEnd(4, '0').slice(-4)}`,
+    code: `CODE-${id}`,
+    template: { id: 't1', name, description: null, type: 'free_item', value: null },
+    member_id: '0193a0b4-0000-7000-8000-0000000000cc',
+    status: 'issued',
+    state: 'available',
+    source: 'issue',
+    issued_at: new Date().toISOString(),
+    expires_at: expires,
+  };
+}
+
+export function stampCard(count = 3, max = 3): StampProgress {
+  return {
+    stamp_card_id: '0193a0b4-0000-7000-8000-0000000000e1',
+    name: 'Coffee card',
+    stamps_required: 5,
+    max_stamps_per_visit: max,
+    status: 'active',
+    count,
+    completions: 0,
+    unrewarded_completions: 0,
+    reward: { id: 't2', name: 'Free cake', description: null, type: 'free_item', value: null },
+  };
+}
 
 export const APP_ID = '0193a0b4-0000-7000-8000-000000000001';
 
