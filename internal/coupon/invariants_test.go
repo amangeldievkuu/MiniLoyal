@@ -681,3 +681,50 @@ func TestRedeemRecordsTheStore(t *testing.T) {
 		t.Errorf("event store_id = %q, %v", payloadStore, err)
 	}
 }
+
+// Invariant: every clearable template field can be set and then cleared
+// back to NULL, an omitted field keeps its value, and the stored row is what
+// the update answered; clearing the value of an amount_off template is
+// refused because that type needs one.
+func TestTemplateFieldsSetAndClear(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	tmpl := e.template(t, TemplateInput{})
+	from := e.clk.Now().Add(time.Hour)
+	to := from.Add(48 * time.Hour)
+	set, err := e.svc.UpdateTemplate(ctx, e.owner, tmpl.ID, idem(), TemplateUpdate{
+		Description: strp("  Any drink  "), TotalLimit: intp(10), ValidFrom: &from, ValidTo: &to,
+		ValidityDays: intp(3), Claimable: boolp(true),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if set.Description == nil || *set.Description != "Any drink" || set.TotalLimit == nil || *set.TotalLimit != 10 ||
+		set.ValidFrom == nil || !set.ValidFrom.Equal(from) || set.ValidTo == nil || !set.ValidTo.Equal(to) ||
+		set.ValidityDays == nil || *set.ValidityDays != 3 || !set.Claimable || set.Value == nil || *set.Value != 50 {
+		t.Fatalf("after set: %+v", set)
+	}
+	for _, field := range []string{"description", "total_limit", "valid_from", "valid_to", "validity_days"} {
+		t.Run("clear "+field, func(t *testing.T) {
+			if _, err := e.svc.UpdateTemplate(ctx, e.owner, tmpl.ID, idem(), TemplateUpdate{Clear: []string{field}}); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	got, err := e.svc.GetTemplate(ctx, e.owner, tmpl.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Description != nil || got.TotalLimit != nil || got.ValidFrom != nil || got.ValidTo != nil || got.ValidityDays != nil {
+		t.Errorf("after clearing: %+v", got)
+	}
+	if !got.Claimable || got.Value == nil || *got.Value != 50 || got.Name != tmpl.Name {
+		t.Errorf("an omitted field changed: %+v", got)
+	}
+	if _, err := e.svc.UpdateTemplate(ctx, e.owner, tmpl.ID, idem(), TemplateUpdate{Clear: []string{"value"}}); code(err) != "validation_failed" {
+		t.Errorf("clear the value of amount_off: %v, want validation_failed", err)
+	}
+	if _, err := e.svc.UpdateTemplate(ctx, e.owner, tmpl.ID, idem(), TemplateUpdate{ValidFrom: &to, ValidTo: &from}); code(err) != "validation_failed" {
+		t.Errorf("valid_to before valid_from: %v, want validation_failed", err)
+	}
+}
