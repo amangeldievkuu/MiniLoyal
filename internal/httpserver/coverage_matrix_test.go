@@ -499,11 +499,13 @@ func createTemplate(t *testing.T, w *world, token string, app api.App, name stri
 	return uuid.UUID(tmpl.Id)
 }
 
-// createStampCard adds a 50-stamp card, one stamp per visit, to app.
+// createStampCard adds a 50-stamp card to app. The matrices stamp one
+// member many times within minutes, so the card allows the most stamps per
+// visit; the visit cap has its own tests in internal/stamp.
 func createStampCard(t *testing.T, w *world, token string, app api.App, name string, reward uuid.UUID) uuid.UUID {
 	t.Helper()
 	r := w.as(token).post("/v1/dashboard/apps/"+app.Id.String()+"/stamp-cards", uuid.NewString(),
-		map[string]any{"name": name, "stamps_required": 50, "reward_coupon_template_id": reward})
+		map[string]any{"name": name, "stamps_required": 50, "reward_coupon_template_id": reward, "max_stamps_per_visit": 100})
 	want(t, r, http.StatusCreated)
 	var c api.StampCard
 	r.into(t, &c)

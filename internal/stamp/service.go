@@ -4,7 +4,8 @@
 // Every stamp or adjustment runs in one tenant transaction that first locks
 // the member's progress row (SELECT ... FOR UPDATE), so concurrent stamps on
 // one card serialize per member: a completion is never skipped or doubled,
-// and the stamps given on one scan never pass the card's per-visit cap.
+// and the stamps given in one visit (VisitWindow) never pass the card's
+// per-visit cap.
 // Progress changes only through new stamp_events rows; corrections are new
 // rows too. A completion issues the reward coupon in the same transaction
 // through internal/coupon; when the reward template is sold out, archived
@@ -36,6 +37,7 @@ const (
 	ActionCardCreate = "stamp_card.create"
 	ActionCardUpdate = "stamp_card.update"
 	ActionAdjust     = "stamp.adjust"
+	ActionAdd        = "stamp.add"
 )
 
 // Event reasons.
@@ -49,6 +51,11 @@ const (
 // issued; ListMemberStampProgress counts these as unrewarded_completions.
 const NoteRewardUnavailable = "reward_unavailable"
 
+// VisitWindow is how far back max_stamps_per_visit looks: a member gets at
+// most that many stamps on one card in any 30 minutes, whatever the scan,
+// so scanning the card again does not open a new visit.
+const VisitWindow = 30 * time.Minute
+
 // Bounds.
 const (
 	MaxStampsPerOperation = 100
@@ -60,7 +67,7 @@ var (
 	errCardNotFound     = apierr.NotFound("stamp card")
 	errTemplateNotFound = apierr.NotFound("coupon template")
 	errInactive         = apierr.New(409, "stamp_card_inactive", "this stamp card is archived and takes no stamps")
-	errVisitLimit       = apierr.New(409, "stamp_visit_limit", "this scan already gave the most stamps one visit allows on this card")
+	errVisitLimit       = apierr.New(409, "stamp_visit_limit", "the member already got the most stamps one visit allows on this card; try again in 30 minutes")
 	errInsufficient     = apierr.New(409, "insufficient_stamps", "the member does not have that many stamps on this card")
 	errInUse            = apierr.New(409, "stamp_card_in_use", "stamps_required is fixed once a member has a stamp on the card")
 	errSelfService      = apierr.New(403, "self_service", "staff cannot stamp their own member card")

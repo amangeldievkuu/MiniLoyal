@@ -45,7 +45,7 @@ var staffOps = []opCase{
 		alt: func(f *matrixFixtures) any {
 			return map[string]any{"scan_token": f.scan, "stamp_card_id": f.card, "count": 2}
 		},
-		idem: true, created: 200, creates: "stamp_events"},
+		idem: true, created: 200, creates: "stamp_events", more: []string{"audit_log"}},
 }
 
 // qrOf returns the member's current card code.

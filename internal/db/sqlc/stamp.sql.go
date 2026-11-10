@@ -43,6 +43,18 @@ func (q *Queries) ArchiveStampCard(ctx context.Context, arg ArchiveStampCardPara
 	return i, err
 }
 
+const countStampProgress = `-- name: CountStampProgress :one
+SELECT count(*) FROM stamp_progress
+`
+
+// Reconciliation: how many progress rows were checked. System mode.
+func (q *Queries) CountStampProgress(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countStampProgress)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createStampCard = `-- name: CreateStampCard :one
 
 INSERT INTO stamp_cards (
@@ -121,6 +133,26 @@ func (q *Queries) EnsureStampProgress(ctx context.Context, arg EnsureStampProgre
 		arg.AppID,
 	)
 	return err
+}
+
+const eraseStampNotes = `-- name: EraseStampNotes :execrows
+UPDATE stamp_events SET note = NULL
+WHERE app_id = $1 AND member_id = $2 AND reason = 'adjust' AND note IS NOT NULL
+`
+
+type EraseStampNotesParams struct {
+	AppID    uuid.UUID `json:"app_id"`
+	MemberID uuid.UUID `json:"member_id"`
+}
+
+// PDPA erasure: clears the notes staff typed on the member's adjustments.
+// Completion markers (reward_unavailable) stay; a trigger allows nothing else.
+func (q *Queries) EraseStampNotes(ctx context.Context, arg EraseStampNotesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, eraseStampNotes, arg.AppID, arg.MemberID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getStampCard = `-- name: GetStampCard :one
@@ -229,32 +261,38 @@ func (q *Queries) GetStampProgress(ctx context.Context, arg GetStampProgressPara
 const insertStampEvent = `-- name: InsertStampEvent :one
 INSERT INTO stamp_events (
   tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after,
-  reason, coupon_instance_id, scan_id, note, staff_id, store_id, actor_type, actor_id
+  reason, coupon_instance_id, scan_id, note, staff_id, store_id, actor_type, actor_id, created_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+  $1, $2, $3, $4, $5,
+  $6, $7, $8, $9,
+  $10, $11, $12, $13, $14,
+  $15, $16, coalesce($17::timestamptz, now())
 )
 RETURNING id, tenant_id, app_id, member_id, stamp_card_id, txn_id, delta, count_after, completions_after, reason, coupon_instance_id, scan_id, note, staff_id, store_id, actor_type, actor_id, created_at
 `
 
 type InsertStampEventParams struct {
-	TenantID         uuid.UUID     `json:"tenant_id"`
-	AppID            uuid.UUID     `json:"app_id"`
-	MemberID         uuid.UUID     `json:"member_id"`
-	StampCardID      uuid.UUID     `json:"stamp_card_id"`
-	TxnID            uuid.UUID     `json:"txn_id"`
-	Delta            int32         `json:"delta"`
-	CountAfter       int32         `json:"count_after"`
-	CompletionsAfter int32         `json:"completions_after"`
-	Reason           string        `json:"reason"`
-	CouponInstanceID uuid.NullUUID `json:"coupon_instance_id"`
-	ScanID           *string       `json:"scan_id"`
-	Note             *string       `json:"note"`
-	StaffID          uuid.NullUUID `json:"staff_id"`
-	StoreID          uuid.NullUUID `json:"store_id"`
-	ActorType        string        `json:"actor_type"`
-	ActorID          uuid.NullUUID `json:"actor_id"`
+	TenantID         uuid.UUID          `json:"tenant_id"`
+	AppID            uuid.UUID          `json:"app_id"`
+	MemberID         uuid.UUID          `json:"member_id"`
+	StampCardID      uuid.UUID          `json:"stamp_card_id"`
+	TxnID            uuid.UUID          `json:"txn_id"`
+	Delta            int32              `json:"delta"`
+	CountAfter       int32              `json:"count_after"`
+	CompletionsAfter int32              `json:"completions_after"`
+	Reason           string             `json:"reason"`
+	CouponInstanceID uuid.NullUUID      `json:"coupon_instance_id"`
+	ScanID           *string            `json:"scan_id"`
+	Note             *string            `json:"note"`
+	StaffID          uuid.NullUUID      `json:"staff_id"`
+	StoreID          uuid.NullUUID      `json:"store_id"`
+	ActorType        string             `json:"actor_type"`
+	ActorID          uuid.NullUUID      `json:"actor_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
+// created_at comes from the service clock, since the visit window counts
+// on it; a caller that leaves it unset (NULL) gets the database's now().
 func (q *Queries) InsertStampEvent(ctx context.Context, arg InsertStampEventParams) (StampEvent, error) {
 	row := q.db.QueryRow(ctx, insertStampEvent,
 		arg.TenantID,
@@ -273,6 +311,7 @@ func (q *Queries) InsertStampEvent(ctx context.Context, arg InsertStampEventPara
 		arg.StoreID,
 		arg.ActorType,
 		arg.ActorID,
+		arg.CreatedAt,
 	)
 	var i StampEvent
 	err := row.Scan(
@@ -566,6 +605,68 @@ func (q *Queries) LockStampProgress(ctx context.Context, arg LockStampProgressPa
 	return i, err
 }
 
+const reconcileStampProgress = `-- name: ReconcileStampProgress :many
+SELECT
+  coalesce(p.app_id, e.app_id)::uuid               AS app_id,
+  coalesce(p.member_id, e.member_id)::uuid         AS member_id,
+  coalesce(p.stamp_card_id, e.stamp_card_id)::uuid AS stamp_card_id,
+  coalesce(p.count, 0)::bigint                     AS count,
+  coalesce(p.completions, 0)::bigint               AS completions,
+  coalesce(e.delta_sum, 0)::bigint                 AS event_sum,
+  coalesce(e.completion_rows, 0)::bigint           AS completion_rows
+FROM stamp_progress p
+FULL JOIN (
+  SELECT app_id, member_id, stamp_card_id, sum(delta) AS delta_sum,
+         count(*) FILTER (WHERE reason = 'completion') AS completion_rows
+  FROM stamp_events
+  GROUP BY app_id, member_id, stamp_card_id
+) e ON e.app_id = p.app_id AND e.member_id = p.member_id AND e.stamp_card_id = p.stamp_card_id
+WHERE coalesce(p.count, 0) <> coalesce(e.delta_sum, 0)
+   OR coalesce(p.completions, 0) <> coalesce(e.completion_rows, 0)
+ORDER BY 1, 2, 3
+`
+
+type ReconcileStampProgressRow struct {
+	AppID          uuid.UUID `json:"app_id"`
+	MemberID       uuid.UUID `json:"member_id"`
+	StampCardID    uuid.UUID `json:"stamp_card_id"`
+	Count          int64     `json:"count"`
+	Completions    int64     `json:"completions"`
+	EventSum       int64     `json:"event_sum"`
+	CompletionRows int64     `json:"completion_rows"`
+}
+
+// Reconciliation, system mode: progress rows whose count differs from the
+// sum of their events, or whose completions differ from their completion
+// rows. Events without a progress row show up with zero progress.
+func (q *Queries) ReconcileStampProgress(ctx context.Context) ([]ReconcileStampProgressRow, error) {
+	rows, err := q.db.Query(ctx, reconcileStampProgress)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ReconcileStampProgressRow
+	for rows.Next() {
+		var i ReconcileStampProgressRow
+		if err := rows.Scan(
+			&i.AppID,
+			&i.MemberID,
+			&i.StampCardID,
+			&i.Count,
+			&i.Completions,
+			&i.EventSum,
+			&i.CompletionRows,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setStampProgress = `-- name: SetStampProgress :exec
 UPDATE stamp_progress SET
   count           = $1,
@@ -615,23 +716,31 @@ func (q *Queries) StampCardInUse(ctx context.Context, arg StampCardInUseParams) 
 	return in_use, err
 }
 
-const sumScanStamps = `-- name: SumScanStamps :one
+const sumVisitStamps = `-- name: SumVisitStamps :one
 SELECT coalesce(sum(delta), 0)::integer AS stamps
 FROM stamp_events
-WHERE app_id = $1 AND stamp_card_id = $2 AND scan_id = $3 AND reason = 'stamp'
+WHERE app_id = $1 AND stamp_card_id = $2
+  AND member_id = $3 AND reason = 'stamp'
+  AND created_at > $4
 `
 
-type SumScanStampsParams struct {
-	AppID       uuid.UUID `json:"app_id"`
-	StampCardID uuid.UUID `json:"stamp_card_id"`
-	ScanID      *string   `json:"scan_id"`
+type SumVisitStampsParams struct {
+	AppID       uuid.UUID          `json:"app_id"`
+	StampCardID uuid.UUID          `json:"stamp_card_id"`
+	MemberID    uuid.UUID          `json:"member_id"`
+	Since       pgtype.Timestamptz `json:"since"`
 }
 
-// Stamps already given on one scan to one card, for max_stamps_per_visit.
-// Call it after LockStampProgress so concurrent requests on the same scan
-// see each other's rows.
-func (q *Queries) SumScanStamps(ctx context.Context, arg SumScanStampsParams) (int32, error) {
-	row := q.db.QueryRow(ctx, sumScanStamps, arg.AppID, arg.StampCardID, arg.ScanID)
+// Stamps the member got on the card since a moment (now minus the visit
+// window), whatever the scan, for max_stamps_per_visit. Call it after
+// LockStampProgress so concurrent stamps see each other's rows.
+func (q *Queries) SumVisitStamps(ctx context.Context, arg SumVisitStampsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, sumVisitStamps,
+		arg.AppID,
+		arg.StampCardID,
+		arg.MemberID,
+		arg.Since,
+	)
 	var stamps int32
 	err := row.Scan(&stamps)
 	return stamps, err

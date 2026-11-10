@@ -54,7 +54,9 @@ func TestTwoHundredMixedStampWritesKeepTheLedger(t *testing.T) {
 	e := newEnv(t)
 	const n, required, rewardLimit = 200, 4, 5
 	reward := e.template(t, coupon.TemplateInput{TotalLimit: intp(rewardLimit)})
-	c := e.card(t, required, 1, &reward.ID)
+	// The card's maximum per visit: the race is about the ledger, and the
+	// 100 staff stamps all fall in one visit window.
+	c := e.card(t, required, 100, &reward.ID)
 	m := e.member(t)
 	st := e.staff()
 	tokens := make([]string, n)

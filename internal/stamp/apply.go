@@ -46,15 +46,18 @@ func (s *Service) apply(ctx context.Context, tx pgx.Tx, m sqlc.Member, c sqlc.St
 		return Result{}, fmt.Errorf("stamp: lock progress: %w", err)
 	}
 	if op.reason == ReasonStamp {
-		// Under the progress lock, so concurrent stamps on one scan see
-		// each other's rows.
-		given, err := q.SumScanStamps(ctx, sqlc.SumScanStampsParams{AppID: m.AppID, StampCardID: c.ID, ScanID: op.scanID})
+		// Under the progress lock, so concurrent stamps for this member and
+		// card, on one scan or several, see each other's rows.
+		given, err := q.SumVisitStamps(ctx, sqlc.SumVisitStampsParams{
+			AppID: m.AppID, StampCardID: c.ID, MemberID: m.ID, Since: ts(now.Add(-VisitWindow)),
+		})
 		if err != nil {
-			return Result{}, fmt.Errorf("stamp: stamps on this scan: %w", err)
+			return Result{}, fmt.Errorf("stamp: stamps this visit: %w", err)
 		}
 		if int(given)+op.delta > int(c.MaxStampsPerVisit) {
 			return Result{}, errVisitLimit.WithDetails(map[string]any{
-				"max_stamps_per_visit": int(c.MaxStampsPerVisit), "given_on_this_scan": int(given),
+				"max_stamps_per_visit": int(c.MaxStampsPerVisit), "given_this_visit": int(given),
+				"visit_window_minutes": int(VisitWindow / time.Minute),
 			})
 		}
 	}
@@ -70,7 +73,7 @@ func (s *Service) apply(ctx context.Context, tx pgx.Tx, m sqlc.Member, c sqlc.St
 			Delta: int32(delta), CountAfter: int32(countAfter), CompletionsAfter: int32(completions),
 			Reason: reason, CouponInstanceID: access.NullUUID(couponID), ScanID: scanID, Note: note,
 			StaffID: access.NullUUID(op.staffID), StoreID: access.NullUUID(op.storeID),
-			ActorType: op.actorType, ActorID: access.NullUUID(op.actorID),
+			ActorType: op.actorType, ActorID: access.NullUUID(op.actorID), CreatedAt: ts(now),
 		})
 		if err != nil {
 			return fmt.Errorf("stamp: %s event: %w", reason, err)
@@ -205,10 +208,28 @@ func (s *Service) StaffStamp(ctx context.Context, p principal.Principal, idem Id
 			}
 			actorType, actorID := access.ActorOf(p)
 			scanID := cl.JTI
-			return s.apply(ctx, tx, m, c, operation{
+			res, err := s.apply(ctx, tx, m, c, operation{
 				reason: ReasonStamp, delta: in.Count, scanID: &scanID,
 				staffID: p.StaffID, storeID: p.StoreID, actorType: actorType, actorID: actorID,
 			}, now)
+			if err != nil {
+				return nil, err
+			}
+			appID := m.AppID
+			meta := map[string]any{
+				"staff_id": p.StaffID.String(), "stamp_card_id": c.ID.String(),
+				"count": in.Count, "completed": res.Completed,
+			}
+			if p.StoreID != uuid.Nil {
+				meta["store_id"] = p.StoreID.String()
+			}
+			if err := audit.Record(ctx, tx, audit.Entry{
+				TenantID: m.TenantID, AppID: &appID, Actor: p, Action: ActionAdd,
+				TargetType: "member", TargetID: m.ID.String(), Metadata: meta,
+			}); err != nil {
+				return nil, err
+			}
+			return res, nil
 		}, &out)
 	return out, err
 }
@@ -257,7 +278,8 @@ func (s *Service) Adjust(ctx context.Context, p principal.Principal, memberID uu
 			if err := audit.Record(ctx, tx, audit.Entry{
 				TenantID: m.TenantID, AppID: &appID, Actor: p, Action: ActionAdjust,
 				TargetType: "member", TargetID: m.ID.String(),
-				Metadata: map[string]any{"stamp_card_id": c.ID.String(), "delta": delta, "note": note, "completed": res.Completed},
+				// No note: audit rows outlive a PDPA erasure, which blanks it.
+				Metadata: map[string]any{"stamp_card_id": c.ID.String(), "delta": delta, "completed": res.Completed},
 			}); err != nil {
 				return nil, err
 			}

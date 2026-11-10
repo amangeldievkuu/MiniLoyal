@@ -50,7 +50,7 @@ func (s *Server) StaffAddStamps(ctx context.Context, req api.StaffAddStampsReque
 	if err != nil {
 		return nil, err
 	}
-	res, err := svc.StaffStamp(ctx, p, writeIdem(ctx, req.Params.IdempotencyKey, body), stamp.StaffStampInput{
+	res, err := svc.StaffStamp(s.auditContext(ctx), p, writeIdem(ctx, req.Params.IdempotencyKey, body), stamp.StaffStampInput{
 		ScanToken: body.ScanToken, StampCardID: uuid.UUID(body.StampCardId), Count: body.Count,
 	})
 	if err != nil {

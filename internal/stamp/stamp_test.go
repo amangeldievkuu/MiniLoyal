@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -61,7 +62,8 @@ func newEnv(t *testing.T) *env {
 	tenants := tenant.New(d.App, keyring, clk, log)
 	e := &env{d: d, clk: clk, codec: codec}
 	e.svc = New(Deps{Pool: d.App, Tenants: tenants, Keyring: keyring, Card: codec, Clock: clk, Log: log, StaffWritesPerMinute: -1})
-	e.coupons = coupon.New(coupon.Deps{Pool: d.App, Tenants: tenants, Keyring: keyring, Card: codec, Clock: clk, Log: log, StaffWritesPerMinute: -1})
+	e.coupons = coupon.New(coupon.Deps{Pool: d.App, Tenants: tenants, Keyring: keyring, Card: codec, Clock: clk, Log: log,
+		StaffWritesPerMinute: -1, ClaimsPerMinute: -1, APIIssuesPerMinute: -1})
 	e.tenant = d.NewTenant(t, "Alpha")
 	e.app = testutil.NewID()
 	d.Exec(t, "INSERT INTO apps (id, tenant_id, name, slug) VALUES ($1, $2, 'Cafe', $3)", e.app, e.tenant, "cafe-"+e.app.String()[24:])
@@ -194,8 +196,10 @@ func TestParallelStampsNeverSkipOrDoubleACompletion(t *testing.T) {
 		workers  int
 		each     int
 	}{
-		{"one stamp per visit", 5, 1, 42, 1},
-		{"two stamps per visit", 3, 2, 30, 2},
+		// The cap is the card's maximum so the whole race fits in one
+		// visit window; TestVisitCap* cover the cap itself.
+		{"one stamp each", 5, 100, 42, 1},
+		{"two stamps each", 3, 100, 30, 2},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -249,7 +253,8 @@ func TestParallelStampsNeverSkipOrDoubleACompletion(t *testing.T) {
 }
 
 // Invariant: all stamps given on one scan to one card together stay within
-// max_stamps_per_visit, even when the requests race.
+// max_stamps_per_visit, even when the requests race. A new scan inside the
+// visit window is the same visit; after VisitWindow a new visit starts.
 func TestParallelStampsOnOneScanRespectTheVisitCap(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration test")
@@ -290,10 +295,15 @@ func TestParallelStampsOnOneScanRespectTheVisitCap(t *testing.T) {
 	if count, _ := e.checkLedger(t, m, c.ID, 10); count != 3 {
 		t.Errorf("count = %d, want 3", count)
 	}
-	// A new scan is a new visit.
+	// A new scan inside the window is still the same visit.
+	if _, err := e.svc.StaffStamp(context.Background(), st, idem(), StaffStampInput{ScanToken: e.scan(t, st, m), StampCardID: c.ID, Count: 1}); code(err) != "stamp_visit_limit" {
+		t.Errorf("new scan inside the visit window: %v, want stamp_visit_limit", err)
+	}
+	e.clk.Advance(VisitWindow)
 	if res := e.stamp(t, st, m, c.ID, 3); res.Progress.Count != 6 {
 		t.Errorf("after a second visit: %+v", res.Progress)
 	}
+	e.clk.Advance(VisitWindow)
 	// One request above the cap is refused whole.
 	if _, err := e.svc.StaffStamp(context.Background(), st, idem(), StaffStampInput{ScanToken: e.scan(t, st, m), StampCardID: c.ID, Count: 4}); code(err) != "stamp_visit_limit" {
 		t.Errorf("4 stamps on a 3-per-visit card: %v", err)
@@ -617,5 +627,127 @@ func TestCrossTenantStamps(t *testing.T) {
 	}
 	if got := e.count(t, "SELECT count(*) FROM stamp_events"); got != 1 {
 		t.Errorf("stamp events = %d, want 1", got)
+	}
+}
+
+// Invariant (product decision 2026-11-10): max_stamps_per_visit counts the
+// member's stamps on the card in the last VisitWindow, whatever the scan.
+// Scanning twice does not open a second visit; once the window has passed,
+// stamping works again.
+func TestVisitCapCountsStampsAcrossScans(t *testing.T) {
+	e := newEnv(t)
+	c := e.card(t, 10, 1, nil)
+	m := e.member(t)
+	st, other := e.staff(), e.staff()
+	e.stamp(t, st, m, c.ID, 1)
+
+	// A second scan, by the same or another cashier, a minute later.
+	e.clk.Advance(time.Minute)
+	for _, s := range []principal.Principal{st, other} {
+		_, err := e.svc.StaffStamp(context.Background(), s, idem(), StaffStampInput{ScanToken: e.scan(t, s, m), StampCardID: c.ID, Count: 1})
+		if code(err) != "stamp_visit_limit" {
+			t.Fatalf("second scan inside the window: %v, want stamp_visit_limit", err)
+		}
+		var ae *apierr.Error
+		if !errors.As(err, &ae) || ae.Status != 409 {
+			t.Fatalf("status: %v", err)
+		}
+	}
+	// Another member and another card are their own visits.
+	e.stamp(t, st, e.member(t), c.ID, 1)
+	e.stamp(t, st, m, e.card(t, 10, 1, nil).ID, 1)
+
+	// 29 minutes after the stamp the window still holds it.
+	e.clk.Advance(28 * time.Minute)
+	if _, err := e.svc.StaffStamp(context.Background(), st, idem(), StaffStampInput{ScanToken: e.scan(t, st, m), StampCardID: c.ID, Count: 1}); code(err) != "stamp_visit_limit" {
+		t.Fatalf("29 minutes later: %v, want stamp_visit_limit", err)
+	}
+	// 30 minutes after the stamp it has left the window.
+	e.clk.Advance(time.Minute)
+	if res := e.stamp(t, st, m, c.ID, 1); res.Progress.Count != 2 {
+		t.Errorf("after the window: %+v", res.Progress)
+	}
+	// The stamp rows are dated by the service clock and keep their scans.
+	if got := e.count(t, "SELECT count(*) FROM stamp_events WHERE member_id = $1 AND stamp_card_id = $2 AND reason = 'stamp' AND scan_id IS NOT NULL AND created_at IN ($3, $4)",
+		m, c.ID, time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC), time.Date(2026, 11, 10, 9, 30, 0, 0, time.UTC)); got != 2 {
+		t.Errorf("stamp rows at the clock's times = %d, want 2", got)
+	}
+}
+
+// Invariant: stamps racing on two different scans of one member and card
+// share one visit: together they never pass max_stamps_per_visit.
+func TestVisitCapHoldsAcrossConcurrentScans(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration test")
+	}
+	e := newEnv(t)
+	c := e.card(t, 50, 2, nil)
+	m := e.member(t)
+	st, other := e.staff(), e.staff()
+	tokens := []string{e.scan(t, st, m), e.scan(t, other, m)}
+	staff := []principal.Principal{st, other}
+	const workers = 20
+	codes := make([]string, workers)
+	release := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-release
+			_, err := e.svc.StaffStamp(context.Background(), staff[i%2], idem(), StaffStampInput{ScanToken: tokens[i%2], StampCardID: c.ID, Count: 1})
+			codes[i] = code(err)
+		}()
+	}
+	close(release)
+	wg.Wait()
+	ok := 0
+	for i, c := range codes {
+		switch c {
+		case "":
+			ok++
+		case "stamp_visit_limit":
+		default:
+			t.Fatalf("stamp %d: %s", i, c)
+		}
+	}
+	if ok != 2 {
+		t.Errorf("%d stamps across two scans succeeded, want 2", ok)
+	}
+	if count, _ := e.checkLedger(t, m, c.ID, 50); count != 2 {
+		t.Errorf("count = %d, want 2", count)
+	}
+}
+
+// Staff stamps are audited with the staff member, store, card, count and
+// completions; the adjustment audit carries no note, since audit rows
+// outlive a PDPA erasure.
+func TestStaffStampsAreAudited(t *testing.T) {
+	e := newEnv(t)
+	c := e.card(t, 2, 3, nil)
+	m := e.member(t)
+	st := e.staff()
+	st.StoreID = testutil.NewID()
+	e.stamp(t, st, m, c.ID, 3)
+	var actorType, meta string
+	if err := e.d.Admin.QueryRow(context.Background(), "SELECT actor_type, metadata::text FROM audit_log WHERE action = 'stamp.add' AND target_id = $1", m.String()).Scan(&actorType, &meta); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"staff_id": "` + st.StaffID.String(), `"store_id": "` + st.StoreID.String(), `"stamp_card_id": "` + c.ID.String(), `"count": 3`, `"completed": 1`} {
+		if !strings.Contains(meta, want) {
+			t.Errorf("stamp.add metadata %s lacks %s", meta, want)
+		}
+	}
+	if actorType != "staff" {
+		t.Errorf("actor_type = %s", actorType)
+	}
+	if _, err := e.svc.Adjust(context.Background(), e.owner, m, idem(), c.ID, 1, "phoned 0912-345-678"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.d.Admin.QueryRow(context.Background(), "SELECT metadata::text FROM audit_log WHERE action = 'stamp.adjust' AND target_id = $1", m.String()).Scan(&meta); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(meta, "0912") || strings.Contains(meta, "note") {
+		t.Errorf("stamp.adjust audit metadata holds the note: %s", meta)
 	}
 }
