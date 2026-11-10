@@ -15,13 +15,16 @@ import (
 
 	"github.com/amangeldievkuu/miniloyal/internal/api"
 	"github.com/amangeldievkuu/miniloyal/internal/apierr"
+	"github.com/amangeldievkuu/miniloyal/internal/card"
 	"github.com/amangeldievkuu/miniloyal/internal/lineauth"
 	"github.com/amangeldievkuu/miniloyal/internal/lineauth/lineauthtest"
 	"github.com/amangeldievkuu/miniloyal/internal/member"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/clock"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
+	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"github.com/amangeldievkuu/miniloyal/internal/principal"
+	"github.com/amangeldievkuu/miniloyal/internal/staffauth"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 	"github.com/amangeldievkuu/miniloyal/internal/testutil"
 )
@@ -46,6 +49,9 @@ type world struct {
 	// verifier is the fake LINE ID token verifier behind /v1/auth/line, so
 	// matrix tests can sign members in to any app with a configured channel.
 	verifier *lineauthtest.FakeVerifier
+	// cards issues the member QR codes and scan tokens behind /v1/me/card,
+	// /v1/staff/scan and the staff points routes.
+	cards *card.Codec
 
 	tenantA, tenantB      uuid.UUID
 	ownerA, adminA        uuid.UUID
@@ -67,6 +73,15 @@ func newWorld(t *testing.T) *world {
 		t.Fatal(err)
 	}
 	members := member.New(member.Deps{Pool: d.App, Tenants: svc, Clock: clock.Real{}, Log: log})
+	if w.cards, err = card.New(fullSigningKey, clock.Real{}); err != nil {
+		t.Fatal(err)
+	}
+	staffSvc, err := staffauth.New(staffauth.Deps{Pool: d.App, LineAuth: lineAuth, Card: w.cards, Clock: clock.Real{}, Log: log,
+		Config: staffauth.Config{SigningKey: fullSigningKey, IPPerMinute: 10000, InvitePerMinute: 10000}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pointsSvc := points.New(points.Deps{Pool: d.App, Tenants: svc, Keyring: keyring, Card: w.cards, Clock: clock.Real{}, Log: log})
 	w.tenantA = d.NewTenant(t, "Alpha")
 	w.tenantB = d.NewTenant(t, "Beta")
 	w.ownerA = w.user("owner-a@example.com")
@@ -89,6 +104,9 @@ func newWorld(t *testing.T) *world {
 		Tenants:   svc,
 		LineAuth:  lineAuth,
 		MemberSvc: members,
+		Card:      w.cards,
+		Points:    pointsSvc,
+		StaffAuth: staffSvc,
 	})
 	w.handler = srv.Handler()
 	return w

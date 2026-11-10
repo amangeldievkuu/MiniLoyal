@@ -24,13 +24,14 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/member"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/config"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/crypto"
+	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"github.com/amangeldievkuu/miniloyal/internal/staffauth"
 	"github.com/amangeldievkuu/miniloyal/internal/tenant"
 	"github.com/amangeldievkuu/miniloyal/internal/testutil"
 	"github.com/amangeldievkuu/miniloyal/internal/webhook"
 )
 
-// memberEnv wires auth, tenant, lineauth and member services behind the
+// memberEnv wires auth, tenant, lineauth, member, staff and points services behind the
 // handler with a fake LINE verifier, the way cmd/api does.
 type memberEnv struct {
 	t        *testing.T
@@ -96,6 +97,7 @@ func newMemberEnvWith(t *testing.T, staffCfg staffauth.Config) *memberEnv {
 		Webhooks:  webhook.New(d.App, tenants, logger),
 		Card:      e.cards,
 		StaffAuth: staffSvc,
+		Points:    points.New(points.Deps{Pool: d.App, Tenants: tenants, Keyring: keyring, Card: e.cards, Clock: e.clk, Log: logger}),
 	}).Handler()
 	return e
 }
