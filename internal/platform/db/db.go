@@ -16,6 +16,11 @@ import (
 
 // Connect opens a pool for url and verifies it with a ping.
 func Connect(ctx context.Context, url string) (*pgxpool.Pool, error) {
+	// An empty URL would fall back to libpq defaults and connect as whoever
+	// the environment names; refuse it.
+	if url == "" {
+		return nil, errors.New("db: no database URL configured")
+	}
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf("db: parse DATABASE_URL: %w", err)

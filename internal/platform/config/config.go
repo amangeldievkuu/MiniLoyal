@@ -33,13 +33,20 @@ type Config struct {
 	// MigrateDatabaseURL connects as the schema owner for migrations and role
 	// management. Defaults to DatabaseURL.
 	MigrateDatabaseURL string
+	// WorkerDatabaseURL is what cmd/worker connects with, as the
+	// miniloyal_worker role that owns River's tables. It has no fallback: the
+	// API role may only insert jobs, so it cannot run them.
+	WorkerDatabaseURL string
 	// AppDBPassword is the password "migrate up" sets on the miniloyal_api login
 	// role. Development defaults to miniloyal_api.
-	AppDBPassword   string
-	LogLevel        string
-	LogFormat       string
-	PublicBaseURL   string
-	DashboardOrigin string
+	AppDBPassword string
+	// WorkerDBPassword is the password "migrate up" sets on the
+	// miniloyal_worker login role. Development defaults to miniloyal_worker.
+	WorkerDBPassword string
+	LogLevel         string
+	LogFormat        string
+	PublicBaseURL    string
+	DashboardOrigin  string
 
 	// SessionSigningKey signs platform session tokens. Required outside
 	// development; development derives a fixed key so local runs just work.
@@ -82,18 +89,20 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 		return def
 	}
 	cfg := &Config{
-		Env:             Env(get("ENV", string(Development))),
-		APIAddr:         get("API_ADDR", ":8080"),
-		DatabaseURL:     get("DATABASE_URL", ""),
-		AppDBPassword:   get("APP_DB_PASSWORD", ""),
-		LogLevel:        get("LOG_LEVEL", "info"),
-		LogFormat:       get("LOG_FORMAT", "json"),
-		PublicBaseURL:   get("PUBLIC_BASE_URL", "http://localhost:8080"),
-		DashboardOrigin: get("DASHBOARD_ORIGIN", "http://localhost:5173"),
-		KEKFile:         get("KEK_FILE", ""),
-		KMSKeyName:      get("KMS_KEY_NAME", ""),
-		OTLPEndpoint:    get("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
-		TrustProxy:      get("TRUST_PROXY", "") == "true",
+		Env:               Env(get("ENV", string(Development))),
+		APIAddr:           get("API_ADDR", ":8080"),
+		DatabaseURL:       get("DATABASE_URL", ""),
+		WorkerDatabaseURL: get("WORKER_DATABASE_URL", ""),
+		AppDBPassword:     get("APP_DB_PASSWORD", ""),
+		WorkerDBPassword:  get("WORKER_DB_PASSWORD", ""),
+		LogLevel:          get("LOG_LEVEL", "info"),
+		LogFormat:         get("LOG_FORMAT", "json"),
+		PublicBaseURL:     get("PUBLIC_BASE_URL", "http://localhost:8080"),
+		DashboardOrigin:   get("DASHBOARD_ORIGIN", "http://localhost:5173"),
+		KEKFile:           get("KEK_FILE", ""),
+		KMSKeyName:        get("KMS_KEY_NAME", ""),
+		OTLPEndpoint:      get("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
+		TrustProxy:        get("TRUST_PROXY", "") == "true",
 
 		LineSkipCredentialVerification: get("LINE_SKIP_CREDENTIAL_VERIFICATION", "") == "true",
 		ShutdownTimeout:                15 * time.Second,
@@ -105,12 +114,19 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 	default:
 		errs = append(errs, fmt.Errorf("ENV must be development, staging or production, got %q", cfg.Env))
 	}
-	if cfg.DatabaseURL == "" {
-		errs = append(errs, errors.New("DATABASE_URL is required"))
+	// The worker's container carries only WORKER_DATABASE_URL, so it never
+	// holds the API role's credentials.
+	if cfg.DatabaseURL == "" && cfg.WorkerDatabaseURL == "" {
+		errs = append(errs, errors.New("DATABASE_URL is required (WORKER_DATABASE_URL for the worker)"))
 	}
 	cfg.MigrateDatabaseURL = get("MIGRATE_DATABASE_URL", cfg.DatabaseURL)
-	if cfg.AppDBPassword == "" && cfg.Env == Development {
-		cfg.AppDBPassword = "miniloyal_api"
+	if cfg.Env == Development {
+		if cfg.AppDBPassword == "" {
+			cfg.AppDBPassword = "miniloyal_api"
+		}
+		if cfg.WorkerDBPassword == "" {
+			cfg.WorkerDBPassword = "miniloyal_worker"
+		}
 	}
 
 	n, err := strconv.Atoi(get("WORKER_CONCURRENCY", "4"))

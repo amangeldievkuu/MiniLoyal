@@ -66,7 +66,13 @@
     "expired": "掃描已逾時，請重新掃描會員卡。",
     "earn": "集點",
     "redeem": "兌換點數",
-    "clear": "結束這位會員"
+    "clear": "結束這位會員",
+    "tabs": {
+      "earn": "集點",
+      "redeem": "兌換點數",
+      "coupons": "優惠券",
+      "stamps": "集章"
+    }
   },
   "earn": {
     "amountLabel": "消費金額（NT$）",
@@ -98,7 +104,10 @@
     "selfService": "不能為自己的會員卡加點或折抵，請請同事協助。",
     "rateLimited": "短時間內操作太多次，請等 {{seconds}} 秒再試。",
     "scanUsed": "這次掃描已用於折抵，請重新掃描會員卡。",
-    "pointsDisabled": "這家店已關閉點數功能。"
+    "pointsDisabled": "這家店已關閉點數功能。",
+    "couponUnavailable": "這張優惠券無法使用：已使用、已過期，或不是這位會員的。",
+    "stampVisitLimit": "本次來店已不能再蓋章。",
+    "stampCardInactive": "這張集章卡已停用。"
   },
   "keypad": {
     "clear": "清除",
@@ -117,6 +126,38 @@
     "discardYes": "確定捨棄",
     "keep": "保留",
     "discarded": "已捨棄尚未確認的操作。",
-    "notApplied": "上一筆操作沒有生效：{{reason}}"
+    "notApplied": "上一筆操作沒有生效：{{reason}}",
+    "applied": "尚未確認的操作已完成。",
+    "coupon": "為 {{name}} 兌換優惠券 {{coupon}}",
+    "stamp": "為 {{name}} 在 {{card}} 蓋 {{count}} 個章"
+  },
+  "coupons": {
+    "none": "這位會員沒有可兌換的優惠券。",
+    "amountOff": "折抵 NT${{value}}",
+    "percentOff": "{{value}}% 折扣",
+    "freeItem": "免費贈品",
+    "expires": "到期日 {{date}}",
+    "noExpiry": "無期限",
+    "redeem": "兌換",
+    "redeemNamed": "兌換 {{name}}",
+    "confirmBody": "現在兌換「{{name}}」？兌換後無法復原。",
+    "confirm": "確認兌換",
+    "redeemedDone": "已兌換：{{name}}"
+  },
+  "stamps": {
+    "none": "目前沒有啟用的集章卡。",
+    "progress": "{{count}} / {{required}} 個章",
+    "reward": "獎勵：{{name}}（{{value}}）",
+    "countLabel": "蓋章數量",
+    "less": "減少一個章",
+    "more": "增加一個章",
+    "cap": "本次來店還可再蓋 {{remaining}} 個（上限 {{max}}）。",
+    "limitReached": "本次來店已達 {{max}} 個章的上限。",
+    "add": "蓋 {{count}} 個章",
+    "addNamed": "為 {{name}} 蓋 {{count}} 個章",
+    "added": "已蓋 {{count}} 個章。",
+    "completed": "集章卡已集滿（{{count}} 次）。",
+    "rewardIssued": "已發放獎勵優惠券：{{name}}",
+    "rewardUnavailable": "目前無法發放獎勵。章已記錄，請會員洽詢店家。"
   }
 }

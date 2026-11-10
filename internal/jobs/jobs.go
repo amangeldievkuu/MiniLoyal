@@ -68,8 +68,8 @@ func (d *Deps) defaults() {
 
 // ------------------------------------------------------------------------- maintenance
 
-// Job arguments are stored in River's tables, which the application role can
-// read and which carry no row-level security. Arguments must therefore hold
+// Job arguments are stored in River's tables, which the API role can read
+// (River's insert returns the row) and which carry no row-level security. Arguments must therefore hold
 // IDs only: never personal data, message text, tokens or secrets. A job loads
 // what it needs inside a tenant transaction when it runs.
 
@@ -283,8 +283,36 @@ func NewClient(pool *pgxpool.Pool, deps Deps, concurrency int) (*river.Client[pg
 	return client, nil
 }
 
+// WorkerRole is the database role the worker connects as. It owns River's
+// tables; the API role may only insert jobs (migration 00009).
+const WorkerRole = "miniloyal_worker"
+
+// ErrNotWorkerRole means the pool cannot work jobs safely: it is not
+// connected as WorkerRole, or it is connected as a role that skips
+// row-level security.
+var ErrNotWorkerRole = errors.New("jobs: the worker must connect as " + WorkerRole + " (WORKER_DATABASE_URL)")
+
+// CheckWorkerRole fails fast when pool is connected as the wrong role, so a
+// worker pointed at the API's URL stops at start instead of failing every
+// job, and a worker pointed at a superuser does not run without row-level
+// security.
+func CheckWorkerRole(ctx context.Context, pool *pgxpool.Pool) error {
+	var user string
+	var member, super, bypass bool
+	if err := pool.QueryRow(ctx, `SELECT current_user, pg_has_role(current_user, $1, 'USAGE'), r.rolsuper, r.rolbypassrls
+		FROM pg_roles r WHERE r.rolname = current_user`, WorkerRole).Scan(&user, &member, &super, &bypass); err != nil {
+		return fmt.Errorf("jobs: check role: %w", err)
+	}
+	if !member || super || bypass {
+		return fmt.Errorf("%w: connected as %s (member %v, superuser %v, bypassrls %v)", ErrNotWorkerRole, user, member, super, bypass)
+	}
+	return nil
+}
+
 // NewInserter returns an insert-only client for processes that enqueue jobs
-// but do not work them (the API, from later phases).
+// but do not work them, such as the API. Its role needs only SELECT and
+// INSERT on river_job, UPDATE of river_job.kind for unique inserts, and the
+// river_job_id_seq sequence.
 func NewInserter(pool *pgxpool.Pool) (*river.Client[pgx.Tx], error) {
 	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{})
 	if err != nil {

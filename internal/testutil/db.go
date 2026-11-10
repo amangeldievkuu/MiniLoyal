@@ -34,8 +34,12 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/platform/migrate"
 )
 
-// AppPassword is the login role's password in test databases.
-const AppPassword = "miniloyal_api"
+// AppPassword and WorkerPassword are the login roles' passwords in test
+// databases.
+const (
+	AppPassword    = "miniloyal_api"
+	WorkerPassword = "miniloyal_worker"
+)
 
 // rolesLockID serialises role creation across test processes.
 const rolesLockID = 72300011
@@ -45,13 +49,17 @@ type DB struct {
 	// Admin connects as the owner: use it for fixtures and assertions that
 	// must see every row.
 	Admin *pgxpool.Pool
-	// App connects as miniloyal_api, exactly like the API and worker do, so
-	// row-level security applies.
+	// App connects as miniloyal_api, exactly like the API does, so row-level
+	// security applies.
 	App *pgxpool.Pool
-	// AdminURL and AppURL are the matching connection strings.
-	AdminURL string
-	AppURL   string
-	Name     string
+	// Worker connects as miniloyal_worker, exactly like cmd/worker does: it
+	// owns River's tables and row-level security still applies.
+	Worker *pgxpool.Pool
+	// AdminURL, AppURL and WorkerURL are the matching connection strings.
+	AdminURL  string
+	AppURL    string
+	WorkerURL string
+	Name      string
 }
 
 // NewDB creates a fresh database, applies roles and migrations and registers
@@ -101,7 +109,7 @@ func NewDB(t testing.TB) *DB {
 	if _, err := lock.ExecContext(ctx, "SELECT pg_advisory_lock($1)", rolesLockID); err != nil {
 		t.Fatalf("testutil: advisory lock: %v", err)
 	}
-	rolesErr := migrate.Roles(ctx, owner, AppPassword)
+	rolesErr := migrate.Roles(ctx, owner, migrate.Passwords{API: AppPassword, Worker: WorkerPassword})
 	_, _ = lock.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", rolesLockID)
 	_ = lock.Close()
 	if rolesErr != nil {
@@ -113,6 +121,7 @@ func NewDB(t testing.TB) *DB {
 	_ = owner.Close()
 
 	appURL := withUser(t, dbAdminURL, migrate.LoginRole, AppPassword)
+	workerURL := withUser(t, dbAdminURL, migrate.WorkerRole, WorkerPassword)
 	adminPool, err := db.Connect(ctx, dbAdminURL)
 	if err != nil {
 		t.Fatalf("testutil: connect admin: %v", err)
@@ -122,11 +131,18 @@ func NewDB(t testing.TB) *DB {
 		adminPool.Close()
 		t.Fatalf("testutil: connect app: %v", err)
 	}
+	workerPool, err := db.Connect(ctx, workerURL)
+	if err != nil {
+		appPool.Close()
+		adminPool.Close()
+		t.Fatalf("testutil: connect worker: %v", err)
+	}
 	t.Cleanup(func() {
+		workerPool.Close()
 		appPool.Close()
 		adminPool.Close()
 	})
-	return &DB{Admin: adminPool, App: appPool, AdminURL: dbAdminURL, AppURL: appURL, Name: name}
+	return &DB{Admin: adminPool, App: appPool, Worker: workerPool, AdminURL: dbAdminURL, AppURL: appURL, WorkerURL: workerURL, Name: name}
 }
 
 // WithTenant runs fn as the application role inside tenantID's RLS context.

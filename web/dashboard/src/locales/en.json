@@ -34,7 +34,8 @@
   },
   "statuses": {
     "active": "Active",
-    "disabled": "Disabled"
+    "disabled": "Disabled",
+    "archived": "Archived"
   },
   "roles": {
     "owner": "Owner",
@@ -153,7 +154,9 @@
       "staff": "Staff",
       "apiKeys": "API keys",
       "members": "Members",
-      "points": "Points"
+      "points": "Points",
+      "coupons": "Coupons",
+      "stampCards": "Stamp cards"
     },
     "settings": {
       "title": "App settings",
@@ -385,6 +388,12 @@
       "confirmTitle": "Reset member card",
       "confirmBody": "Every QR code this member's card showed stops working at once. Continue?",
       "done": "Card reset. Old QR codes no longer work (key version {{version}})."
+    },
+    "tabs": {
+      "label": "Member sections",
+      "overview": "Points",
+      "coupons": "Coupons",
+      "stamps": "Stamps"
     }
   },
   "points": {
@@ -461,5 +470,135 @@
       "insufficient": "The member does not have enough points for this change.",
       "invalidDelta": "Enter a whole number other than zero."
     }
+  },
+  "coupons": {
+    "title": "Coupon templates",
+    "help": "Templates members claim or the brand issues. Archive a template to stop new claims; coupons already issued stay valid.",
+    "create": "New template",
+    "edit": "Edit template",
+    "filter": "Show",
+    "empty": "No coupon templates yet.",
+    "name": "Name",
+    "description": "Terms",
+    "type": "Type",
+    "types": {
+      "amount_off": "Amount off",
+      "percent_off": "Percent off",
+      "free_item": "Free item"
+    },
+    "valueText": {
+      "amount_off": "NT${{value}} off",
+      "percent_off": "{{value}}% off",
+      "free_item": "Free item"
+    },
+    "valueAmount": "Amount off (NT$)",
+    "valuePercent": "Percent off (1 to 100)",
+    "totalLimit": "Total limit",
+    "totalLimitHint": "Most coupons ever issued; leave empty for no limit. Already issued: {{n}}.",
+    "perMemberLimit": "Per member limit",
+    "validFrom": "Valid from",
+    "validTo": "Valid until",
+    "validityDays": "Valid for (days after issue)",
+    "validityDaysHint": "Leave empty for no relative expiry.",
+    "claimable": "Members can claim it",
+    "claimableHint": "Turn off for reward and issue-only templates.",
+    "claimedCount": "Issued",
+    "yes": "Yes",
+    "no": "No",
+    "noEnd": "No end",
+    "archive": "Archive",
+    "reactivate": "Reactivate",
+    "lockedHint": "Type and value are fixed once a coupon has been issued from this template.",
+    "errors": {
+      "nameRequired": "Enter a name.",
+      "amountValue": "Enter a whole number from 1 to 1,000,000.",
+      "percentValue": "Enter a whole number from 1 to 100.",
+      "totalLimit": "Enter a whole number from 1 to 10,000,000, or leave empty.",
+      "perMemberLimit": "Enter a whole number from 1 to 100.",
+      "perMemberAboveTotal": "The per member limit cannot be above the total limit.",
+      "validityDays": "Enter a whole number from 1 to 3650, or leave empty.",
+      "date": "Enter a valid date and time.",
+      "windowOrder": "The end must be after the start.",
+      "inUse": "Coupons were already issued from this template, so its type and value can no longer change."
+    }
+  },
+  "stampCards": {
+    "title": "Stamp cards",
+    "help": "Members collect stamps at the counter. Completing a card issues the reward coupon.",
+    "create": "New stamp card",
+    "edit": "Edit stamp card",
+    "empty": "No stamp cards yet.",
+    "name": "Name",
+    "stampsRequired": "Stamps to complete",
+    "stampsRequiredHint": "From 2 to 100. Fixed once any member has a stamp on the card.",
+    "reward": "Reward coupon",
+    "rewardHint": "An active template, usually an issue-only one.",
+    "noReward": "No reward coupon",
+    "maxPerVisit": "Most stamps per visit",
+    "maxPerVisitHint": "Staff can give at most this many on one scan.",
+    "inUseHint": "Locked: members already have stamps on this card.",
+    "errors": {
+      "nameRequired": "Enter a name.",
+      "stampsRequired": "Enter a whole number from 2 to 100.",
+      "maxPerVisit": "Enter a whole number from 1 to 100.",
+      "inUse": "Members already have stamps on this card, so the number of stamps cannot change. Your other changes were not saved yet."
+    }
+  },
+  "memberCoupons": {
+    "title": "Coupons",
+    "issue": "Issue coupon",
+    "state": "State",
+    "states": {
+      "available": "Available",
+      "redeemed": "Redeemed",
+      "expired": "Expired",
+      "voided": "Voided"
+    },
+    "empty": "This member has no coupons.",
+    "coupon": "Coupon",
+    "code": "Code",
+    "source": "Source",
+    "sources": {
+      "claim": "Claimed",
+      "issue": "Issued by brand",
+      "stamp_reward": "Stamp reward"
+    },
+    "issuedAt": "Issued",
+    "expiresAt": "Expires",
+    "never": "Never",
+    "void": "Void",
+    "issueTitle": "Issue a coupon",
+    "issueHelp": "The member gets a coupon from an active template, whatever its claimable setting.",
+    "template": "Template",
+    "pickTemplate": "Choose a template",
+    "issueSubmit": "Issue",
+    "voidTitle": "Void coupon",
+    "voidHelp": "Coupon {{code}} can no longer be redeemed. This does not give the template limit back.",
+    "reason": "Reason",
+    "errors": {
+      "soldOut": "This template has reached its total limit.",
+      "notClaimable": "This template is archived or outside its validity window.",
+      "unavailable": "This coupon was already redeemed or voided."
+    }
+  },
+  "memberStamps": {
+    "title": "Stamp cards",
+    "empty": "There are no stamp cards for this member yet.",
+    "adjust": "Adjust stamps",
+    "adjustTitle": "Adjust stamps: {{name}}",
+    "adjustHelp": "A positive change adds stamps and can complete the card; a negative one removes stamps. The change is recorded as a new entry.",
+    "progress": "Progress",
+    "progressValue": "{{count}} of {{required}} stamps",
+    "completions": "Completed",
+    "reward": "Reward",
+    "unrewarded": "{{n}} completed without a reward coupon.",
+    "unrewardedHint": "The reward was unavailable (sold out or archived) when the card was completed. You can issue a coupon by hand from the Coupons tab.",
+    "done": "Stamps adjusted. Completions: {{n}}.",
+    "doneUnavailable": "Stamps adjusted, but {{n}} reward coupon could not be issued because the reward is unavailable. Issue one by hand from the Coupons tab.",
+    "delta": "Change",
+    "deltaHint": "A whole number from -100 to 100, not zero.",
+    "invalidDelta": "Enter a whole number other than zero, up to 100.",
+    "note": "Reason",
+    "insufficient": "The member does not have that many stamps to remove."
   }
 }

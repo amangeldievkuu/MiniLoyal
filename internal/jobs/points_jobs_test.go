@@ -38,23 +38,23 @@ func (c *countingExpirer) ExpireDue(ctx context.Context, now time.Time, batch in
 	return c.next.ExpireDue(ctx, now, batch)
 }
 
-// Invariant: the worker connects as the application role, which is neither
-// a superuser, nor exempt from row-level security, nor the owner of the
-// points tables, and the real points expiry runs through River under it.
-// A points expiry job inserted twice in one period is stored once and runs
-// once.
-func TestPointsExpiryJobRunsOnceAsTheApplicationRole(t *testing.T) {
+// Invariant: the worker connects as miniloyal_worker, which is neither a
+// superuser, nor exempt from row-level security, nor the owner of the points
+// tables, and the real points expiry runs through River under it. The API
+// role enqueues the job. A points expiry job inserted twice in one period is
+// stored once and runs once.
+func TestPointsExpiryJobRunsOnceAsTheWorkerRole(t *testing.T) {
 	d := testutil.NewDB(t)
 	ctx := context.Background()
 
 	var user, owner string
 	var super, bypass bool
-	if err := d.App.QueryRow(ctx, `SELECT current_user, r.rolsuper, r.rolbypassrls,
+	if err := d.Worker.QueryRow(ctx, `SELECT current_user, r.rolsuper, r.rolbypassrls,
 		(SELECT tableowner FROM pg_tables WHERE schemaname = 'public' AND tablename = 'points_lots')
 		FROM pg_roles r WHERE r.rolname = current_user`).Scan(&user, &super, &bypass, &owner); err != nil {
 		t.Fatal(err)
 	}
-	if super || bypass || user == owner {
+	if user != WorkerRole || super || bypass || user == owner {
 		t.Fatalf("worker role %s: superuser %v, bypassrls %v, owner of points_lots %s", user, super, bypass, owner)
 	}
 
@@ -71,10 +71,11 @@ func TestPointsExpiryJobRunsOnceAsTheApplicationRole(t *testing.T) {
 		SELECT $1, $2, $3, gen_random_uuid(), id, 10, 10, 'earn', 'system' FROM lot`, tenantID, app, member)
 
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := points.New(points.Deps{Pool: d.App, Tenants: tenant.New(d.App, crypto.Static(bytes.Repeat([]byte{5}, 32)), clock.Real{}, log), Clock: clock.Real{}, Log: log})
+	svc := points.New(points.Deps{Pool: d.Worker, Tenants: tenant.New(d.Worker, crypto.Static(bytes.Repeat([]byte{5}, 32)), clock.Real{}, log), Clock: clock.Real{}, Log: log})
 	exp := &countingExpirer{next: svc}
 
-	// Two inserts in one period, as two worker processes scheduling at once.
+	// Two inserts in one period from the API role, which may only insert:
+	// the duplicate goes through River's ON CONFLICT path.
 	pinned := time.Now().Add(-24 * time.Hour).Truncate(ExpiryInterval).Add(ExpiryInterval / 2)
 	inserter, err := river.NewClient(riverpgxv5.New(d.App), &river.Config{Test: river.TestConfig{Time: fixedRiverTime{pinned}}})
 	if err != nil {
@@ -93,8 +94,8 @@ func TestPointsExpiryJobRunsOnceAsTheApplicationRole(t *testing.T) {
 	}
 
 	// A worker without periodic jobs, so the only expiry job is ours.
-	deps := Deps{Pool: d.App, Expirer: exp, Clock: clock.Real{}, Log: log}
-	client, err := river.NewClient(riverpgxv5.New(d.App), &river.Config{
+	deps := Deps{Pool: d.Worker, Expirer: exp, Clock: clock.Real{}, Log: log}
+	client, err := river.NewClient(riverpgxv5.New(d.Worker), &river.Config{
 		Queues:  map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 4}},
 		Workers: Workers(deps),
 		Logger:  log,

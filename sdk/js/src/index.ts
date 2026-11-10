@@ -8,6 +8,14 @@
 export { MiniLoyal, newKey } from './client';
 export type {
   AppPublic,
+  CouponFilter,
+  CouponInstance,
+  CouponInstancePage,
+  CouponListOptions,
+  CouponOffer,
+  CouponState,
+  CouponTemplateSummary,
+  StampProgress,
   Health,
   LineLoginRequest,
   Member,
@@ -27,6 +35,6 @@ export type {
   StopWatching,
 } from './client';
 export { MiniLoyalError, isMiniLoyalError } from './errors';
-export type { ApiError, SdkErrorCode } from './errors';
+export type { ApiError, CouponErrorCode, SdkErrorCode } from './errors';
 export type { LiffLike } from './liff';
 export type { components, paths } from './api/schema';

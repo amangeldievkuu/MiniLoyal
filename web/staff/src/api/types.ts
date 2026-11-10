@@ -10,3 +10,6 @@ export type ScannedMember = Schemas['ScannedMember'];
 export type PointsTransaction = Schemas['PointsTransaction'];
 export type StaffEarnRequest = Schemas['StaffEarnRequest'];
 export type StaffRedeemRequest = Schemas['StaffRedeemRequest'];
+export type CouponInstance = Schemas['CouponInstance'];
+export type StampProgress = Schemas['StampProgress'];
+export type StampResult = Schemas['StampResult'];

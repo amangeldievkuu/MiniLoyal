@@ -8,7 +8,8 @@
 //	migrate create NAME   create a new numbered SQL migration file
 //
 // It connects with MIGRATE_DATABASE_URL (the owner), falling back to
-// DATABASE_URL, and sets the login role's password from APP_DB_PASSWORD.
+// DATABASE_URL, and sets the login roles' passwords from APP_DB_PASSWORD
+// (miniloyal_api) and WORKER_DB_PASSWORD (miniloyal_worker).
 package main
 
 import (
@@ -62,13 +63,14 @@ func run(args []string) int {
 	defer db.Close()
 
 	ctx := context.Background()
+	passwords := migrate.Passwords{API: cfg.AppDBPassword, Worker: cfg.WorkerDBPassword}
 	switch cmd {
 	case "up":
-		if err = migrate.Roles(ctx, db, cfg.AppDBPassword); err == nil {
+		if err = migrate.Roles(ctx, db, passwords); err == nil {
 			err = migrate.Up(ctx, db)
 		}
 	case "roles":
-		err = migrate.Roles(ctx, db, cfg.AppDBPassword)
+		err = migrate.Roles(ctx, db, passwords)
 	case "down":
 		err = migrate.Down(ctx, db)
 	case "status":

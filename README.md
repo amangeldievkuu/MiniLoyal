@@ -6,7 +6,7 @@ Status: **Phase 3 complete** (points, member card, staff app). On top of the pla
 
 ## Security model in one paragraph
 
-Every tenant-scoped table has forced row-level security. The API connects as `miniloyal_api`, a role that owns nothing and cannot bypass RLS; each request runs inside a transaction that sets the tenant, so a bug in a query cannot read another tenant's rows. Pre-tenant lookups (sign-in, API key hash, webhook routing) run in an explicit system mode. LINE channel secrets and TOTP secrets are envelope-encrypted with a key-encryption key from a local file in development or Cloud KMS in production. Passwords are argon2id; refresh tokens and API keys are stored as hashes; every write takes an `Idempotency-Key`.
+Every tenant-scoped table has forced row-level security. The API connects as `miniloyal_api`, a role that owns nothing and cannot bypass RLS; each request runs inside a transaction that sets the tenant, so a bug in a query cannot read another tenant's rows. The worker connects as `miniloyal_worker`, which owns River's job tables and is also subject to RLS; the API role may only enqueue jobs. Pre-tenant lookups (sign-in, API key hash, webhook routing) run in an explicit system mode. LINE channel secrets and TOTP secrets are envelope-encrypted with a key-encryption key from a local file in development or Cloud KMS in production. Passwords are argon2id; refresh tokens and API keys are stored as hashes; every write takes an `Idempotency-Key`.
 
 ## Stack
 

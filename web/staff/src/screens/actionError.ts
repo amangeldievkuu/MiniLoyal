@@ -33,6 +33,12 @@ export function describeActionError(err: ApiError, t: TFunction, balance: number
       return fail(t('errors.selfService'));
     case 'points_disabled':
       return fail(t('errors.pointsDisabled'));
+    case 'coupon_unavailable':
+      return fail(t('errors.couponUnavailable'));
+    case 'stamp_visit_limit':
+      return fail(t('errors.stampVisitLimit'));
+    case 'stamp_card_inactive':
+      return fail(t('errors.stampCardInactive'));
     case 'staff_channel_required':
       return fail(t('start.staffChannelRequired'));
     case 'conflict':

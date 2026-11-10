@@ -2,12 +2,15 @@
 // the identity and webhook tables bounded, points expiry every 15 minutes and
 // the daily points reconciliation. Several workers may run at once; River's
 // leader election schedules each periodic job once.
+//
+// It connects with WORKER_DATABASE_URL as miniloyal_worker, the role that owns
+// River's tables. That role cannot bypass row-level security: jobs that span
+// tenants use system mode, exactly as they did under the API role.
 package main
 
 import (
 	"context"
 	"fmt"
-	"github.com/amangeldievkuu/miniloyal/internal/points"
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,6 +21,7 @@ import (
 	"github.com/amangeldievkuu/miniloyal/internal/platform/db"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/log"
 	"github.com/amangeldievkuu/miniloyal/internal/platform/otel"
+	"github.com/amangeldievkuu/miniloyal/internal/points"
 )
 
 var version = "dev"
@@ -48,12 +52,22 @@ func run() int {
 	}
 	defer func() { _ = shutdownTracing(context.Background()) }()
 
-	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	// The worker connects as miniloyal_worker, which owns River's tables; the
+	// API's role may only insert jobs.
+	if cfg.WorkerDatabaseURL == "" {
+		logger.Error("WORKER_DATABASE_URL is required")
+		return 2
+	}
+	pool, err := db.Connect(ctx, cfg.WorkerDatabaseURL)
 	if err != nil {
 		logger.Error("database connection failed", "err", err)
 		return 1
 	}
 	defer pool.Close()
+	if err := jobs.CheckWorkerRole(ctx, pool); err != nil {
+		logger.Error("worker database role rejected", "err", err)
+		return 1
+	}
 
 	deps := jobs.Deps{Pool: pool, Clock: clock.Real{}, Log: logger}
 	// Expiry and reconciliation need only the pool, clock and logger; the

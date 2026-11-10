@@ -107,6 +107,24 @@ for await (const p of ml.pointsHistoryAll({ limit: 50 })) {
 
 Points are added and spent by store staff (scanning the member card) or by the brand's backend; members only read them.
 
+## Coupons and stamps
+
+```ts
+const offers = await ml.coupons.offers(); // claimable now; offer.can_claim, offer.held
+try {
+  const coupon = await ml.coupons.claim(offers[0].template.id); // coupon.code, coupon.expires_at
+} catch (err) {
+  // err.code: 'coupon_sold_out' | 'coupon_limit_reached' | 'coupon_not_claimable' (HTTP 409)
+}
+
+const mine = await ml.coupons.list({ state: 'available', limit: 20 }); // or 'used', 'expired'
+for await (const p of ml.coupons.listAll({ state: 'used' })) console.log(p.items.length);
+
+const cards = await ml.stamps(); // per card: count, stamps_required, completions, reward
+```
+
+Staff redeem a coupon after scanning the member card, so show `code` and `expires_at` for lookup. Claims accept `{ idempotencyKey }` and reuse it on the single retry.
+
 ## Data rights
 
 ```ts
