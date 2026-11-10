@@ -8,11 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // Env is the deployment environment.
@@ -25,12 +26,17 @@ const (
 	Production  Env = "production"
 )
 
-// Development passwords of the login roles, refused in staging and
-// production.
+// Development passwords of the login roles and of the docker compose
+// superuser, refused in staging and production.
 const (
 	defaultAppDBPassword    = "miniloyal_api"
 	defaultWorkerDBPassword = "miniloyal_worker"
+	defaultOwnerDBPassword  = "miniloyal"
 )
+
+func isDefaultPassword(pw string) bool {
+	return pw == defaultAppDBPassword || pw == defaultWorkerDBPassword || pw == defaultOwnerDBPassword
+}
 
 // Config holds every setting the services read. Fields are plain values so
 // they can be constructed directly in tests.
@@ -141,11 +147,11 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 		if cfg.WorkerDBPassword == "" {
 			cfg.WorkerDBPassword = defaultWorkerDBPassword
 		}
-	} else if usesDefaultPassword(cfg) {
+	} else {
 		// The development passwords are public; outside development they
-		// would let anyone who reaches the database log in as the API or
-		// the worker.
-		errs = append(errs, errors.New("APP_DB_PASSWORD and WORKER_DB_PASSWORD (and the passwords in DATABASE_URL and WORKER_DATABASE_URL) must not be the development defaults outside development"))
+		// would let anyone who reaches the database log in as the API, the
+		// worker or the cluster superuser.
+		errs = append(errs, checkPasswords(cfg)...)
 	}
 
 	positive := func(key, def string) int {
@@ -191,22 +197,34 @@ func FromEnv(lookup func(string) (string, bool)) (*Config, error) {
 	return cfg, nil
 }
 
-// usesDefaultPassword reports whether a login role password, set directly
-// or inside a connection URL, is a development default.
-func usesDefaultPassword(cfg *Config) bool {
-	if cfg.AppDBPassword == defaultAppDBPassword || cfg.WorkerDBPassword == defaultWorkerDBPassword {
-		return true
+// checkPasswords refuses a development password, set directly or reaching a
+// connection through its URL, key=value string, PGPASSWORD or a passfile.
+// pgx.ParseConfig resolves the password the way the connection will.
+func checkPasswords(cfg *Config) []error {
+	var errs []error
+	if isDefaultPassword(cfg.AppDBPassword) || isDefaultPassword(cfg.WorkerDBPassword) {
+		errs = append(errs, errors.New("APP_DB_PASSWORD and WORKER_DB_PASSWORD must not be the development defaults outside development"))
 	}
-	for _, raw := range []string{cfg.DatabaseURL, cfg.WorkerDatabaseURL} {
-		u, err := url.Parse(raw)
-		if err != nil || u.User == nil {
+	for _, c := range []struct{ name, conn string }{
+		{"DATABASE_URL", cfg.DatabaseURL},
+		{"WORKER_DATABASE_URL", cfg.WorkerDatabaseURL},
+		{"MIGRATE_DATABASE_URL", cfg.MigrateDatabaseURL},
+	} {
+		if c.conn == "" {
 			continue
 		}
-		if pw, ok := u.User.Password(); ok && (pw == defaultAppDBPassword || pw == defaultWorkerDBPassword) {
-			return true
+		pc, err := pgx.ParseConfig(c.conn)
+		if err != nil {
+			// The parse error can quote the connection string, password
+			// included, so it is not passed on.
+			errs = append(errs, fmt.Errorf("%s is not a valid connection string", c.name))
+			continue
+		}
+		if isDefaultPassword(pc.Password) {
+			errs = append(errs, fmt.Errorf("the password in %s must not be a development default outside development", c.name))
 		}
 	}
-	return false
+	return errs
 }
 
 // LoadDotEnv sets environment variables from a .env file of KEY=VALUE lines.

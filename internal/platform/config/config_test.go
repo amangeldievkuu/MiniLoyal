@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -25,6 +27,7 @@ func TestFromEnvDevelopmentDefaults(t *testing.T) {
 // The worker's environment carries only WORKER_DATABASE_URL; nothing falls
 // back from one role's URL to the other's.
 func TestFromEnvDatabaseURLs(t *testing.T) {
+	isolatePG(t)
 	cfg, err := FromEnv(lookup(map[string]string{"WORKER_DATABASE_URL": "postgres://worker"}))
 	if err != nil {
 		t.Fatalf("worker-only environment: %v", err)
@@ -59,6 +62,7 @@ func TestFromEnvDatabaseURLs(t *testing.T) {
 }
 
 func TestFromEnvProductionRequiresSecrets(t *testing.T) {
+	isolatePG(t)
 	_, err := FromEnv(lookup(map[string]string{"ENV": "production", "DATABASE_URL": "postgres://x"}))
 	if err == nil {
 		t.Fatal("expected an error")
@@ -70,38 +74,81 @@ func TestFromEnvProductionRequiresSecrets(t *testing.T) {
 	}
 }
 
-// The development passwords of the login roles are public, so staging and
-// production refuse them, whether set directly or inside a connection URL.
+// isolatePG clears the libpq variables pgx reads while parsing a connection
+// string, so the developer's own environment cannot change the outcome.
+func isolatePG(t *testing.T) {
+	t.Helper()
+	for _, k := range []string{"PGPASSWORD", "PGUSER", "PGHOST", "PGSERVICE", "PGSERVICEFILE"} {
+		t.Setenv(k, "")
+	}
+	t.Setenv("PGPASSFILE", filepath.Join(t.TempDir(), "none"))
+}
+
+// The development passwords of the login roles and the compose superuser
+// are public, so staging and production refuse them, whether set directly or
+// reaching a connection through a URL, a key=value string, PGPASSWORD or a
+// passfile.
 func TestFromEnvRefusesDefaultPasswordsOutsideDevelopment(t *testing.T) {
+	isolatePG(t)
 	base := map[string]string{"ENV": "production", "DATABASE_URL": "postgres://miniloyal_api:s3cret@db/x",
 		"SESSION_SIGNING_KEY": "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=", "KEK_FILE": "/k"}
-	with := func(k, v string) map[string]string {
+	with := func(kv ...string) map[string]string {
 		m := map[string]string{}
 		for key, val := range base {
 			m[key] = val
 		}
-		m[k] = v
+		for i := 0; i+1 < len(kv); i += 2 {
+			m[kv[i]] = kv[i+1]
+		}
 		return m
 	}
 	if _, err := FromEnv(lookup(base)); err != nil {
 		t.Fatalf("production with real passwords: %v", err)
 	}
-	cases := map[string]map[string]string{
-		"app password":    with("APP_DB_PASSWORD", "miniloyal_api"),
-		"worker password": with("WORKER_DB_PASSWORD", "miniloyal_worker"),
-		"api url":         with("DATABASE_URL", "postgres://miniloyal_api:miniloyal_api@db/x"),
-		"worker url":      with("WORKER_DATABASE_URL", "postgres://miniloyal_worker:miniloyal_worker@db/x"),
+	passfile := filepath.Join(t.TempDir(), "pgpass")
+	if err := os.WriteFile(passfile, []byte("*:*:*:miniloyal:miniloyal\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	for name, env := range cases {
-		for _, e := range []string{"staging", "production"} {
-			env["ENV"] = e
-			if _, err := FromEnv(lookup(env)); err == nil || !strings.Contains(err.Error(), "development defaults") {
-				t.Errorf("%s in %s: %v, want a refusal", name, e, err)
+	cases := []struct {
+		name string
+		env  map[string]string
+		pg   map[string]string
+	}{
+		{"app password", with("APP_DB_PASSWORD", "miniloyal_api"), nil},
+		{"worker password", with("WORKER_DB_PASSWORD", "miniloyal_worker"), nil},
+		{"owner password as app password", with("APP_DB_PASSWORD", "miniloyal"), nil},
+		{"api url", with("DATABASE_URL", "postgres://miniloyal_api:miniloyal_api@db/x"), nil},
+		{"worker url", with("WORKER_DATABASE_URL", "postgres://miniloyal_worker:miniloyal_worker@db/x"), nil},
+		{"migrate url", with("MIGRATE_DATABASE_URL", "postgres://miniloyal:miniloyal@db/x"), nil},
+		{"owner url as DATABASE_URL", with("DATABASE_URL", "postgres://miniloyal:miniloyal@db/x"), nil},
+		{"key=value string", with("DATABASE_URL", "host=db user=miniloyal_api password=miniloyal_api dbname=x"), nil},
+		{"key=value migrate string", with("MIGRATE_DATABASE_URL", "host=db user=miniloyal password=miniloyal"), nil},
+		{"PGPASSWORD", with("MIGRATE_DATABASE_URL", "postgres://miniloyal@db/x"), map[string]string{"PGPASSWORD": "miniloyal"}},
+		{"passfile", with("MIGRATE_DATABASE_URL", "postgres://miniloyal@db/x"), map[string]string{"PGPASSFILE": passfile}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.pg {
+				t.Setenv(k, v)
 			}
-		}
+			for _, e := range []string{"staging", "production"} {
+				tc.env["ENV"] = e
+				if _, err := FromEnv(lookup(tc.env)); err == nil || !strings.Contains(err.Error(), "development default") {
+					t.Errorf("%s: %v, want a refusal", e, err)
+				}
+			}
+		})
 	}
-	dev := with("ENV", "development")
-	dev["DATABASE_URL"] = "postgres://miniloyal_api:miniloyal_api@db/x"
+
+	// A string pgx cannot parse is refused without echoing it, since it may
+	// hold a password.
+	_, err := FromEnv(lookup(with("WORKER_DATABASE_URL", "postgres://u:hunter2@%zz/x")))
+	if err == nil || !strings.Contains(err.Error(), "WORKER_DATABASE_URL is not a valid connection string") || strings.Contains(err.Error(), "hunter2") {
+		t.Errorf("unparseable URL: %v", err)
+	}
+
+	dev := with("ENV", "development", "DATABASE_URL", "postgres://miniloyal_api:miniloyal_api@db/x",
+		"MIGRATE_DATABASE_URL", "postgres://miniloyal:miniloyal@db/x")
 	if _, err := FromEnv(lookup(dev)); err != nil {
 		t.Errorf("development keeps its defaults: %v", err)
 	}
