@@ -299,7 +299,7 @@ var serverOps = []opCase{
 	{id: "serverGetMemberPoints", method: http.MethodGet, path: serverPointsPath, scope: "members:read"},
 	{id: "serverPostPoints", method: http.MethodPost, path: serverPointsPath,
 		body: obj("type", "earn", "points", 7, "ref_type", "receipt", "ref_id", "R-1"), alt: obj("type", "earn", "points", 8, "ref_type", "receipt", "ref_id", "R-1"),
-		idem: true, created: 200, creates: "points_lots", more: []string{"points_ledger", "outbound_events"}, scope: "points:write"},
+		idem: true, created: 200, creates: "points_lots", more: []string{"points_ledger", "outbound_events", "audit_log"}, scope: "points:write"},
 	{id: "serverListMemberCoupons", method: http.MethodGet, path: serverCouponsPath, scope: "members:read"},
 	{id: "serverIssueCoupon", method: http.MethodPost, path: serverCouponsPath,
 		body: func(f *matrixFixtures) any { return map[string]any{"template_id": f.template} },
