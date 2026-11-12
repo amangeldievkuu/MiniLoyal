@@ -28,7 +28,7 @@ ENTRYPOINT ["/migrate"]
 CMD ["up"]
 
 # Dashboard: Vite build served by nginx, with /v1 proxied to the API (same origin).
-FROM node:22.22-bookworm-slim AS webbuild
+FROM node:26.13-bookworm-slim AS webbuild
 WORKDIR /src
 COPY package.json package-lock.json ./
 COPY sdk/js/package.json sdk/js/
