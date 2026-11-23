@@ -10,6 +10,10 @@ updates:
     schedule: { interval: weekly }
     groups:
       npm-deps: { patterns: ['*'] }
+    # openapi-typescript and typescript-eslint do not accept TypeScript 7 yet.
+    ignore:
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
