@@ -11,8 +11,11 @@ updates:
     groups:
       npm-deps: { patterns: ['*'] }
     # openapi-typescript and typescript-eslint do not accept TypeScript 7 yet.
+    # jsdom 31 fails 12 dashboard tests on focus and form validation.
     ignore:
       - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      - dependency-name: jsdom
         update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
