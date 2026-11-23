@@ -33,3 +33,7 @@ staff channels with secrets it chooses, turns on `allow_hs256_id_tokens` for tha
 HS256 ID tokens itself, so it needs no LINE account. That works only with
 `LINE_SKIP_CREDENTIAL_VERIFICATION=true`, which the API refuses outside development. Real
 MINI Apps get ES256 tokens from LIFF and keep `allow_hs256_id_tokens` off.
+
+`real-line.md` is the manual check against real LINE channels and two phones: an ES256
+login, follow and unfollow webhooks, a staff scan with `liff.scanCodeV2()`, and an expired
+card screenshot.
